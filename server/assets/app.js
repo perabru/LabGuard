@@ -37,18 +37,25 @@
     return Number.isNaN(date.getTime()) ? String(value || "—") : date.toLocaleString("pt-BR");
   }
   function badge(value, kind) { return text("span", value, `state-badge ${kind || ""}`); }
-  function canWrite(kind) {
+  function supports(action) {
+    if (!snapshot || snapshot.mode === "observation") return false;
+    const capabilities = snapshot.capabilities || {};
+    const name = {add_domain: "domain_filtering", remove_domain: "domain_filtering", set_ai_block: "ai_block", set_device_block: "device_internet_cut", set_address_block: "address_blocking"}[action];
+    return !!name && capabilities[name] === true && (action !== "set_ai_block" || capabilities.domain_filtering === true);
+  }
+  function canWrite(action) {
     if (!token || role !== "admin" || !snapshot || busy || dbBusy || dbSyncing || Date.now() - lastSuccess > 20000) return false;
+    if (!supports(action)) return false;
     if (snapshot.mode === "demo") return true;
     const health = snapshot.health || {};
-    return kind === "device" ? health.firewall === true && health.forwarding === true : health.dns === true;
+    return ["set_device_block", "set_address_block"].includes(action) ? health.firewall === true && health.forwarding === true : health.dns === true;
   }
   function syncControls() {
     el("refresh").disabled = busy || dbBusy || !token;
     el("login-button").disabled = busy || dbBusy;
-    el("add-domain").disabled = !canWrite("domain");
-    el("new-domain").disabled = !canWrite("domain");
-    el("ai-toggle").disabled = !canWrite("domain") || !snapshot?.policies?.ai_block;
+    el("add-domain").disabled = !canWrite("add_domain");
+    el("new-domain").disabled = !canWrite("add_domain");
+    el("ai-toggle").disabled = !canWrite("set_ai_block") || !snapshot?.policies?.ai_block;
     document.querySelectorAll("[data-write-kind]").forEach(button => {
       button.disabled = !canWrite(button.dataset.writeKind) || button.dataset.protected === "true" || button.dataset.unavailable === "true";
     });
@@ -57,8 +64,8 @@
     const editable = canEditDB();
     for (const id of ["db-save", "db-domain", "db-category", "db-enabled", "db-notes", "db-import-text", "db-import-category", "db-import-button"]) el(id).disabled = !editable;
     for (const id of ["db-search-button", "db-export"]) el(id).disabled = !token || gatewayWriting || dbBusy;
-    el("db-sync").disabled = !canWrite("domain");
-    el("db-sync").textContent = dbSyncing ? "Aplicando lote…" : "Aplicar lista no gateway";
+    el("db-sync").disabled = !canWrite("add_domain") || !canWrite("remove_domain");
+    el("db-sync").textContent = dbSyncing ? "Aplicando lote…" : "Aplicar lista no equipamento";
     document.querySelectorAll("[data-db-write]").forEach(button => { button.disabled = !editable; });
     for (const id of ["map-load", "download-svg", "download-html", "download-csv", "download-pdf"]) el(id).disabled = !token || resourceBusy;
     el("map-load").textContent = resourceBusy ? "Consultando arquivo…" : mapObjectURL ? "Atualizar mapa" : "Carregar mapa";
@@ -113,7 +120,7 @@
         error.status = response.status;
         throw error;
       }
-      if (!result.data || !["admin", "viewer"].includes(result.role) || (expectSnapshot && !["demo", "gateway"].includes(result.data.mode))) throw new Error("Resposta incompatível com o painel.");
+      if (!result.data || !["admin", "viewer"].includes(result.role) || (expectSnapshot && !["demo", "gateway", "observation", "equipment"].includes(result.data.mode))) throw new Error("Resposta incompatível com o painel.");
       return result;
     } finally { clearTimeout(timeout); activeControllers.delete(requestController); if (controller === requestController) controller = null; }
   }
@@ -140,10 +147,10 @@
     const address = device[kind];
     const exists = hasAddressRule(kind, address, device);
     const label = `${blocked ? "Bloquear" : "Desbloquear"} ${kind.toUpperCase()}`;
-    const button = actionButton(label, blocked ? "danger" : "quiet", "device", () => {
+    const button = actionButton(label, blocked ? "danger" : "quiet", "set_address_block", () => {
       if (!address || (blocked ? device.observed !== true || exists : !exists)) return;
-      const scope = kind === "ip" ? "Este IP pode ser atribuído a outra máquina no futuro. A regra MAC permanece independente." : "A regra acompanha o endereço MAC observado no gateway. Uma regra por IP pode continuar suspendendo o acesso.";
-      mutate("set_address_block", {kind, address, blocked}, `${label} ${address}?\n\n${scope}\nUma regra por máquina também pode manter o acesso suspenso.`, "device");
+      const scope = kind === "ip" ? "Este IP pode ser atribuído a outra máquina no futuro. A regra MAC permanece independente." : "A regra usa o endereço MAC informado pelo equipamento. Uma regra por IP pode continuar suspendendo o acesso.";
+      mutate("set_address_block", {kind, address, blocked}, `${label} ${address}?\n\n${scope}\nUma regra por máquina também pode manter o acesso suspenso.`);
     }, !!device.protected);
     button.dataset.unavailable = String(!address || (blocked ? device.observed !== true || exists : !exists));
     button.title = device.protected ? "Equipamento protegido" : !address ? "Endereço não disponível" : blocked && device.observed !== true ? "Novos bloqueios exigem uma máquina observada na amostra" : `${label}: regra independente`;
@@ -155,23 +162,35 @@
     const accessPoint = supplied(device.access_point) || supplied(device.ap) || supplied(device.wifi?.access_point);
     return `${ssid ? `SSID: ${ssid}` : "SSID desconhecido"} · ${accessPoint ? `AP: ${accessPoint}` : "AP desconhecido"}`;
   }
+  function domainImpact() {
+    return snapshot?.mode === "gateway" ? "O DNS/DHCP do gateway legado será reiniciado brevemente. Caches e conexões abertas podem continuar." : "A aplicação usa os recursos de filtragem do equipamento conectado. O resultado depende da configuração de DNS da rede; caches e conexões abertas podem continuar.";
+  }
   function render() {
     const data = snapshot;
     const metrics = data.metrics || {};
+    const capabilities = data.capabilities || {};
     el("metric-devices").textContent = metrics.observed_devices ?? (data.devices || []).length;
-    el("metric-blocked").textContent = metrics.blocked_devices ?? 0;
-    el("metric-queries").textContent = metrics.queries_window ?? (data.events || []).length;
-    el("metric-dns-blocked").textContent = metrics.blocked_events_window ?? 0;
+    el("metric-blocked").textContent = data.mode === "observation" ? "—" : metrics.blocked_devices ?? 0;
+    el("metric-queries").textContent = capabilities.dns_history === true ? metrics.queries_window ?? (data.events || []).length : "—";
+    el("metric-dns-blocked").textContent = capabilities.dns_history === true ? metrics.blocked_events_window ?? 0 : "—";
     el("role").textContent = role === "admin" ? "Administração" : "Somente consulta";
     const gateway = data.gateway || {};
-    el("gateway-label").textContent = `${gateway.hostname || "Gateway"} · ${gateway.lab_cidr || "Rede configurada"}`;
-    el("mode-banner").textContent = data.mode === "demo" ? "DEMONSTRAÇÃO — dados fictícios. Nenhuma regra é aplicada à rede." : "GATEWAY REAL — ações administrativas afetam a rede configurada.";
-    el("mode-banner").className = `mode-banner ${data.mode === "gateway" ? "live" : ""}`;
+    el("gateway-label").textContent = `${gateway.hostname || (data.mode === "observation" ? "Observação local" : "Equipamento conectado")} · ${gateway.lab_cidr || "Escopo informado pela fonte"}`;
+    const modes = {
+      demo: "DEMONSTRAÇÃO — dados fictícios. Nenhuma regra é aplicada à rede.",
+      observation: "OBSERVAÇÃO LOCAL — consulta parcial pela conexão deste computador. Este modo não bloqueia a rede nem mostra todo o tráfego.",
+      equipment: "EQUIPAMENTO CONECTADO — dados e controles dependem do modelo, da configuração e das permissões informadas pela conexão.",
+      gateway: "GATEWAY LEGADO — conexão opcional ao agente Linux. Ações administrativas afetam a rede configurada."
+    };
+    el("mode-banner").textContent = modes[data.mode];
+    el("mode-banner").className = `mode-banner ${data.mode === "observation" ? "observation" : ["gateway", "equipment"].includes(data.mode) ? "live" : ""}`;
+    const supported = Object.entries({inventory: "inventário", domain_filtering: "filtragem de sites", address_blocking: "regras por IP / MAC", device_internet_cut: "regras por máquina", ai_block: "bloqueio de IA", dns_history: "histórico DNS", port_control: "controle de portas"}).filter(([key]) => capabilities[key] === true).map(([, name]) => name);
+    el("capability-summary").textContent = `Recursos informados pela fonte: ${supported.length ? supported.join(" · ") : "nenhum recurso confirmado"}. ${data.mode === "observation" ? "O banco de sites continua disponível para cadastro local." : "Os botões também exigem perfil administrativo, dados recentes e serviços ativos."}`;
     el("updated").textContent = `Atualizado em ${stamp(data.timestamp)} · consulta automática a cada 5 s`;
     el("health").replaceChildren();
-    for (const [key, name] of [["firewall", "Firewall"], ["dns", "DNS / DHCP"], ["forwarding", "Encaminhamento"]]) {
+    for (const [key, name, applicable] of [["firewall", "Firewall", capabilities.address_blocking === true || capabilities.device_internet_cut === true], ["dns", "DNS", capabilities.domain_filtering === true || capabilities.dns_history === true], ["forwarding", "Encaminhamento", capabilities.address_blocking === true || capabilities.device_internet_cut === true]]) {
       const item = document.createElement("div"); item.className = "health-item";
-      item.append(text("strong", name), badge(data.health?.[key] === true ? "Ativo" : "Indisponível", data.health?.[key] === true ? "ok" : "off"));
+      item.append(text("strong", name), badge(!applicable ? "Sem recurso" : data.health?.[key] === true ? "Ativo" : "Indisponível", applicable && data.health?.[key] === true ? "ok" : applicable ? "off" : ""));
       el("health").append(item);
     }
     const warnings = Array.isArray(data.warnings) ? data.warnings.slice(0, 10).join(" · ") : "";
@@ -186,23 +205,28 @@
       if (device.protected) name.append(text("small", "Equipamento protegido"));
       const address = document.createElement("td"); address.append(text("strong", device.ip), text("small", device.mac || "MAC não observado"));
       const state = document.createElement("td"); state.append(text("strong", device.observed === false ? "Regra salva · sem observação atual" : device.state || "Observada"), text("small", wifiEvidence(device)));
-      const access = document.createElement("td"); access.append(badge(device.blocked ? "Suspensa" : "Permitida", device.blocked ? "off" : "ok"));
+      const access = document.createElement("td"); const knownAccess = data.mode !== "observation" && typeof device.blocked === "boolean";
+      access.append(badge(!knownAccess ? "Não verificada" : device.blocked ? "Suspensa" : "Sem suspensão", !knownAccess ? "" : device.blocked ? "off" : "ok"));
       const causes = Array.isArray(device.blocked_by) ? device.blocked_by.map(value => ({device: "máquina", ip: "IP", mac: "MAC"})[value]).filter(Boolean) : [];
       if (causes.length) access.append(text("small", `Regras: ${causes.join(" + ")}`));
       const addressActions = document.createElement("td"); const addressGrid = document.createElement("div"); addressGrid.className = "address-actions";
       for (const kind of ["ip", "mac"]) for (const blocked of [true, false]) addressGrid.append(addressButton(device, kind, blocked));
       addressActions.append(addressGrid);
       const action = document.createElement("td");
-      const machineBlocked = causes.length ? causes.includes("máquina") : !!device.blocked && !hasAddressRule("ip", device.ip, device) && !hasAddressRule("mac", device.mac, device);
-      const legacy = actionButton(device.protected ? "Protegida" : machineBlocked ? "Remover regra" : "Suspender máquina", machineBlocked ? "success" : "danger", "device", () => mutate("set_device_block", {ip: device.ip, blocked: !machineBlocked}, `${machineBlocked ? "Remover a regra por máquina" : "Suspender a internet"} de ${device.name || "máquina"} (${device.ip})? Regras independentes de IP e MAC serão preservadas.`, "device"), !!device.protected);
-      legacy.dataset.unavailable = String(!device.ip || (!machineBlocked && device.observed === false)); action.append(legacy);
+      if (supports("set_device_block")) {
+        const machineBlocked = causes.length ? causes.includes("máquina") : !!device.blocked && !hasAddressRule("ip", device.ip, device) && !hasAddressRule("mac", device.mac, device);
+        const legacy = actionButton(device.protected ? "Protegida" : machineBlocked ? "Remover regra" : "Suspender máquina", machineBlocked ? "success" : "danger", "set_device_block", () => mutate("set_device_block", {ip: device.ip, blocked: !machineBlocked}, `${machineBlocked ? "Remover a regra por máquina" : "Suspender a internet"} de ${device.name || "máquina"} (${device.ip})? Regras independentes de IP e MAC serão preservadas.`), !!device.protected);
+        legacy.dataset.unavailable = String(!device.ip || (!machineBlocked && device.observed === false)); action.append(legacy);
+      } else {
+        action.append(text("small", "Regra por máquina indisponível nesta conexão."));
+      }
       row.append(name, address, state, access, addressActions, action); el("devices").append(row);
     }
     if (!devices.length) emptyRow(el("devices"), 6, "Nenhuma máquina observada nem regra de endereço disponível na amostra.");
     const policy = data.policies?.ai_block;
-    el("ai-state").textContent = policy ? policy.enabled ? "Ativo" : "Desativado" : "Indisponível";
-    el("ai-state").className = `state-badge ${policy?.enabled ? "ok" : ""}`;
-    el("ai-description").textContent = policy ? `${policy.services?.length || 0} serviços e ${policy.domain_count || 0} domínios no catálogo. Ativar aplica a lista ao laboratório inteiro.` : "O agente conectado não disponibiliza o perfil de IA.";
+    el("ai-state").textContent = !supports("set_ai_block") ? "Sem suporte" : policy ? policy.enabled ? "Ativo" : "Desativado" : "Indisponível";
+    el("ai-state").className = `state-badge ${supports("set_ai_block") && policy?.enabled ? "ok" : ""}`;
+    el("ai-description").textContent = !supports("set_ai_block") ? "A fonte conectada não confirmou suporte ao bloqueio de IA. Você pode organizar domínios no banco local." : policy ? `${policy.services?.length || 0} serviços e ${policy.domain_count || 0} domínios no catálogo. A ativação aplica o perfil no equipamento configurado.` : "A fonte conectada não disponibiliza o perfil de IA.";
     el("ai-toggle").textContent = policy?.enabled ? "Desativar bloqueio de IA" : "Ativar bloqueio de IA";
     el("ai-domains").replaceChildren();
     for (const domain of (policy?.domains || []).slice(0, 1000)) el("ai-domains").append(text("li", domain));
@@ -212,10 +236,11 @@
     for (const domain of domains.slice(0, 1000)) {
       const row = document.createElement("tr"); const source = domain.source === "ai_profile";
       const action = document.createElement("td");
-      action.append(actionButton(source ? "Perfil IA" : "Remover", "quiet", "domain", () => mutate("remove_domain", {domain: domain.domain}, `Remover o bloqueio manual de ${domain.domain}? O domínio continuará bloqueado se também pertencer ao perfil IA ativo.`, "domain"), source));
+      action.append(actionButton(source ? "Perfil IA" : "Remover", "quiet", "remove_domain", () => mutate("remove_domain", {domain: domain.domain}, `Remover o bloqueio manual de ${domain.domain}? O domínio continuará bloqueado se também pertencer ao perfil IA ativo. ${domainImpact()}`), source));
       row.append(text("td", domain.domain), text("td", source ? "Perfil IA" : "Manual"), action); el("domains").append(row);
     }
     if (!domains.length) emptyRow(el("domains"), 3, "Nenhum domínio cadastrado.");
+    el("domain-impact").textContent = supports("add_domain") ? domainImpact() : "Esta fonte não confirmou filtragem de sites. Cadastros no banco local não alteram a rede.";
     el("audit").replaceChildren();
     for (const record of (data.audit || []).slice(0, 7)) {
       const item = document.createElement("li"); item.append(text("strong", record.action || "Ação administrativa"), text("p", `${record.target || ""} · ${record.outcome || ""}`), text("small", stamp(record.time))); el("audit").append(item);
@@ -225,13 +250,13 @@
     for (const event of (data.events || []).slice(0, 12)) {
       const row = document.createElement("tr"); row.append(text("td", stamp(event.time)), text("td", event.client_ip), text("td", event.domain), text("td", event.status || "Consulta")); el("events").append(row);
     }
-    if (!el("events").children.length) emptyRow(el("events"), 4, "Nenhuma consulta DNS na amostra disponível.");
+    if (!el("events").children.length) emptyRow(el("events"), 4, capabilities.dns_history === true ? "Nenhuma consulta DNS na amostra disponível." : "A fonte conectada não disponibiliza histórico DNS.");
     syncControls();
   }
   async function refresh(login = false) {
     if (busy || dbBusy || dbSyncing || !token) return;
     busy = true; syncControls(); const current = generation;
-    el("request-status").textContent = "Consultando gateway…";
+    el("request-status").textContent = "Consultando a fonte configurada…";
     try {
       const result = await api("/api/snapshot");
       if (current !== generation) return;
@@ -250,9 +275,9 @@
       }
     } finally { if (current === generation) { busy = false; syncControls(); } }
   }
-  async function mutate(action, params, confirmation, kind) {
-    if (!canWrite(kind)) { message("action-error", "Atualize os dados e use um perfil administrativo antes de alterar a rede."); return; }
-    if (!window.confirm(confirmation + "\n\nA ação vale para a rede do gateway configurado. No modo demonstração ela é apenas simulada.")) return;
+  async function mutate(action, params, confirmation) {
+    if (!canWrite(action)) { message("action-error", "A ação exige suporte confirmado da fonte, serviços ativos, dados recentes e perfil administrativo."); return; }
+    if (!window.confirm(confirmation + (snapshot.mode === "demo" ? "\n\nModo demonstração: esta ação é apenas simulada." : "\n\nA ação será enviada ao equipamento configurado e pode afetar o acesso à rede."))) return;
     busy = true; gatewayWriting = true; syncControls(); const current = generation;
     el("request-status").textContent = "Aplicando alteração…";
     try {
@@ -308,7 +333,7 @@
       });
       const remove = text("button", "Excluir", "button row-action danger"); remove.type = "button"; remove.dataset.dbWrite = "true";
       remove.addEventListener("click", () => {
-        if (!canEditDB() || !window.confirm(`Excluir ${site.domain} do banco gerenciado?\n\nEssa alteração é local. Para refletir a remoção no gateway, aplique a lista depois. Regras manuais e do perfil IA serão preservadas.`)) return;
+        if (!canEditDB() || !window.confirm(`Excluir ${site.domain} do banco gerenciado?\n\nEssa alteração é local. Para refletir a remoção no equipamento, aplique a lista depois, quando houver suporte. Regras manuais e do perfil IA serão preservadas.`)) return;
         dbOperation("/api/banlist/delete", {domain: site.domain, expected_revision: site.revision}, "Registro excluído no banco. A rede ainda não foi alterada.");
       });
       actions.append(edit); if (!site.deleted) actions.append(remove);
@@ -330,7 +355,7 @@
       role = result.role;
       el("role").textContent = role === "admin" ? "Administração" : "Somente consulta";
       el("workspace").hidden = false; el("login").hidden = true;
-      el("mode-banner").textContent = "GATEWAY SEM DADOS — o banco local está disponível; aguarde a consulta da rede.";
+      el("mode-banner").textContent = "FONTE SEM DADOS — o banco local está disponível; aguarde a consulta da conexão configurada.";
       message("login-error", ""); renderDB(result.data); connected = true;
     } catch (error) {
       if (current !== generation) return;
@@ -370,8 +395,8 @@
     finally { if (current === generation) { dbBusy = false; syncControls(); } }
   }
   async function startSync() {
-    if (!canWrite("domain")) { dbMessage("Atualize os dados do gateway e use um perfil administrativo para aplicar a lista.", true); return; }
-    if (!window.confirm("Aplicar um lote de até 20 alterações pendentes do banco no gateway?\n\nCada domínio pode reiniciar brevemente o DNS/DHCP. Uma falha pode deixar o lote parcialmente aplicado. Confira o resultado antes de repetir. Regras manuais e do perfil IA serão preservadas.\n\nSair do painel não cancela um lote já iniciado.")) return;
+    if (!canWrite("add_domain") || !canWrite("remove_domain")) { dbMessage("A aplicação exige filtragem de sites confirmada pelo equipamento, DNS ativo, dados recentes e perfil administrativo.", true); return; }
+    if (!window.confirm(`Aplicar um lote de até 20 alterações pendentes do banco no equipamento?\n\n${domainImpact()} Uma falha pode deixar o lote parcialmente aplicado. Confira o resultado antes de repetir. Regras manuais e do perfil IA serão preservadas.\n\nSair do painel não cancela um lote já iniciado.`)) return;
     const current = generation; dbBusy = true; dbSyncing = true; syncControls();
     try {
       const result = await api("/api/banlist/sync", {}, false);
@@ -397,7 +422,7 @@
     const errors = Array.isArray(report.errors) ? report.errors.length : 0;
     const pending = Number(report.pending || 0);
     dbMessage(`Lote concluído: ${applied} alteração(ões) aplicada(s), ${errors} falha(s) e ${pending} pendência(s).` + (pending ? " Consulte a lista e aplique outro lote quando desejar." : ""), errors > 0);
-    if (report.snapshot && ["gateway", "demo"].includes(report.snapshot.mode)) { snapshot = report.snapshot; lastSuccess = Date.now(); render(); }
+    if (report.snapshot && ["gateway", "demo", "equipment", "observation"].includes(report.snapshot.mode)) { snapshot = report.snapshot; lastSuccess = Date.now(); render(); }
   }
   async function pollSync(current, initial = false) {
     if (current !== generation || !token) return;
@@ -407,9 +432,9 @@
       const result = await api("/api/banlist/sync-status", undefined, false);
       if (current !== generation) return;
       dbSyncing = !!result.data.running;
-      if (dbSyncing) { dbMessage("Aplicando lote no gateway. O banco está temporariamente bloqueado para edição."); again = true; }
+      if (dbSyncing) { dbMessage("Aplicando lote no equipamento. O banco está temporariamente bloqueado para edição."); again = true; }
       else if (!initial) {
-        if (result.data.error) dbMessage(`O lote não foi concluído: ${result.data.error}. Consulte o gateway antes de repetir.`, true);
+        if (result.data.error) dbMessage(`O lote não foi concluído: ${result.data.error}. Consulte o equipamento antes de repetir.`, true);
         else if (result.data.report) finishSync(result.data.report);
         reload = true;
       }
@@ -477,7 +502,7 @@
       const response = await fetch(target.path, {credentials: "omit", cache: "no-store", signal: requestController.signal, headers: {"Authorization": `Bearer ${token}`, "Accept": target.type}});
       if (!response.ok) {
         let detail = {}; try { detail = await response.json(); } catch { /* Use the generic error below. */ }
-        const error = new Error(detail.error || "Arquivo indisponível. Atualize o painel para obter uma amostra do gateway."); error.status = response.status; throw error;
+        const error = new Error(detail.error || "Arquivo indisponível. Atualize o painel para obter uma amostra da fonte configurada."); error.status = response.status; throw error;
       }
       if ((response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase() !== target.type) throw new Error("O servidor retornou um formato de arquivo inesperado.");
       const blob = await response.blob(); if (current !== generation) return;
@@ -537,12 +562,12 @@
   el("refresh").addEventListener("click", () => refresh());
   el("ai-toggle").addEventListener("click", () => {
     const enabled = !snapshot?.policies?.ai_block?.enabled;
-    mutate("set_ai_block", {enabled}, `${enabled ? "Ativar" : "Desativar"} o catálogo de bloqueio de serviços de IA para todo o laboratório? O serviço DNS/DHCP será reiniciado brevemente. Bloqueios manuais serão preservados.`, "domain");
+    mutate("set_ai_block", {enabled}, `${enabled ? "Ativar" : "Desativar"} o catálogo de bloqueio de serviços de IA no equipamento? ${domainImpact()} Bloqueios manuais serão preservados.`);
   });
   el("domain-form").addEventListener("submit", event => {
     event.preventDefault(); const domain = el("new-domain").value.trim();
     if (!domain) return;
-    mutate("add_domain", {domain, category: "Outros"}, `Bloquear ${domain} e seus subdomínios no laboratório inteiro? O serviço DNS/DHCP será reiniciado brevemente.`, "domain");
+    mutate("add_domain", {domain, category: "Outros"}, `Cadastrar o bloqueio de ${domain} no equipamento configurado? ${domainImpact()}`);
   });
   window.addEventListener("pagehide", () => { token = ""; activeControllers.forEach(item => item.abort()); activeControllers.clear(); clearMap(); downloadObjectURLs.forEach(url => URL.revokeObjectURL(url)); downloadObjectURLs.clear(); });
   ["pointerdown", "keydown"].forEach(name => document.addEventListener(name, () => { lastActivity = Date.now(); }, {passive: true}));

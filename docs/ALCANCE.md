@@ -1,5 +1,7 @@
 # Alcance e operação
 
+> **LabGuard 2.0:** este guia descreve o gateway Linux opcional. Para começar em observação local ou administrar um roteador compatível sem reposicionar o PC, use [Comece aqui](COMECE_AQUI.md) e o [manual 2.0](MANUAL_DO_USUARIO_V2.html).
+
 ## O que cada informação significa
 
 | Informação | Interpretação correta |

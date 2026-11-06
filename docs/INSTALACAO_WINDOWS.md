@@ -1,32 +1,34 @@
-# Instalar o LabGuard no Windows
+# Instalar o LabGuard 2.0 no Windows
 
-## Para usar
+## Instalar e abrir
 
 1. Baixe `LabGuard-Setup.exe` na [página de versões](https://github.com/perabru/LabGuard/releases/latest).
-2. Execute o instalador. Ele instala o painel na pasta de programas do seu usuário, cria a opção no menu Iniciar e permite criar um atalho na área de trabalho.
-3. Abra o LabGuard. A primeira tela usa uma **demonstração identificada**, com dados fictícios e sem alterar a rede.
+2. Execute o instalador. Ele instala o painel na pasta de programas do usuário, cria uma opção no menu Iniciar e permite criar um atalho na área de trabalho.
+3. Abra o LabGuard. O desktop começa em **observação local da rede**. A demonstração com dados fictícios precisa ser selecionada explicitamente.
 
-O instalador inclui o Python e os componentes gráficos necessários. Não é preciso instalar Python para executar o painel. A conexão SSH com gateway e equipamentos compatíveis usa o **Cliente OpenSSH do Windows**, que pode ser habilitado em Configurações → Recursos opcionais.
+O instalador inclui o runtime Python, os componentes gráficos e a geração de relatórios. Não é necessário instalar Python para usar o painel. A instalação dos arquivos do desktop não exige privilégios de administrador e não aplica regras em equipamentos externos.
 
-O painel é para Windows 10/11 x64, incluindo instalações de Windows Server com Desktop Experience compatível. Para execução em servidor sem interface gráfica, use o pacote próprio abaixo. Não há assinatura de código comercial nesta versão; confira a origem do download e o SHA-256 publicado. Não desative o antivírus ou as políticas do colégio para executar um arquivo.
+O painel é para Windows 10/11 x64, incluindo instalações de Windows Server com Desktop Experience compatível. Para um servidor sem desktop, existe um pacote separado. Não há assinatura de código comercial nesta versão; confira a origem do download e o SHA-256 publicado.
 
-## Conectar à rede do laboratório
+## Observar e conectar um equipamento
 
-Instalar o painel no Windows não aplica regras de rede nos demais computadores por si só. O filtro de jogos/IA e o corte de internet por máquina precisam do [gateway Linux configurado](INSTALACAO.md). A [central de integrações](INTEGRACOES.md) oferece as capacidades explicitamente indicadas para cada família de equipamentos.
+A observação local usa as informações que o Windows disponibiliza, como interfaces, rotas e vizinhos de rede. Ela não fornece um inventário completo de toda a escola nem prova que um endereço está conectado neste instante. Observar a rede não concede permissão para alterar um roteador.
 
-O painel não instala o agente Linux no Windows, não altera o roteador durante a instalação e não precisa de privilégios de administrador para instalar seus próprios arquivos.
+Para controlar a rede, configure no painel uma conexão direta com um equipamento compatível. O adaptador direto exige **RouterOS 7 com REST por HTTPS**, serviço `www-ssl` habilitado e certificado TLS validável. A porta padrão é 443. Informe o endereço, usuário e senha de uma conta autorizada; se a rede utiliza uma autoridade certificadora própria, selecione o arquivo dessa CA. Não desative a verificação TLS. Use as permissões necessárias às funções escolhidas e valide primeiro em um equipamento ou estação de teste.
 
-## Versão portátil
+Esse acesso direto não exige OpenSSH nem a API binária RouterOS da porta 8729. O Cliente OpenSSH do Windows é usado somente pelas integrações SSH opcionais e pode ser habilitado em Configurações → Recursos opcionais.
 
-O arquivo `LabGuard-Portable.zip` contém a pasta `LabGuard`. Extraia a pasta inteira e abra `LabGuard.exe`. Mantenha a pasta `_internal` e os demais arquivos junto do executável. O pacote portátil também começa em demonstração.
+O desktop não exige a instalação de um gateway Linux adicional. Bloquear sites ou endereços depende das funções efetivamente suportadas pelo equipamento conectado e do caminho do tráfego. Controle direto não significa compatibilidade universal com todos os modelos de uma marca. As demais integrações continuam apresentando seus recursos próprios; consulte [INTEGRACOES.md](INTEGRACOES.md).
 
-## Desinstalar
+O bloqueio de domínios exige que as consultas DNS dos clientes sejam tratadas pela infraestrutura configurada. VPN, DNS externo/criptografado, NAT intermediário e MAC privado podem limitar o alcance ou a identificação. O estado informado no painel deve ser conferido no equipamento antes de expandir uma política.
 
-Use Configurações → Aplicativos → LabGuard → Desinstalar. Isso remove o painel e os atalhos instalados, sem remover regras do gateway nem configurações de equipamentos externos. Perfis personalizados na pasta do usuário não são apagados automaticamente.
+## Pacote portátil
 
-## Servidor Windows sem interface gráfica
+`LabGuard-Portable.zip` contém a pasta `LabGuard`. Extraia a pasta inteira e abra `LabGuard.exe`. Mantenha `_internal` e os demais arquivos junto ao executável. O modo inicial é o mesmo do instalador: observação local, sem aplicar bloqueios automaticamente.
 
-O arquivo `LabGuard-Server-Windows.zip` contém `LabGuardServer.exe`, o runtime e os scripts de instalação de serviço. Ele oferece administração por um painel web local e pode iniciar automaticamente com o Windows, usando uma conta de serviço restrita.
+## Servidor Windows opcional
+
+`LabGuard-Server-Windows.zip` contém `LabGuardServer.exe`, seu runtime e os scripts de instalação. Esta edição oferece administração por painel web local e pode iniciar com o Windows sob uma conta de serviço restrita. Ela não é necessária para usar o desktop com conexão direta.
 
 Extraia todo o pacote. Em PowerShell elevado, na pasta `LabGuardServer`:
 
@@ -35,25 +37,23 @@ Extraia todo o pacote. Em PowerShell elevado, na pasta `LabGuardServer`:
 ./server/install-server.ps1
 ```
 
-A instalação não inicia a operação real antes de configurar o gateway. Os tokens de administração devem ser guardados somente pelos responsáveis. O servidor escuta em `127.0.0.1` por padrão e não instala automaticamente regras de firewall/DNS no Windows. Leia [o guia de servidores](SERVIDORES.md) para configurar credenciais, iniciar, parar e remover o serviço.
+A instalação registra o serviço. Ele pode iniciar em observação local, com alterações indisponíveis. A configuração administrativa deve ser concluída antes de habilitar o controle real de um equipamento. Guarde os tokens com os responsáveis. O servidor escuta em `127.0.0.1` por padrão e não instala automaticamente regras de firewall/DNS no Windows. Siga [SERVIDORES.md](SERVIDORES.md) para o backend suportado pela edição de servidor, credenciais, início, parada e remoção. O gateway Linux documentado continua sendo uma opção de implantação específica, sem ser requisito geral do desktop.
 
-O pacote é compilado em Windows x64. A validação automatizada executa a instalação como serviço nativo do SCM em um Windows descartável, em modo de demonstração, sem atuar na rede de um colégio. As versões específicas de Windows Server usadas pelo colégio precisam de validação local; o CI não é uma certificação de todas as edições.
+O CI valida a instalação como serviço nativo do SCM em um Windows descartável, em demonstração. As edições específicas de Windows Server usadas pelo colégio precisam de validação local; esse teste não certifica todas as versões.
 
-## Como o executável é gerado
+## Integridade e remoção
 
-O repositório inclui um fluxo de compilação no GitHub Actions. Ele executa os testes em Linux e Windows, empacota com PyInstaller, cria o instalador com Inno Setup e verifica a instalação em um ambiente Windows descartável. Só depois publica os arquivos na versão correspondente.
+Compare o SHA-256 do pacote com `SHA256SUMS.txt` da mesma versão. Para remover o desktop, use Configurações → Aplicativos → LabGuard → Desinstalar. A remoção dos arquivos e atalhos não desfaz políticas aplicadas em equipamentos externos. O pacote portátil pode ser removido apagando sua pasta após fechar o aplicativo.
 
-Para compilar manualmente em um Windows x64 com Python 3.12 e Inno Setup instalado:
+## Compilar a versão 2.0.0
+
+Em Windows x64 com Python 3.12 e Inno Setup instalado:
 
 ```powershell
 python -m pip install -r requirements-build.txt
-./scripts/build_windows.ps1 -Version 1.4.0
+./scripts/build_windows.ps1 -Version 2.0.0
 ```
 
-Os resultados ficam em `dist/release/`: instalador, ZIP portátil do painel e ZIP de servidor. O fluxo publica as somas SHA-256 após os testes das duas plataformas. O empacotamento precisa ser feito em Windows; o PyInstaller não transforma uma compilação Linux em um aplicativo Windows.
+Os arquivos ficam em `dist/release/`: instalador, ZIP portátil e ZIP de servidor. O GitHub Actions executa os testes, verifica a instalação e a abertura da janela em demonstração e testa o serviço nativo. A publicação aguarda também a conclusão dos pacotes Linux. A compilação Windows precisa ser feita em Windows; PyInstaller não converte um build Linux em um aplicativo Windows.
 
-## Referências de empacotamento
-
-- [PyInstaller — uso e arquivos adicionais](https://pyinstaller.org/en/stable/usage.html).
-- [Inno Setup — instalação por usuário](https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm).
-- [Inno Setup — parâmetros de instalação silenciosa](https://jrsoftware.org/ishelp/topic_setupcmdline.htm).
+Referências: [PyInstaller](https://pyinstaller.org/en/stable/usage.html), [Inno Setup — instalação por usuário](https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm) e [instalação silenciosa](https://jrsoftware.org/ishelp/topic_setupcmdline.htm).

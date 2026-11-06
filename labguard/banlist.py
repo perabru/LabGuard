@@ -280,8 +280,10 @@ class BanlistDatabase:
 
     @staticmethod
     def _snapshot_rules(snapshot):
-        if not isinstance(snapshot, dict) or snapshot.get("mode") not in ("demo", "gateway") or not isinstance(snapshot.get("health"), dict) or snapshot["health"].get("dns") is not True:
+        if not isinstance(snapshot, dict) or snapshot.get("mode") not in ("demo", "gateway", "equipment") or not isinstance(snapshot.get("health"), dict) or snapshot["health"].get("dns") is not True:
             raise BanlistError("O gateway precisa responder com DNS saudável antes de aplicar o banco.")
+        if snapshot.get("mode") == "equipment" and (not isinstance(snapshot.get("capabilities"), dict) or snapshot["capabilities"].get("domain_filtering") is not True):
+            raise BanlistError("O equipamento não confirmou suporte para aplicar bloqueios de domínios.")
         try:
             if not isinstance(snapshot.get("timestamp"), str):
                 raise ValueError()

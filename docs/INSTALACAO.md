@@ -1,5 +1,7 @@
 # Instalação no laboratório
 
+> **LabGuard 2.0:** este guia descreve o gateway Linux opcional. Para começar em observação local ou administrar um roteador compatível sem reposicionar o PC, use [Comece aqui](COMECE_AQUI.md) e o [manual 2.0](MANUAL_DO_USUARIO_V2.html).
+
 ## 1. Topologia necessária
 
 Conecte a saída LAN do roteador à interface WAN do gateway Linux. Conecte a interface LAN do gateway a um switch exclusivo do laboratório. As máquinas do laboratório devem usar esse switch, sem um segundo cabo ou Wi-Fi que alcance diretamente o roteador.

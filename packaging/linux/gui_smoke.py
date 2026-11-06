@@ -1,4 +1,4 @@
-"""Valida uma janela Tk real do pacote Linux dentro do Xvfb do CI."""
+"""Valida uma janela Tk real do pacote Linux em demonstração no Xvfb do CI."""
 from pathlib import Path
 import subprocess
 import sys
@@ -9,7 +9,7 @@ import time
 def main():
     executable = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stderr:
-        process = subprocess.Popen([executable], stdout=subprocess.DEVNULL, stderr=stderr)
+        process = subprocess.Popen([executable, "--demo"], stdout=subprocess.DEVNULL, stderr=stderr)
         try:
             for _ in range(60):
                 if process.poll() is not None:

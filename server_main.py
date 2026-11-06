@@ -38,7 +38,7 @@ def self_test(output=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="LabGuard Server - administração local do gateway")
+    parser = argparse.ArgumentParser(description="LabGuard Server - administração local de equipamentos e observação da rede")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--output")
     commands = parser.add_subparsers(dest="command")
@@ -72,7 +72,7 @@ def main(argv=None):
         if hasattr(signal, "SIGTERM"):
             signal.signal(signal.SIGTERM, stop)
         if sys.stdout is not None:
-            print(f"LabGuard Server em http://127.0.0.1:{server.server_port}/ - " + ("DEMONSTRAÇÃO" if args.demo else "gateway configurado"), flush=True)
+            print(f"LabGuard Server em http://127.0.0.1:{server.server_port}/ - " + ("DEMONSTRAÇÃO" if args.demo else "fonte: " + server.application.config.controller.get("kind", "legacy")), flush=True)
         try:
             server.serve_forever(poll_interval=0.25)
         except KeyboardInterrupt:

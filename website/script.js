@@ -76,6 +76,7 @@
     if (!response.ok) throw new Error("Release unavailable");
     return response.json();
   }).then(release => {
+    if (!String(release.tag_name || "").startsWith("v2.")) throw new Error("Versão 2 ainda em publicação");
     const assets = Array.isArray(release.assets) ? release.assets : [];
     document.querySelectorAll("[data-release-asset]").forEach(link => {
       const asset = assets.find(item => item.name === link.dataset.releaseAsset);

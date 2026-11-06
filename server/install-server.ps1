@@ -141,7 +141,7 @@ if ($Demo) { $command += " --demo" }
 $emptyPassword = [Security.SecureString]::new()
 try {
     $credential = [Management.Automation.PSCredential]::new('NT AUTHORITY\LocalService', $emptyPassword)
-    New-Service -Name LabGuardServer -BinaryPathName $command -StartupType Automatic -Credential $credential -DisplayName 'LabGuard Server' -Description 'Administração local autenticada de um gateway LabGuard. Não é um firewall nativo do Windows.' | Out-Null
+    New-Service -Name LabGuardServer -BinaryPathName $command -StartupType Automatic -Credential $credential -DisplayName 'LabGuard Server' -Description 'Administração local autenticada da rede e de equipamentos compatíveis.' | Out-Null
 } finally {
     $emptyPassword.Dispose()
 }
@@ -154,7 +154,7 @@ if ($Start) {
     Start-Service LabGuardServer
     Write-Output "Serviço iniciado. Acesse http://127.0.0.1:8765/ no servidor."
 } else {
-    Write-Output "Serviço instalado, sem iniciar. Preencha config.json, chave SSH e known_hosts; depois use Start-Service LabGuardServer."
+    Write-Output "Serviço instalado, sem iniciar. O modo observação pode iniciar sem roteador configurado. Para controle, configure um equipamento compatível; depois use Start-Service LabGuardServer."
 }
 Write-Output "Credenciais locais: $tokens (não compartilhe o conteúdo)."
 if ($Demo) { Write-Output "DEMONSTRAÇÃO EXPLÍCITA: dados fictícios; nenhuma regra é aplicada à rede." }

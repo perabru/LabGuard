@@ -15,6 +15,7 @@ on:
       - "packaging/**"
       - "scripts/**"
       - "requirements-build.txt"
+      - "requirements.txt"
       - ".github/workflows/windows-release.yml"
   workflow_dispatch:
 
@@ -24,7 +25,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "1.4.0"
+  LABGUARD_VERSION: "2.0.0"
 
 jobs:
   test:
@@ -63,7 +64,7 @@ jobs:
       - name: Testar componentes compatíveis com Windows
         shell: pwsh
         run: |
-          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py")
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_direct_routeros.py", "test_simple_gui.py")
           foreach ($pattern in $patterns) {
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
@@ -93,7 +94,7 @@ jobs:
           if ($check.ExitCode -ne 0 -or -not (Test-Path $report)) { throw "Autoteste do painel não concluiu." }
           $result = Get-Content $report -Raw | ConvertFrom-Json
           if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4) { throw "Recursos empacotados incompletos." }
-          $app = Start-Process -FilePath $exe -PassThru
+          $app = Start-Process -FilePath $exe -ArgumentList @("--demo") -PassThru
           Start-Sleep -Seconds 4
           $app.Refresh()
           if ($app.HasExited -or $app.MainWindowHandle -eq 0) { throw "A janela do painel não abriu." }
@@ -234,16 +235,14 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          LabGuard 1.4.0: dashboard profissional, banco gerenciável de sites banidos, administração remota sem cliente e pacotes desktop/servidor para Windows e Linux.
+          LabGuard 2.0.0: nova interface simplificada, observação local da rede e controle direto de equipamentos compatíveis.
 
-          O banco SQLite possui categorias, revisões, histórico, importação e exportação. Alterações são aplicadas explicitamente em lotes, preservando regras externas.
+          O desktop inicia em observação local; dados fictícios aparecem somente ao selecionar a demonstração. Equipamentos compatíveis podem ser configurados diretamente, sem tornar um gateway Linux adicional obrigatório para o painel.
 
-          A consulta de programas e os avisos exigem WinRM/HTTPS ou SSH previamente habilitado. Remoção restrita a pacotes compatíveis com confirmação, sem executar desinstaladores arbitrários ou apagar mundos do Minecraft.
+          O controle efetivo depende das capacidades do equipamento e das permissões da conexão. Nesta versão, o adaptador direto RouterOS 7 usa REST por HTTPS; consulte os guias antes de aplicar regras. Não há promessa de controle universal por marca.
 
-          Inclui mapa lógico de LAN/Wi-Fi, bloqueios independentes por IP/MAC, relatórios SVG/HTML/CSV/PDF e manual completo de 42 páginas com 27 capítulos.
+          Inclui instalador e portátil Windows, desktop Linux e pacotes opcionais de servidor Windows/Linux. Os pacotes passaram nos testes de abertura, instalação e recursos empacotados nas plataformas correspondentes.
 
-          Os pacotes passaram nos testes de abertura, instalação e recursos empacotados nas plataformas correspondentes. O servidor foi testado como serviço nativo no Windows e com systemd no Linux, em demonstração isolada.
-
-          Os serviços administrativos escutam apenas no endereço local por padrão. O filtro de domínios e o corte por máquina continuam dependendo do gateway configurado. Nenhum tráfego de uma escola real foi usado nos testes.
+          O servidor foi testado como serviço nativo no Windows e com systemd no Linux, em demonstração isolada. Os serviços administrativos escutam apenas no endereço local por padrão. Nenhum tráfego de uma escola real foi usado nos testes.
           EOF
           gh release create "$tag" ./* --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard $LABGUARD_VERSION" --notes-file /tmp/release-notes.txt --latest

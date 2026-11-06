@@ -8,11 +8,12 @@ from pathlib import Path
 import tempfile
 import threading
 import time
+import types
 import unittest
 from unittest.mock import patch
 
 from labguard.demo import DemoTransport
-from labguard.server import (Application, Limits, LocalHTTPServer, ServerConfig, ServerError,
+from labguard.server import (Application, CAPABILITIES, Limits, LocalHTTPServer, ServerConfig, ServerError,
                              initialize, validate_action)
 from labguard.server_service import run_service
 
@@ -33,12 +34,45 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ServerError, "já existe"):
                 initialize(path)
 
-    def test_unconfigured_production_refuses_start_demo_is_explicit(self):
+    def test_default_observation_starts_without_gateway_legacy_still_requires_configuration(self):
         with tempfile.TemporaryDirectory() as directory:
-            initialize(Path(directory))
+            path = Path(directory)
+            initialize(path)
+            self.assertEqual(ServerConfig(path).controller["kind"], "observation")
+            self.assertTrue(ServerConfig(path, demo=True).demo)
+            legacy = {"version": 1, "port": 8765, "gateway": {"host": "", "port": 22, "user": "labguard", "key_path": "", "known_hosts": ""}}
+            (path / "config.json").write_text(json.dumps(legacy))
             with self.assertRaisesRegex(ServerError, "Configure host"):
-                ServerConfig(Path(directory))
-            self.assertTrue(ServerConfig(Path(directory), demo=True).demo)
+                ServerConfig(path)
+            self.assertEqual(ServerConfig(path, demo=True).controller["kind"], "legacy")
+
+    def test_routeros_password_is_private_and_factory_receives_only_explicit_options(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            initialize(path)
+            data = json.loads((path / "config.json").read_text())
+            data["controller"] = {"kind": "routeros", "host": "192.168.1.1", "port": 443, "user": "operator", "manage_rules": False}
+            (path / "config.json").write_text(json.dumps(data))
+            with self.assertRaisesRegex(ServerError, "controller_password"):
+                ServerConfig(path)
+            secret = json.loads((path / "secrets.json").read_text())
+            secret["controller_password"] = "private-router-password-123"
+            (path / "secrets.json").write_text(json.dumps(secret))
+            config = ServerConfig(path)
+            transport = types.SimpleNamespace(close=lambda: None)
+            factory = unittest.mock.Mock(return_value=transport)
+            with patch.dict("sys.modules", {"labguard.controller": types.SimpleNamespace(create_transport=factory)}):
+                app = Application(config, logging_enabled=False)
+            self.assertIs(app.transport, transport)
+            self.assertEqual(factory.call_args.kwargs["password"], secret["controller_password"])
+            self.assertFalse(factory.call_args.kwargs["manage_rules"])
+            self.assertNotIn(secret["controller_password"], (path / "config.json").read_text())
+            app.close()
+            self.assertEqual(config.controller_password, "")
+            data["controller"]["password"] = secret["controller_password"]
+            (path / "config.json").write_text(json.dumps(data))
+            with self.assertRaisesRegex(ServerError, "somente"):
+                ServerConfig(path)
 
     @unittest.skipIf(os.name == "nt", "Modo POSIX; ACLs Windows são aplicadas no instalador.")
     def test_insecure_secret_permissions_and_symlink_config_are_rejected(self):
@@ -189,10 +223,12 @@ class HTTPTests(unittest.TestCase):
     def test_real_mutations_require_fresh_healthy_snapshot(self):
         snapshot = copy.deepcopy(DemoTransport().request("snapshot"))
         snapshot["mode"] = "gateway"
+        snapshot["capabilities"] = {key: True for key in CAPABILITIES}
         class Fake:
             def request(self, _action, **_params):
                 return snapshot
         self.app.config.demo = False
+        self.app.config.controller = {"kind": "legacy"}
         self.app.transport = Fake()
         with self.assertRaisesRegex(ServerError, "Atualize"):
             self.app.execute("set_ai_block", {"enabled": True})
@@ -278,7 +314,9 @@ class HTTPTests(unittest.TestCase):
     def test_uncertain_real_sync_preserves_partial_report_and_requires_refresh(self):
         snapshot = self.app.transport.request("snapshot")
         snapshot["mode"] = "gateway"
+        snapshot["capabilities"] = {key: True for key in CAPABILITIES}
         self.app.config.demo = False
+        self.app.config.controller = {"kind": "legacy"}
         self.app.last_snapshot = snapshot
         self.app.last_success = time.monotonic()
         self.app.stale = False
@@ -370,6 +408,7 @@ class HTTPTests(unittest.TestCase):
         source["mode"] = "gateway"
         source["health"]["dns"] = False
         self.app.config.demo = False
+        self.app.config.controller = {"kind": "legacy"}
         self.app.last_snapshot = source
         self.app.last_success = time.monotonic()
         target = next(row for row in source["devices"] if not row.get("protected"))
@@ -382,6 +421,135 @@ class HTTPTests(unittest.TestCase):
             with self.assertRaisesRegex(ServerError, "indisponível"):
                 self.app.execute("set_address_block", params)
             network.assert_not_called()
+
+    def test_observation_allows_inventory_and_local_database_but_no_network_writes(self):
+        sample = DemoTransport().request("snapshot")
+        sample.update(mode="observation", capabilities={key: True for key in CAPABILITIES})
+        self.app.config.demo = False
+        self.app.config.controller = {"kind": "observation"}
+        with patch.object(self.app.transport, "request", return_value=sample) as network:
+            status, _, body = self.request("/api/snapshot", token=self.viewer)
+            data = json.loads(body)["data"]
+            self.assertEqual(status, 200)
+            self.assertEqual(data["mode"], "observation")
+            self.assertTrue(data["capabilities"]["inventory"])
+            self.assertFalse(data["capabilities"]["domain_filtering"])
+            self.assertFalse(data["capabilities"]["port_control"])
+            self.assertFalse(data["capabilities"]["dns_history"])
+            network.reset_mock()
+            self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload={"action": "set_ai_block", "params": {"enabled": True}})[0], 400)
+            self.assertEqual(self.request("/api/banlist/sync", token=self.admin, method="POST", payload={})[0], 400)
+            self.assertEqual(self.request("/api/banlist/upsert", token=self.admin, method="POST", payload={"domain": "games.example", "category": "Jogos"})[0], 200)
+            network.assert_not_called()
+
+    def test_equipment_capabilities_and_private_fields_fail_closed(self):
+        sample = DemoTransport().request("snapshot")
+        sample.update(mode="equipment", capabilities={key: True for key in CAPABILITIES})
+        sample["controller"] = {"kind": "routeros", "password": "never-publish-this-password", "token": "secret-controller-token"}
+        self.app.config.demo = False
+        self.app.config.controller = {"kind": "routeros", "manage_rules": False}
+        with patch.object(self.app.transport, "request", return_value=sample) as network:
+            status, _, body = self.request("/api/snapshot", token=self.viewer)
+            self.assertEqual(status, 200)
+            self.assertNotIn(b"never-publish", body)
+            self.assertNotIn(b"secret-controller-token", body)
+            self.assertFalse(json.loads(body)["data"]["capabilities"]["address_blocking"])
+            self.assertFalse(json.loads(body)["data"]["capabilities"]["port_control"])
+            network.reset_mock()
+            payload = {"action": "set_address_block", "params": {"kind": "ip", "address": sample["devices"][0]["ip"], "blocked": True}}
+            self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload=payload)[0], 400)
+            network.assert_not_called()
+            self.app.config.controller["manage_rules"] = True
+            sample["capabilities"] = {"inventory": True}
+            self.app.execute("snapshot", {})
+            network.reset_mock()
+            self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload=payload)[0], 400)
+            network.assert_not_called()
+            sample["capabilities"]["address_blocking"] = True
+            self.app.execute("snapshot", {})
+            self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload=payload)[0], 200)
+
+    def test_controller_close_prevents_new_requests_and_clears_session_secret(self):
+        self.app.config.controller_password = "private-session-password"
+        with patch.object(self.app.transport, "close", create=True) as close:
+            self.app.close()
+            close.assert_called_once()
+        self.assertEqual(self.app.config.controller_password, "")
+        with patch.object(self.app.transport, "request") as network:
+            with self.assertRaisesRegex(ServerError, "encerrado"):
+                self.app.execute("snapshot", {})
+            network.assert_not_called()
+
+    def test_address_only_equipment_rejects_legacy_machine_action_without_dispatch(self):
+        sample = DemoTransport().request("snapshot")
+        sample.update(mode="equipment", capabilities={"inventory": True, "address_blocking": True, "device_internet_cut": False})
+        self.app.config.demo = False
+        self.app.config.controller = {"kind": "routeros", "manage_rules": True}
+        with patch.object(self.app.transport, "request", return_value=sample) as network:
+            self.app.execute("snapshot", {})
+            network.reset_mock()
+            target = sample["devices"][0]
+            legacy = {"action": "set_device_block", "params": {"ip": target["ip"], "blocked": True}}
+            self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload=legacy)[0], 400)
+            network.assert_not_called()
+            direct = {"action": "set_address_block", "params": {"kind": "ip", "address": target["ip"], "blocked": True}}
+            status, _, body = self.request("/api/action", token=self.admin, method="POST", payload=direct)
+            self.assertEqual(status, 200)
+            self.assertFalse(json.loads(body)["data"]["capabilities"]["device_internet_cut"])
+            network.assert_called_once_with("set_address_block", **direct["params"])
+
+    def test_close_invalidates_transport_before_waiting_for_sync_worker(self):
+        events = []
+        class Connection:
+            def close(self):
+                events.append("transport_closed")
+        class Worker:
+            def is_alive(self):
+                return True
+            def join(self, timeout):
+                self_outer.assertTrue(self_outer.app.cancel_sync.is_set())
+                self_outer.assertEqual(events, ["transport_closed"])
+                events.append("joined")
+        self_outer = self
+        self.app.transport = Connection()
+        self.app.sync_thread = Worker()
+        self.app.close()
+        self.assertEqual(events, ["transport_closed", "joined"])
+
+    def test_closed_controller_preflight_never_dispatches_next_mutation(self):
+        from labguard.controller import ControllerTransport
+        sample = DemoTransport().request("snapshot")
+        entered, release = threading.Event(), threading.Event()
+        calls = []
+        class Source:
+            def request(self, action, **params):
+                calls.append(action)
+                entered.set()
+                release.wait(2)
+                return sample
+            def close(self):
+                release.set()
+        connection = ControllerTransport("demo", Source())
+        result = []
+        def request():
+            try:
+                connection.request("set_ai_block", enabled=True)
+            except Exception as error:
+                result.append(str(error))
+        worker = threading.Thread(target=request)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(1))
+            connection.close()
+        finally:
+            release.set()
+            worker.join(3)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(calls, ["snapshot"])
+        self.assertTrue(result)
+        with self.assertRaisesRegex(Exception, "encerrada"):
+            connection.request("snapshot")
+        self.assertEqual(calls, ["snapshot"])
 
 
 if __name__ == "__main__":

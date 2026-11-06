@@ -1,5 +1,7 @@
 # Integrações diretas com roteadores e switches
 
+> **LabGuard 2.0:** os perfis desta central são independentes da nova conexão direta RouterOS em **Início → Conectar roteador**. O perfil antigo RouterOS desta central continua sendo consulta. As regras diretas da nova conexão dependem das capacidades e dos requisitos confirmados pelo equipamento; veja o [manual 2.0](MANUAL_DO_USUARIO_V2.html).
+
 A central **Roteadores e switches** é separada da conexão com o gateway Linux. Ela acessa somente o equipamento que o administrador indicar, usando os recursos declarados pelo perfil. A existência de uma marca na lista não significa compatibilidade com todos os seus modelos.
 
 ## Perfis fornecidos e alcance

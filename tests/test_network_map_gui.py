@@ -100,6 +100,22 @@ class MapActionTests(unittest.TestCase):
         win._act("ip", True)
         win.action_callback.assert_not_called()
 
+    def test_local_observation_refuses_actions_even_with_injected_capability(self):
+        win = self.window({"ip": "192.168.50.1"})
+        win.snapshot.update(mode="observation", capabilities={"address_blocking": True})
+        win._act("ip", True)
+        win.action_callback.assert_not_called()
+        self.assertEqual(block_description(win.snapshot, {"blocked": False}), "Bloqueio não verificado")
+
+    def test_equipment_requires_confirmed_address_blocking_capability(self):
+        win = self.window({"ip": "192.168.50.1"})
+        win.snapshot.update(mode="equipment", capabilities={"address_blocking": False})
+        win._act("ip", True)
+        win.action_callback.assert_not_called()
+        win.snapshot["capabilities"]["address_blocking"] = True
+        win._act("ip", True)
+        win.action_callback.assert_called_once_with("ip", "192.168.50.1", True)
+
     def test_dual_scope_unblock_does_not_remove_other_scope(self):
         d = {"ip": "192.168.50.1", "mac": "02:00:00:00:00:01"}
         win = self.window(d)

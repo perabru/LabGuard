@@ -8,6 +8,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from .controller import snapshot_capabilities
 from .ui import (ActionButton, RoundCard, BG, PANEL, CARD, TEXT, MUTED,
                  PURPLE, BLUE, AMBER, GREEN, RED, BORDER, rounded)
 
@@ -55,10 +56,18 @@ def address_is_blocked(snapshot, device, kind):
 
 
 def block_description(snapshot, device):
+    if snapshot.get("mode") == "observation":
+        return "Bloqueio não verificado"
     scopes = [kind.upper() for kind in ("ip", "mac") if address_is_blocked(snapshot, device, kind)]
     if scopes:
         return "Bloqueio: " + " + ".join(scopes)
-    return "Bloqueio registrado; origem não informada" if device.get("blocked") else "Sem bloqueio por endereço"
+    if device.get("blocked"):
+        return "Bloqueio registrado; origem não informada"
+    if snapshot.get("mode") == "observation":
+        return "Bloqueio não verificado"
+    if snapshot.get("mode") == "equipment":
+        return "Sem bloqueio informado pela fonte"
+    return "Sem bloqueio por endereço"
 
 
 class NetworkMapWindow(tk.Toplevel):
@@ -97,8 +106,9 @@ class NetworkMapWindow(tk.Toplevel):
         outer.pack(fill="both", expand=True)
         tk.Label(outer, text="Mapa da rede", bg=BG, fg=TEXT,
                  font=("Arial", 24, "bold"), anchor="w").pack(fill="x")
-        tk.Label(outer, text="Inventário observado · LAN / Wi-Fi pelo gateway · controle por endereço",
-                 bg=BG, fg=MUTED, font=("Arial", 11), anchor="w").pack(fill="x", pady=(4, 12))
+        self.source_subtitle = tk.Label(outer, text="Inventário observado · relações lógicas · controle conforme a fonte",
+                                        bg=BG, fg=MUTED, font=("Arial", 11), anchor="w")
+        self.source_subtitle.pack(fill="x", pady=(4, 12))
         self.mode_label = tk.Label(outer, textvariable=self.banner, bg="#FFF5CF", fg="#705514",
                                    font=("Arial", 10, "bold"), anchor="w", padx=14, pady=10)
         self.mode_label.pack(fill="x")
@@ -227,8 +237,15 @@ class NetworkMapWindow(tk.Toplevel):
 
     def _render(self):
         demo = self.snapshot.get("mode") == "demo"
+        mode = self.snapshot.get("mode")
+        self.source_subtitle.configure(text="Observação parcial do sistema local · relações lógicas inferidas" if mode == "observation" else
+                                       "Inventário do roteador · LAN / Wi-Fi conforme a fonte" if mode == "equipment" else
+                                       "Inventário observado · LAN / Wi-Fi pelo gateway · controle por endereço")
         self.banner.set("DEMONSTRAÇÃO · dados fictícios · nenhuma alteração na rede real" if demo else
+                        "Observação parcial local · bloqueios indisponíveis" + (" · leitura antiga" if self._stale() else "") if mode == "observation" else
                         "DADOS DESATUALIZADOS · ações suspensas; atualize o painel principal" if self._stale() else
+                        "ROTEADOR · inventário informado; controle por endereço indisponível" if mode == "equipment" and not snapshot_capabilities(self.snapshot)["address_blocking"] else
+                        "ROTEADOR · inventário informado; presença atual não confirmada" if mode == "equipment" else
                         "GATEWAY · inventário observado; presença atual não confirmada")
         self.mode_label.configure(bg="#FFF5CF" if demo else "#FCE9EF" if self._stale() else "#E7F0FF",
                                   fg="#705514" if demo else RED if self._stale() else BLUE)
@@ -255,14 +272,17 @@ class NetworkMapWindow(tk.Toplevel):
         gateway = self.snapshot.get("gateway", {})
         center = width / 2
         rounded(c, center-175, 18, center+175, 86, 16, fill=PURPLE, outline="")
-        c.create_text(center, 39, text="GATEWAY", fill="#D9CCFF", font=("Arial", 9, "bold"))
-        c.create_text(center, 64, text=str(gateway.get("hostname") or "Gateway não informado")[:42],
+        mode = self.snapshot.get("mode")
+        source_label = "FONTE LOCAL" if mode == "observation" else "ROTEADOR" if mode == "equipment" else "GATEWAY"
+        source_name = gateway.get("hostname") or ("Observação local" if mode == "observation" else "Roteador não informado" if mode == "equipment" else "Gateway não informado")
+        c.create_text(center, 39, text=source_label, fill="#D9CCFF", font=("Arial", 9, "bold"))
+        c.create_text(center, 64, text=str(source_name)[:42],
                       fill="white", font=("Arial", 12, "bold"))
         c.create_line(center, 86, center, 116, fill=BLUE, width=2, dash=(5, 4))
         rounded(c, center-180, 116, center+180, 171, 14, fill="#E7F0FF", outline="")
-        c.create_text(center, 135, text=f"REDE LAN  ·  {gateway.get('lab_cidr') or 'segmento não informado'}",
+        c.create_text(center, 135, text=f"{'SEGMENTO' if mode == 'observation' else 'REDE LAN'}  ·  {gateway.get('lab_cidr') or 'segmento não informado'}",
                       fill=BLUE, font=("Arial", 11, "bold"))
-        c.create_text(center, 154, text="LAN / Wi-Fi · relações inferidas", fill=MUTED, font=("Arial", 9))
+        c.create_text(center, 154, text="Segmento observado · relações inferidas" if mode == "observation" else "LAN / Wi-Fi · relações inferidas", fill=MUTED, font=("Arial", 9))
         devices = list(self._devices_by_key.items())[:MAP_LIMIT]
         columns = 3
         gap, margin = 16, 22
@@ -284,7 +304,7 @@ class NetworkMapWindow(tk.Toplevel):
             c.create_text(x+13, y+46, text=f"IP  {d.get('ip') or '—'}", anchor="w", fill=BLUE, font=("Arial", 10), tags=tag)
             c.create_text(x+13, y+66, text=f"MAC  {d.get('mac') or '—'}", anchor="w", fill=MUTED, font=("Arial", 9), tags=tag)
             status = "PROTEGIDA" if d.get("protected") else block_description(self.snapshot, d)
-            c.create_text(x+13, y+92, text=status[:36], anchor="w", fill=PURPLE if d.get("protected") else RED if d.get("blocked") or "IP" in status or "MAC" in status else GREEN,
+            c.create_text(x+13, y+92, text=status[:36], anchor="w", fill=PURPLE if d.get("protected") else MUTED if mode == "observation" else RED if d.get("blocked") or "IP" in status or "MAC" in status else GREEN,
                           font=("Arial", 9, "bold"), tags=tag)
             c.create_text(x+13, y+117, text=("Regra salva / sem evidência recente" if d.get("observed") is False else str(d.get("state") or "Observada"))[:37], anchor="w", fill=MUTED, font=("Arial", 9), tags=tag)
             c.tag_bind(tag, "<Button-1>", lambda _, k=key: self._select(k))
@@ -329,6 +349,8 @@ class NetworkMapWindow(tk.Toplevel):
         return "\n".join(parts) + "\n\n"
 
     def _allowed(self, device):
+        if not snapshot_capabilities(self.snapshot)["address_blocking"]:
+            return False
         if not device or device.get("protected") or not callable(self.action_callback):
             return False
         if getattr(self.parent, "_busy", False) or getattr(self.parent, "_session_locked", False):
@@ -344,7 +366,7 @@ class NetworkMapWindow(tk.Toplevel):
                              f"{block_description(self.snapshot, d)}\n" + self._wireless_details(d) + ("Equipamento protegido: ações indisponíveis." if d.get("protected") else "Presença atual não confirmada."))
         else:
             self.selected_title.configure(text="Escolha uma máquina")
-            self.details.set("Selecione um cartão ou uma linha. O inventário pode conter concessões antigas; o estado exibido é a evidência fornecida pelo gateway.")
+            self.details.set("Selecione um cartão ou uma linha. O inventário pode conter concessões antigas; o estado exibido é a evidência fornecida pela fonte.")
         for (kind, blocked), button in self.action_buttons.items():
             enabled = self._allowed(d) and valid_address(kind, d.get(kind)) and address_is_blocked(self.snapshot, d, kind) != blocked and (not blocked or d.get("observed") is not False)
             button.configure(state="normal" if enabled else "disabled")

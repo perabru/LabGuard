@@ -53,7 +53,7 @@ if "$start"; then
     systemctl restart labguard-server.service
     echo 'Serviço iniciado. Acesse http://127.0.0.1:8765/ no servidor.'
 else
-    echo 'Serviço instalado, sem iniciar. Configure o gateway e use sudo systemctl start labguard-server.'
+    echo 'Serviço instalado, sem iniciar. O modo observação pode iniciar sem roteador. Use sudo systemctl start labguard-server; controles exigem equipamento compatível.'
 fi
 echo 'Credenciais locais: /etc/labguard-server/access-tokens.txt (somente root).'
 if "$demo"; then echo 'DEMONSTRAÇÃO EXPLÍCITA: dados fictícios, sem controle real da rede.'; fi

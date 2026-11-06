@@ -16,6 +16,9 @@ def self_test(output: str | None = None) -> int:
         from labguard.integrations import IntegrationManager
         from labguard.banlist import BanlistDatabase
         from labguard.remote import PROCESS_CATALOGUE
+        from labguard.controller import create_transport
+        from labguard.discovery import LocalObservationTransport
+        from labguard.direct_routeros import DirectRouterOSTransport
         with tempfile.TemporaryDirectory(prefix="labguard-selftest-") as temporary:
             database = BanlistDatabase(Path(temporary) / "data" / "banlist.sqlite3")
             database.upsert("selftest.example", "Jogos")
@@ -25,7 +28,7 @@ def self_test(output: str | None = None) -> int:
         if getattr(sys, "frozen", False):
             from winrm.protocol import Protocol  # noqa: F401 - dependency load, no connection
             from reportlab.platypus import SimpleDocTemplate  # noqa: F401
-        snapshot = DemoTransport().request("snapshot")
+        snapshot = create_transport("demo").request("snapshot")
         if getattr(sys, "frozen", False):
             from labguard.reports import export_report
             with tempfile.TemporaryDirectory(prefix="labguard-reports-selftest-") as temporary:
@@ -42,7 +45,8 @@ def self_test(output: str | None = None) -> int:
         payload = {"ok": True, "version": __version__, "catalog_services": len(policy["services"]),
                    "catalog_domains": policy["domain_count"], "integration_profiles": len(profiles),
                    "banlist_database": "sqlite3", "remote_process_signatures": len(PROCESS_CATALOGUE),
-                   "reports": ["svg", "html", "csv", "pdf"]}
+                   "reports": ["svg", "html", "csv", "pdf"],
+                   "startup_mode": "observation", "controller_modes": ["observation", "routeros", "legacy", "demo"]}
         code = 0
     except Exception as error:
         payload, code = {"ok": False, "error": str(error)}, 1
@@ -57,12 +61,20 @@ def self_test(output: str | None = None) -> int:
 def run() -> int:
     parser = argparse.ArgumentParser(description="LabGuard - controle do laboratório escolar")
     parser.add_argument("--self-test", action="store_true", help="Validar recursos do pacote sem abrir a interface")
+    parser.add_argument("--demo", action="store_true", help="Abrir demonstração explícita com dados fictícios")
+    parser.add_argument("--legacy-ui", action="store_true", help="Abrir a interface avançada do gateway existente")
     parser.add_argument("--output", help="Gravar resultado do autoteste em JSON")
     args = parser.parse_args()
     if args.self_test:
         return self_test(args.output)
-    from labguard.gui import main
-    main()
+    if args.legacy_ui:
+        from labguard.gui import main
+        main()
+    else:
+        from labguard.simple_gui import App
+        from labguard.controller import create_transport
+        app = App(transport=create_transport("demo") if args.demo else None)
+        app.mainloop()
     return 0
 
 

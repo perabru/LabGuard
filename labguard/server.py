@@ -1,8 +1,8 @@
-"""Servidor local de administração. Nunca publica a API em uma interface de rede.
+"""Administração local por observação ou equipamento autorizado.
 
-O serviço administra um gateway existente por SSH; não é um firewall nativo
-para Windows. O HTTP é restrito ao loopback e não substitui um servidor de
-borda para publicação na internet.
+O computador não precisa encaminhar o tráfego. Controles dependem das
+capacidades reais do equipamento; o gateway SSH antigo continua opcional.
+O HTTP permanece restrito ao loopback.
 """
 from __future__ import annotations
 
@@ -29,7 +29,6 @@ from urllib.parse import parse_qs, urlsplit
 from . import __version__
 from .banlist import BanlistDatabase, BanlistError
 from .demo import DemoTransport, normalize_domain
-from .transport import SSHTransport, TransportError
 from .reports import ReportError, export_report, network_map_svg
 
 BIND_HOST = "127.0.0.1"
@@ -41,6 +40,10 @@ MAX_CONFIG = 32768
 MAX_AGE = 20.0
 MAX_REPORT_ROWS = 500
 MAX_REPORT_RULES = 1000
+CAPABILITIES = {"inventory", "domain_filtering", "device_internet_cut", "address_blocking", "ai_block", "dns_history", "port_control"}
+ACTION_CAPABILITIES = {"add_domain": ("domain_filtering",), "remove_domain": ("domain_filtering",),
+                       "set_ai_block": ("domain_filtering", "ai_block"), "set_device_block": ("device_internet_cut",),
+                       "set_address_block": ("address_blocking",)}
 ASSET_TYPES = {"/": ("index.html", "text/html; charset=utf-8"),
                "/app.css": ("app.css", "text/css; charset=utf-8"),
                "/app.js": ("app.js", "application/javascript; charset=utf-8")}
@@ -49,7 +52,8 @@ PARAMS = {"snapshot": set(), "add_domain": {"domain", "category"},
           "set_device_block": {"ip", "blocked"},
           "set_address_block": {"kind", "address", "blocked"}}
 PUBLIC_FIELDS = {"mode", "version", "timestamp", "gateway", "health", "devices", "domains",
-                 "events", "connections", "audit", "metrics", "warnings", "policies", "address_blocks"}
+                 "events", "connections", "audit", "metrics", "warnings", "policies", "address_blocks",
+                 "capabilities", "controller", "source"}
 
 
 class ServerError(RuntimeError):
@@ -102,9 +106,9 @@ def initialize(directory: Path) -> dict:
     if any((directory / name).exists() for name in ("config.json", "secrets.json", "access-tokens.txt")):
         raise ServerError("A configuração já existe. Nenhum token foi substituído.")
     tokens = {role: secrets.token_urlsafe(32) for role in ("viewer", "admin")}
-    config = {"version": 1, "port": DEFAULT_PORT,
-              "gateway": {"host": "", "port": 22, "user": "labguard", "key_path": "", "known_hosts": ""}}
-    hashes = {"version": 1, "tokens": {role: hashlib.sha256(value.encode()).hexdigest() for role, value in tokens.items()}}
+    config = {"version": 1, "port": DEFAULT_PORT, "controller": {"kind": "observation"}}
+    hashes = {"version": 1, "tokens": {role: hashlib.sha256(value.encode()).hexdigest() for role, value in tokens.items()},
+              "controller_password": ""}
     _new_private(directory / "config.json", json.dumps(config, indent=2) + "\n")
     _new_private(directory / "secrets.json", json.dumps(hashes, indent=2) + "\n")
     _new_private(directory / "access-tokens.txt", "LabGuard Server - guarde este arquivo como credencial administrativa.\n"
@@ -114,7 +118,7 @@ def initialize(directory: Path) -> dict:
     (directory / "data").mkdir(mode=0o700, exist_ok=True)
     return {"ok": True, "directory": str(directory), "config": str(directory / "config.json"),
             "tokens_file": str(directory / "access-tokens.txt"),
-            "message": "Configuração criada. Preencha o gateway antes de iniciar em modo real."}
+            "message": "Configuração criada. O modo observação inicia sem alterar a rede; controles exigem um equipamento compatível configurado."}
 
 
 class ServerConfig:
@@ -129,12 +133,12 @@ class ServerConfig:
             raise ServerError("O diretório de configuração não pode permitir escrita de outros usuários.")
         data = _read_json(self.directory / "config.json")
         secret = _read_json(self.directory / "secrets.json")
-        if data.get("version") != 1 or set(data) - {"version", "port", "gateway"}:
+        if data.get("version") != 1 or set(data) - {"version", "port", "gateway", "controller"}:
             raise ServerError("Configuração de servidor incompatível.")
         self.port = data.get("port", DEFAULT_PORT)
         if type(self.port) is not int or not 1024 <= self.port <= 65535:
             raise ServerError("A porta local precisa estar entre 1024 e 65535.")
-        self.gateway = data.get("gateway")
+        self.gateway = data.get("gateway", {"host": "", "port": 22, "user": "labguard", "key_path": "", "known_hosts": ""})
         allowed = {"host", "port", "user", "key_path", "known_hosts"}
         if not isinstance(self.gateway, dict) or set(self.gateway) != allowed:
             raise ServerError("Configuração SSH do gateway incompleta.")
@@ -142,8 +146,47 @@ class ServerConfig:
             raise ServerError("Os campos SSH precisam ser textos.")
         if type(self.gateway.get("port")) is not int or not 1 <= self.gateway["port"] <= 65535:
             raise ServerError("A porta SSH precisa estar entre 1 e 65535.")
-        if not demo and (not self.gateway.get("host") or not self.gateway.get("key_path") or not self.gateway.get("known_hosts")):
+        controller = data.get("controller", {"kind": "legacy" if "gateway" in data else "observation"})
+        fields = {"kind", "host", "port", "user", "ca_file", "protected_ips", "protected_macs", "manage_rules", "lab_cidr", "wan_interface_list"}
+        if not isinstance(controller, dict) or set(controller) - fields:
+            raise ServerError("Configuração de controlador incompatível; a senha pertence somente a secrets.json.")
+        kind = controller.get("kind", "observation")
+        if kind not in ("observation", "routeros", "legacy"):
+            raise ServerError("Use controlador observation, routeros ou legacy.")
+        self.controller = {"kind": kind}
+        if kind != "legacy":
+            self.controller.update(host=controller.get("host", ""), port=controller.get("port", 443),
+                                   user=controller.get("user", ""), ca_file=controller.get("ca_file", ""),
+                                   protected_ips=controller.get("protected_ips", []), protected_macs=controller.get("protected_macs", []),
+                                   manage_rules=controller.get("manage_rules", False), lab_cidr=controller.get("lab_cidr", ""),
+                                   wan_interface_list=controller.get("wan_interface_list", "WAN"))
+            if any(not isinstance(self.controller[key], str) for key in ("host", "user", "ca_file", "lab_cidr", "wan_interface_list")):
+                raise ServerError("Host, usuário e autoridade certificadora precisam ser textos.")
+            if self.controller["lab_cidr"]:
+                try:
+                    self.controller["lab_cidr"] = str(ipaddress.IPv4Network(self.controller["lab_cidr"], strict=True))
+                except ValueError as error:
+                    raise ServerError("A sub-rede do controlador precisa ser um CIDR IPv4 válido.") from error
+            if not 1 <= len(self.controller["wan_interface_list"]) <= 64 or any(ord(char) < 32 for char in self.controller["wan_interface_list"]):
+                raise ServerError("Lista de interfaces WAN inválida.")
+            if type(self.controller["port"]) is not int or not 1 <= self.controller["port"] <= 65535 or type(self.controller["manage_rules"]) is not bool:
+                raise ServerError("Porta ou autorização de regras do controlador inválida.")
+            for key in ("protected_ips", "protected_macs"):
+                if not isinstance(self.controller[key], list) or len(self.controller[key]) > 256 or any(not isinstance(value, str) for value in self.controller[key]):
+                    raise ServerError("Endereços administrativos protegidos inválidos.")
+            try:
+                self.controller["protected_ips"] = [str(ipaddress.IPv4Address(value)) for value in self.controller["protected_ips"]]
+                self.controller["protected_macs"] = [validate_action("set_address_block", {"kind": "mac", "address": value, "blocked": True})[1]["address"] for value in self.controller["protected_macs"]]
+            except (ValueError, ServerError) as error:
+                raise ServerError("Endereços administrativos protegidos inválidos.") from error
+        if kind == "legacy" and not demo and (not self.gateway.get("host") or not self.gateway.get("key_path") or not self.gateway.get("known_hosts")):
             raise ServerError("Configure host, chave SSH e known_hosts antes de iniciar o servidor real. Use --demo somente para demonstração.")
+        password = secret.get("controller_password", "")
+        if not isinstance(password, str) or len(password) > 4096 or any(ord(char) < 32 for char in password):
+            raise ServerError("Credencial do controlador inválida em secrets.json.")
+        if kind == "routeros" and not demo and (not self.controller["host"] or not self.controller["user"] or not password):
+            raise ServerError("Configure host e usuário do RouterOS; guarde a senha somente em secrets.json, no campo controller_password.")
+        self.controller_password = password
         tokens = secret.get("tokens")
         if secret.get("version") != 1 or not isinstance(tokens, dict) or set(tokens) != {"viewer", "admin"}:
             raise ServerError("Credenciais administrativas incompatíveis.")
@@ -153,6 +196,26 @@ class ServerConfig:
             raise ServerError("Consulta e administração precisam de credenciais diferentes.")
         self.token_hashes = dict(tokens)
         self.demo = bool(demo)
+
+
+def create_controller_transport(config):
+    if config.demo:
+        return DemoTransport()
+    try:
+        # Runtime import keeps init/configuration independent of platform
+        # optional inventory modules. An incomplete package fails explicitly.
+        from .controller import create_transport
+    except ImportError as error:
+        raise ServerError("Controlador ausente no pacote. Reinstale a aplicação completa.") from error
+    try:
+        options = dict(config.controller)
+        if options["kind"] == "legacy":
+            options.update(config.gateway)
+        elif options["kind"] == "routeros":
+            options["password"] = config.controller_password
+        return create_transport(**options)
+    except Exception as error:
+        raise ServerError("Não foi possível preparar o controlador. Confira o tipo, endereço, certificado e credenciais nos arquivos privados.") from error
 
 
 def validate_action(action, params) -> tuple[str, dict]:
@@ -232,7 +295,8 @@ class Limits:
 class Application:
     def __init__(self, config: ServerConfig, transport=None, *, logging_enabled=True):
         self.config = config
-        self.transport = transport or (DemoTransport() if config.demo else SSHTransport(**config.gateway))
+        self.transport = transport or create_controller_transport(config)
+        self._closed = False
         self.limits = Limits()
         self.network_lock = threading.Lock()
         self.report_lock = threading.Lock()
@@ -243,6 +307,10 @@ class Application:
         try:
             self.banlist = BanlistDatabase(config.directory / "data" / "banlist.sqlite3")
         except BanlistError as error:
+            close = getattr(self.transport, "close", None)
+            if callable(close):
+                close()
+            config.controller_password = ""
             raise ServerError(str(error)) from error
         self.last_snapshot = None
         self.last_success = 0.0
@@ -263,14 +331,19 @@ class Application:
             self.logger.addHandler(logging.NullHandler())
 
     def close(self):
+        if self._closed:
+            return
+        self._closed = True
         self.cancel_sync.set()
-        if self.sync_thread and self.sync_thread.is_alive():
-            # Finish the in-flight SSH request; cancellation is checked only
-            # between complete operations by the database synchronizer.
-            self.sync_thread.join(timeout=55)
         close = getattr(self.transport, "close", None)
         if callable(close):
             close()
+        self.config.controller_password = ""
+        if self.sync_thread and self.sync_thread.is_alive():
+            # Invalidate the connection before waiting so the controller cannot
+            # start a mutation after an in-flight preflight completes. A request
+            # already sent may finish and be recorded by the synchronizer.
+            self.sync_thread.join(timeout=55)
         self.banlist.close()
         for handler in list(self.logger.handlers):
             handler.close()
@@ -293,6 +366,50 @@ class Application:
         # Nunca registra cabeçalhos, tokens, corpo, senha ou caminho de chave.
         self.logger.info("action=%s role=%s result=%s", action, role, result)
 
+    def public_snapshot(self, snapshot):
+        if not isinstance(snapshot, dict) or snapshot.get("mode") not in {"observation", "equipment", "gateway", "demo"}:
+            raise ServerError("Resposta incompatível do controlador.")
+        expected = "demo" if self.config.demo else {"observation": "observation", "routeros": "equipment", "legacy": "gateway"}[self.config.controller["kind"]]
+        if snapshot["mode"] != expected:
+            raise ServerError("O controlador retornou um modo diferente da configuração autorizada.")
+        def clean(value):
+            if isinstance(value, dict):
+                return {key: clean(item) for key, item in value.items() if str(key).casefold() not in {"password", "controller_password", "authorization", "token", "tokens", "access_token", "secret", "private_key", "key_path", "known_hosts"}}
+            if isinstance(value, list):
+                return [clean(item) for item in value]
+            return value
+        data = clean({key: value for key, value in snapshot.items() if key in PUBLIC_FIELDS})
+        supplied = snapshot.get("capabilities", {})
+        data["capabilities"] = {key: supplied.get(key) is True for key in CAPABILITIES} if isinstance(supplied, dict) else {key: False for key in CAPABILITIES}
+        # Older demo fixtures have no capabilities; their actions are explicitly
+        # simulated. Real transports always fail closed when a flag is absent.
+        if snapshot["mode"] == "demo" and "capabilities" not in snapshot:
+            data["capabilities"] = {key: key != "port_control" for key in CAPABILITIES}
+        if snapshot["mode"] == "observation":
+            data["capabilities"] = {key: key == "inventory" for key in CAPABILITIES}
+        elif self.config.controller["kind"] == "routeros" and self.config.controller.get("manage_rules") is not True:
+            for flags in ACTION_CAPABILITIES.values():
+                for key in flags:
+                    data["capabilities"][key] = False
+            data["capabilities"]["port_control"] = False
+        return data
+
+    def check_mutation(self, action):
+        if self.config.demo and self.last_snapshot is None:
+            return
+        if self.stale or not self.last_snapshot or time.monotonic() - self.last_success > MAX_AGE:
+            raise ServerError("Atualize o estado do controlador antes de alterar regras.")
+        if self.last_snapshot.get("mode") == "observation" or (not self.config.demo and self.config.controller["kind"] == "routeros" and self.config.controller.get("manage_rules") is not True):
+            raise ServerError("O controlador está em observação ou consulta somente leitura; nenhuma regra de rede será alterada.")
+        capabilities = self.last_snapshot.get("capabilities", {})
+        if not isinstance(capabilities, dict) or not all(capabilities.get(key) is True for key in ACTION_CAPABILITIES[action]):
+            raise ServerError("O controlador não disponibiliza essa operação. A observação e os equipamentos somente leitura não alteram a rede.")
+        if self.config.demo:
+            return
+        required = ("firewall", "forwarding") if action in {"set_device_block", "set_address_block"} else ("dns",)
+        if not all(self.last_snapshot.get("health", {}).get(key) is True for key in required):
+            raise ServerError("O serviço necessário está indisponível. Confira a saúde do equipamento.")
+
     def sync_status(self):
         with self.job_lock:
             return dict(self.sync_job)
@@ -305,7 +422,7 @@ class Application:
         try:
             cached = self.last_snapshot
             if not isinstance(cached, dict):
-                raise ServerError("Atualize o gateway antes de exportar a primeira amostra.")
+                raise ServerError("Atualize a fonte antes de exportar a primeira amostra.")
             source = copy.deepcopy(cached)
             state = "stale" if self.stale or time.monotonic() - self.last_success > MAX_AGE else "fresh"
             original = len(source.get("devices", []))
@@ -314,7 +431,7 @@ class Application:
             source["address_blocks"] = source.get("address_blocks", [])[:MAX_REPORT_RULES]
             notes = []
             if state == "stale":
-                notes.append("dados anteriores; atualização do gateway não confirmada")
+                notes.append("dados anteriores; atualização da fonte não confirmada")
             if original > MAX_REPORT_ROWS:
                 notes.append(f"exportação do servidor limitada a {MAX_REPORT_ROWS} de {original} registros")
             if notes:
@@ -370,9 +487,12 @@ class Application:
                 raise ServerError("Há um lote em andamento ou o serviço está encerrando.")
             if not self.network_lock.acquire(blocking=False):
                 raise ServerError("Há uma operação de rede em andamento. Aguarde e atualize.")
-            if not self.config.demo and (self.stale or not self.last_snapshot or time.monotonic() - self.last_success > MAX_AGE or self.last_snapshot.get("health", {}).get("dns") is not True):
+            try:
+                self.check_mutation("add_domain")
+                self.check_mutation("remove_domain")
+            except ServerError:
                 self.network_lock.release()
-                raise ServerError("Atualize um gateway com DNS saudável antes de aplicar o banco.")
+                raise
             self.sync_job = {"running": True, "job_id": secrets.token_hex(8), "report": None, "error": None}
             application = self
             class CheckedTransport:
@@ -381,68 +501,64 @@ class Application:
 
                 def request(self, action, **params):
                     value = application.transport.request(action, **params)
-                    if not application.config.demo and (not isinstance(value, dict) or value.get("mode") != "gateway"):
-                        raise ServerError("O servidor real não aceita dados de demonstração.")
+                    value = application.public_snapshot(value)
+                    if not all(value["capabilities"].get(key) is True for key in ACTION_CAPABILITIES["add_domain"]):
+                        raise ServerError("O controlador não permite sincronizar bloqueios de domínios.")
                     return value
             def run_batch():
                 report, error = None, None
                 try:
                     report = self.banlist.sync(CheckedTransport(), limit=limit, cancel_event=self.cancel_sync)
                     snapshot = report.get("snapshot")
-                    if snapshot is not None and not self.config.demo and (not isinstance(snapshot, dict) or snapshot.get("mode") != "gateway"):
-                        raise ServerError("O servidor real não aceita dados de demonstração.")
                     if isinstance(snapshot, dict):
-                        self.last_snapshot = {key: value for key, value in snapshot.items() if key in PUBLIC_FIELDS}
+                        self.last_snapshot = self.public_snapshot(snapshot)
                         self.last_success = time.monotonic()
                     self.stale = snapshot is None or bool(report.get("errors"))
                 except (BanlistError, ServerError) as failure:
                     error = str(failure)[:250]
                     self.stale = True
                 except Exception:
-                    error = "O lote não foi confirmado. Atualize e revise o gateway antes de repetir."
+                    error = "O lote não foi confirmado. Atualize e revise o equipamento antes de repetir."
                     self.stale = True
                 finally:
                     self.network_lock.release()
                     with self.job_lock:
                         self.sync_job.update(running=False, report=report, error=error)
-                    self.audit("banlist_sync", role, "unconfirmed" if error or (report and report.get("errors")) else "completed_demo" if self.config.demo else "completed_gateway")
+                    self.audit("banlist_sync", role, "unconfirmed" if error or (report and report.get("errors")) else "completed_demo" if self.config.demo else "completed_controller")
             self.sync_thread = threading.Thread(target=run_batch, name="banlist-sync", daemon=True)
             self.sync_thread.start()
             return dict(self.sync_job)
 
     def execute(self, action: str, params: dict) -> dict:
+        if self.cancel_sync.is_set():
+            raise ServerError("O servidor foi encerrado.")
         action, params = validate_action(action, params)
         if not self.network_lock.acquire(timeout=0.1):
             raise ServerError("Há uma operação em andamento. Aguarde e atualize.")
         try:
-            if action != "snapshot" and not self.config.demo:
-                if self.stale or not self.last_snapshot or time.monotonic() - self.last_success > MAX_AGE:
-                    raise ServerError("Atualize o estado do gateway antes de alterar regras.")
-                health = self.last_snapshot.get("health", {})
-                required = ("firewall", "forwarding") if action in {"set_device_block", "set_address_block"} else ("dns",)
-                if not all(health.get(key) is True for key in required):
-                    raise ServerError("O serviço necessário está indisponível. Confira a saúde do gateway.")
+            if action != "snapshot":
+                self.check_mutation(action)
             if action == "set_address_block" and self.last_snapshot:
                 devices = self.last_snapshot.get("devices", [])
                 matches = [row for row in devices if isinstance(row, dict) and str(row.get(params["kind"], "")).lower() == params["address"]]
                 if params["blocked"]:
                     if not any(row.get("observed", True) is not False for row in matches):
-                        raise ServerError("O endereço ainda não foi observado pelo gateway.")
-                    protected_macs = {str(row.get("mac", "")).lower() for row in devices if isinstance(row, dict) and row.get("protected")}
-                    if any(row.get("protected") or str(row.get("mac", "")).lower() in protected_macs - {""} for row in matches):
+                        raise ServerError("O endereço ainda não foi observado pela fonte.")
+                    protected_ips = set(self.config.controller.get("protected_ips", []))
+                    protected_macs = {str(row.get("mac", "")).lower() for row in devices if isinstance(row, dict) and (row.get("protected") or row.get("ip") in protected_ips)}
+                    protected_macs.update(self.config.controller.get("protected_macs", []))
+                    if any(row.get("protected") or row.get("ip") in protected_ips or str(row.get("mac", "")).lower() in protected_macs - {""} for row in matches):
                         raise ServerError("Este endereço pertence a uma máquina protegida.")
             try:
                 snapshot = self.transport.request(action, **params)
             except Exception:
                 self.stale = True
                 raise
-            if not isinstance(snapshot, dict) or snapshot.get("mode") not in {"demo", "gateway"}:
+            try:
+                self.last_snapshot = self.public_snapshot(snapshot)
+            except ServerError:
                 self.stale = True
-                raise ServerError("Resposta incompatível do gateway.")
-            if not self.config.demo and snapshot["mode"] != "gateway":
-                self.stale = True
-                raise ServerError("O servidor real não aceita dados de demonstração.")
-            self.last_snapshot = {key: value for key, value in snapshot.items() if key in PUBLIC_FIELDS}
+                raise
             self.last_success = time.monotonic()
             self.stale = False
             return self.last_snapshot
@@ -663,8 +779,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             data = self.app.execute("snapshot", {})
         except Exception:
-            self.app.audit("snapshot", role, "gateway_failed")
-            self._error(502, "Não foi possível atualizar o gateway. Confira conexão, identidade SSH e configuração no servidor.")
+            self.app.audit("snapshot", role, "controller_failed")
+            self._error(502, "Não foi possível atualizar a fonte. Confira o serviço de observação ou a conexão, o certificado e as credenciais do equipamento.")
             return
         self._send(200, {"ok": True, "data": data, "role": role})
 
@@ -707,10 +823,10 @@ class Handler(BaseHTTPRequestHandler):
             self._error(400, str(error)[:250])
             return
         except Exception:
-            self.app.audit("mutation", role, "gateway_failed")
+            self.app.audit("mutation", role, "controller_failed")
             self._error(502, "A operação não foi confirmada. Atualize o estado antes de tentar novamente.")
             return
-        self.app.audit(action, role, "applied_demo" if self.app.config.demo else "applied_gateway")
+        self.app.audit(action, role, "applied_" + data.get("mode", "controller"))
         self._send(200, {"ok": True, "data": data, "role": role})
 
     def do_OPTIONS(self):

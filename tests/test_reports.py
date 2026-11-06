@@ -60,6 +60,40 @@ class ReportsTests(unittest.TestCase):
             self.assertIn("Não informado",path.read_text(encoding="utf-8-sig"))
         self.assertEqual(data["observed"],len(original["devices"]))
 
+    def test_observation_reports_are_partial_without_claiming_gateway_or_free_internet(self):
+        self.snapshot.update(mode="observation", gateway={}, address_blocks=[])
+        self.snapshot["devices"] = [{"name": "LOCAL", "ip": "192.168.50.1", "blocked": False}]
+        svg = network_map_svg(self.snapshot)
+        ElementTree.fromstring(svg)
+        self.assertIn("Observação parcial local", svg)
+        self.assertIn("nenhum bloqueio real aplicado", svg)
+        self.assertIn("Fonte: Observação local", svg)
+        self.assertIn("Bloqueio não verificado", svg)
+        self.assertNotIn("LAN / Wi-Fi pelo gateway", svg)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/"observation.html"
+            export_report(self.snapshot, path, "html")
+            html = path.read_text(encoding="utf-8")
+            self.assertIn("Fonte:", html)
+            self.assertIn("bloqueios indisponíveis", html)
+            self.assertIn("não aplica bloqueios reais", html)
+            self.assertNotIn("<td>Livre</td>", html)
+            self.assertNotIn("Wi-Fi pelo gateway", html)
+
+    def test_direct_equipment_reports_identify_router_without_requiring_extra_gateway(self):
+        self.snapshot.update(mode="equipment", gateway={"hostname": "ROUTER-01"})
+        svg = network_map_svg(self.snapshot)
+        self.assertIn("Roteador: ROUTER-01", svg)
+        self.assertIn("LAN / Wi-Fi pelo roteador", svg)
+        self.assertNotIn("LAN / Wi-Fi pelo gateway", svg)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/"router.html"
+            export_report(self.snapshot, path, "html")
+            html = path.read_text(encoding="utf-8")
+            self.assertIn("Roteador:", html)
+            self.assertIn("capacidades confirmadas", html)
+            self.assertNotIn("Wi-Fi precisa passar pelo gateway", html)
+
     def test_failed_export_preserves_existing_file_and_cleans_temporary(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/"report.pdf";path.write_text("existing")

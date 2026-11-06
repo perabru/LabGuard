@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # Execute em Linux x86_64. CI usa Ubuntu 22.04 (glibc 2.35).
 set -euo pipefail
-version="${1:-1.4.0}"
+version="${1:-2.0.0}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Versão inválida.' >&2; exit 1; }
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Compile em Linux x86_64.' >&2; exit 1; }
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_root"
+asset_args=()
+if [[ -d labguard/assets ]]; then
+  asset_args=(--add-data 'labguard/assets:labguard/assets')
+fi
 python3 -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --name LabGuard \
   --add-data 'gateway/ai_services.json:gateway' --add-data 'docs:docs' --add-data 'README.md:.' \
-  --collect-data reportlab --collect-submodules labguard --collect-submodules winrm main.py
+  --collect-data reportlab --collect-submodules labguard --collect-submodules winrm "${asset_args[@]}" main.py
 cp packaging/LEIA-ME.html dist/LabGuard/LEIA-ME.html
 cp -R docs dist/LabGuard/docs
 cp README.md dist/LabGuard/README.md
@@ -36,14 +40,14 @@ Installed-Size: $installed_size
 Depends: libc6 (>= 2.35), libx11-6, libxext6, libxrender1, libxft2, libfontconfig1, libfreetype6, libxcb1, openssh-client
 Homepage: https://perabru.github.io/LabGuard/
 Description: Painel de administracao de laboratorios escolares
- Interface grafica de administracao. Os filtros sao aplicados pelo gateway configurado.
+ Interface grafica de observacao local e controle direto de equipamentos compativeis.
 EOF
 chmod -R go-w "$package_root"
 dpkg-deb --root-owner-group --build "$package_root" dist/release/LabGuard-Linux-amd64.deb
 
 python3 -m PyInstaller --noconfirm --clean --onedir --console --noupx --name LabGuardServer \
   --add-data 'gateway/ai_services.json:gateway' --add-data 'server/assets:server/assets' --add-data 'docs:docs' \
-  --collect-data reportlab --collect-submodules labguard --exclude-module labguard.gui --exclude-module labguard.integration_gui \
+  --collect-data reportlab --collect-submodules labguard --exclude-module labguard.gui --exclude-module labguard.simple_gui --exclude-module labguard.integration_gui \
   --exclude-module labguard.network_map_gui --exclude-module labguard.remote_gui --exclude-module labguard.banlist_gui \
   --exclude-module labguard.ui --exclude-module tkinter server_main.py
 cp -R server dist/LabGuardServer/server
