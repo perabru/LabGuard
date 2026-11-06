@@ -26,7 +26,7 @@ class ReportsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/"report.html"
             export_report(self.snapshot,path,"html")
-            html=path.read_text()
+            html=path.read_text(encoding="utf-8")
             self.assertNotIn("<script>",html)
             self.assertIn("Content-Security-Policy",html)
             self.assertIn("Ligações inferidas",html)
@@ -65,7 +65,7 @@ class ReportsTests(unittest.TestCase):
             path=Path(directory)/"report.pdf";path.write_text("existing")
             with patch("labguard.reports._pdf",side_effect=ReportError("Unavailable")):
                 with self.assertRaises(ReportError):export_report(self.snapshot,path,"pdf")
-            self.assertEqual(path.read_text(),"existing")
+            self.assertEqual(path.read_text(encoding="utf-8"),"existing")
             self.assertEqual(list(Path(directory).iterdir()),[path])
 
     def test_invalid_format_and_malformed_snapshot_are_rejected(self):
