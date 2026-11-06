@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#7138e9">
+  <meta name="description" content="LabGuard: painel em Python para administrar a rede do laboratório escolar, controlar máquinas e bloquear domínios de jogos e serviços de IA pelo gateway.">
+  <meta property="og:title" content="LabGuard — Mais foco na aula">
+  <meta property="og:description" content="Um painel visual para cuidar da rede do laboratório escolar. Conheça o projeto, experimente a demonstração e baixe o aplicativo.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/social-card.svg">
+  <title>LabGuard — Mais foco na aula</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="13" rx="3"/><path d="M8 21h8m-4-5v5"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 2 9 4v6c0 5-5 9-9 10-4-1-9-5-9-10V6l9-4Z"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 2.8 7.2L22 12l-7.2 2.8L12 22l-2.8-7.2L2 12l7.2-2.8L12 2Z"/></symbol>
+    <symbol id="i-network" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="6" rx="2"/><rect x="2" y="16" width="8" height="6" rx="2"/><rect x="14" y="16" width="8" height="6" rx="2"/><path d="M12 8v4H6v4m6-4h6v4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10M6.4 5.5a9 9 0 1 0 11.2 0"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13a9 9 0 0 1-10-10A9 9 0 1 0 21 13Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-3-7-3-10-1v16c3-2 7-2 10 1 3-3 7-3 10-1V4c-3-2-7-2-10 1Zm0 0v16"/></symbol>
+  </svg>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="#inicio" aria-label="LabGuard — início"><img src="assets/favicon.svg" width="39" height="43" alt=""><span>Lab<span class="brand-light">Guard</span><small>FOCO NO QUE IMPORTA.</small></span></a>
+      <nav class="main-nav" id="main-nav" aria-label="Menu principal">
+        <a href="#recursos">Recursos</a><a href="#demonstracao">Experimente</a><a href="#como-funciona">Como funciona</a><a href="#compatibilidade">Integrações</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="theme-switch" type="button" id="theme-switch" aria-label="Ativar tema escuro" aria-pressed="false"><span class="theme-knob"><svg class="icon"><use href="#i-sun"/></svg></span></button>
+        <a class="button button-small button-primary" href="#download">Baixar <svg class="icon"><use href="#i-download"/></svg></a>
+        <button class="menu-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="main-nav"><svg class="icon"><use href="#i-menu"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <main id="conteudo">
+    <section class="hero section" id="inicio">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow"><span class="status-dot"></span> Feito para laboratórios escolares</span>
+          <h1>Mais foco na aula.<br><span>Mais controle no laboratório.</span></h1>
+          <p class="hero-description">Cuide do acesso à internet, organize bloqueios e acompanhe as máquinas em um painel simples. A tecnologia trabalha. A aula continua.</p>
+          <div class="hero-buttons"><a class="button button-primary download-link" href="https://github.com/perabru/LabGuard/releases/latest"><svg class="icon"><use href="#i-download"/></svg> Baixar para Windows <svg class="icon arrow"><use href="#i-arrow"/></svg></a><a class="button button-plain" href="#demonstracao">Explorar o painel <span class="play-dot">▶</span></a></div>
+          <p class="hero-note"><svg class="icon"><use href="#i-check"/></svg> Código disponível no GitHub <span>•</span> Interface em português</p>
+        </div>
+        <div class="hero-art">
+          <div class="art-orbit orbit-one" aria-hidden="true"></div><div class="art-orbit orbit-two" aria-hidden="true"></div>
+          <div class="art-tag"><span class="mini-spark">✦</span> Menos distrações.<br><strong>Mais possibilidades.</strong></div>
+          <img class="dashboard-illustration" src="assets/app-preview.png" width="1280" height="820" alt="Interface real do LabGuard em roxo, azul e amarelo: visão geral com cards de máquinas, consultas DNS e controles. Os dados mostrados são de demonstração.">
+          <div class="floating-status"><span class="icon-box small blue"><svg class="icon"><use href="#i-shield"/></svg></span><span>Controle com contexto<strong>Você define as regras.</strong></span><span class="status-tick">✓</span></div>
+          <p class="illustration-caption">Interface real do aplicativo · dados de demonstração</p>
+        </div>
+      </div>
+      <div class="container capability-line"><span><svg class="icon"><use href="#i-monitor"/></svg> Controle por máquina</span><span><svg class="icon"><use href="#i-spark"/></svg> Domínios de jogos e IA</span><span><svg class="icon"><use href="#i-network"/></svg> Integrações de rede</span><span class="capability-note">Um lugar para cuidar do laboratório.</span></div>
+    </section>
+
+    <section class="section features-section" id="recursos">
+      <div class="container">
+        <div class="section-heading"><div><span class="section-kicker">SIMPLES DE USAR. CLARO PARA DECIDIR.</span><h2>Sua próxima aula<br>merece mais atenção.</h2></div><p>Da visão geral aos detalhes de cada computador, encontre o controle certo sem se perder entre configurações.</p></div>
+        <div class="feature-grid">
+          <article class="feature-card"><div class="feature-card-top"><span class="icon-box purple"><svg class="icon"><use href="#i-monitor"/></svg></span><span class="card-index">01 / MÁQUINAS</span></div><h3>Cada máquina,<br>à vista.</h3><p>Consulte IP, MAC e nome disponível. Suspenda ou restaure a internet de uma máquina pelo gateway, com proteção para endereços administrativos.</p><a href="#demonstracao">Ver na demonstração <svg class="icon"><use href="#i-arrow"/></svg></a><div class="card-micro"><span class="micro-dot"></span><span>LAB-03</span><strong>Internet permitida</strong></div></article>
+          <article class="feature-card feature-blue"><div class="feature-card-top"><span class="icon-box blue"><svg class="icon"><use href="#i-shield"/></svg></span><span class="card-index">02 / DOMÍNIOS</span></div><h3>Os sites certos.<br>No momento certo.</h3><p>Cadastre domínios de jogos, importe listas e ative um perfil de serviços de IA. Novos domínios entram pela própria interface.</p><a href="#demonstracao">Explorar bloqueios <svg class="icon"><use href="#i-arrow"/></svg></a><div class="domain-chips"><span>Jogos</span><span>Serviços de IA</span><span>+ Novo domínio</span></div></article>
+          <article class="feature-card feature-yellow"><div class="feature-card-top"><span class="icon-box yellow"><svg class="icon"><use href="#i-network"/></svg></span><span class="card-index">03 / INTEGRAÇÕES</span></div><h3>Equipamentos<br>com contexto.</h3><p>Consulte equipamentos compatíveis, controle portas autorizadas e adicione perfis. Cada adaptador informa exatamente o que oferece.</p><a href="#compatibilidade">Conferir compatibilidade <svg class="icon"><use href="#i-arrow"/></svg></a><div class="integration-tags"><span>TP-Link</span><span>Cisco</span><span>MikroTik</span></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section demo-section" id="demonstracao">
+      <div class="container">
+        <div class="section-heading"><div><span class="section-kicker">EXPERIMENTE ANTES DE INSTALAR</span><h2>Alguns cliques.<br>Uma ideia bem clara.</h2></div><p>Teste os controles abaixo. Esta demonstração funciona apenas no navegador e não acessa nem altera sua rede.</p></div>
+        <div class="demo-shell">
+          <div class="demo-sidebar"><a class="demo-logo" href="#inicio"><img src="assets/favicon.svg" alt="" width="27" height="30"> LabGuard</a><span class="demo-nav-item active"><svg class="icon"><use href="#i-monitor"/></svg> Meu laboratório</span><span class="demo-nav-item"><svg class="icon"><use href="#i-shield"/></svg> Domínios</span><span class="demo-nav-item"><svg class="icon"><use href="#i-network"/></svg> Integrações</span><span class="demo-sidebar-note">Ilustração interativa<br>Sem conexão com equipamentos</span></div>
+          <div class="demo-content">
+            <div class="demo-top"><div><span class="demo-kicker">VISÃO GERAL</span><h3>Laboratório em foco.</h3></div><span class="demo-badge"><span></span> Dados fictícios</span></div>
+            <div class="demo-notice">Demonstração interativa · nenhuma regra é aplicada à sua rede.</div>
+            <div class="demo-metrics"><div><span>Máquinas de exemplo</span><strong>04</strong></div><div><span>Internet permitida</span><strong id="demo-online-count">03</strong></div><div class="metric-highlight"><span>Perfil de IA</span><strong id="demo-ai-status">Desativado</strong></div></div>
+            <div class="demo-control-heading"><div><h4>Máquinas do laboratório</h4><p>Use o botão de cada card para simular o controle.</p></div><button class="text-button" type="button" id="demo-reset">Reiniciar demo ↻</button></div>
+            <div class="machine-grid" id="machine-grid">
+              <article class="machine-card" data-machine="1"><div class="machine-card-header"><span class="machine-icon"><svg class="icon"><use href="#i-monitor"/></svg></span><span class="machine-state">Permitida</span></div><h5>LAB-01</h5><p>192.168.50.101</p><button class="machine-toggle" type="button" aria-pressed="false">Suspender internet</button></article>
+              <article class="machine-card" data-machine="2"><div class="machine-card-header"><span class="machine-icon"><svg class="icon"><use href="#i-monitor"/></svg></span><span class="machine-state">Permitida</span></div><h5>LAB-02</h5><p>192.168.50.102</p><button class="machine-toggle" type="button" aria-pressed="false">Suspender internet</button></article>
+              <article class="machine-card is-blocked" data-machine="3"><div class="machine-card-header"><span class="machine-icon"><svg class="icon"><use href="#i-monitor"/></svg></span><span class="machine-state">Suspensa</span></div><h5>LAB-03</h5><p>192.168.50.103</p><button class="machine-toggle" type="button" aria-pressed="true">Restaurar internet</button></article>
+              <article class="machine-card is-protected"><div class="machine-card-header"><span class="machine-icon"><svg class="icon"><use href="#i-shield"/></svg></span><span class="machine-state">Protegida</span></div><h5>PROFESSOR</h5><p>192.168.50.10</p><button class="machine-toggle" type="button" disabled>Endereço protegido</button></article>
+            </div>
+            <div class="ai-demo-card"><div class="ai-demo-copy"><span class="icon-box purple"><svg class="icon"><use href="#i-spark"/></svg></span><div><h4>Serviços de IA</h4><p>Simule a ativação do perfil de domínios cadastrados.</p></div></div><button type="button" class="toggle-control" id="ai-toggle" role="switch" aria-checked="false" aria-label="Simular bloqueio de serviços de IA"><span></span></button></div>
+            <div class="ai-service-list" id="ai-service-list" aria-live="polite"><span>ChatGPT</span><span>Claude</span><span>Gemini</span><span>Copilot</span><span>+ novos domínios</span></div>
+            <div class="demo-feedback" id="demo-feedback" role="status" aria-live="polite">Escolha uma máquina ou ative o perfil de IA para experimentar.</div>
+          </div>
+        </div>
+        <p class="section-footnote">No aplicativo real, o inventário reúne máquinas observadas. Consultas DNS podem vir de serviços em segundo plano e não comprovam uma visita do aluno.</p>
+      </div>
+    </section>
+
+    <section class="section how-section" id="como-funciona">
+      <div class="container how-grid">
+        <div class="how-copy"><span class="section-kicker">UMA REDE BEM ORGANIZADA</span><h2>O painel com você.<br>O controle na rede.</h2><p>O aplicativo Windows é sua central de administração. Para aplicar bloqueios de domínios e suspender a internet por máquina, o laboratório usa um gateway Linux no caminho do tráfego.</p><ol class="steps"><li><span>1</span><div><h3>Prepare o gateway</h3><p>Um computador Linux com duas interfaces, entre o roteador e o switch do laboratório.</p></div></li><li><span>2</span><div><h3>Conecte o painel</h3><p>Use a conexão administrativa documentada e proteja os endereços do professor.</p></div></li><li><span>3</span><div><h3>Teste e acompanhe</h3><p>Valide com uma máquina antes de liberar para a turma. Depois, administre pelo painel.</p></div></li></ol><a class="inline-link" href="https://github.com/perabru/LabGuard/blob/main/docs/INSTALACAO.md" target="_blank" rel="noopener">Abrir guia de instalação <svg class="icon"><use href="#i-arrow"/></svg></a></div>
+        <div class="topology-card"><div class="topology-header"><span class="mini-label">ESTRUTURA DO LABORATÓRIO</span><span class="topology-dot"></span></div><div class="network-node router-node"><span class="node-icon"><svg class="icon"><use href="#i-network"/></svg></span><div><small>CONEXÃO DE SAÍDA</small><strong>Seu roteador</strong><p>O acesso à internet começa aqui.</p></div></div><div class="network-connector"><span>WAN</span><i></i></div><div class="network-node gateway-node"><img src="assets/favicon.svg" width="43" height="47" alt=""><div><small>REGRAS APLICADAS NA REDE</small><strong>Gateway LabGuard</strong><p>Linux · duas interfaces de rede</p></div><span class="node-tag">Controle</span></div><div class="network-connector"><i></i><span>LAN</span></div><div class="network-node switch-node"><span class="node-icon"><svg class="icon"><use href="#i-network"/></svg></span><div><small>REDE ISOLADA</small><strong>Switch do laboratório</strong><p>As máquinas usam este caminho.</p></div></div><div class="network-branches" aria-hidden="true"></div><div class="topology-machines"><span><svg class="icon"><use href="#i-monitor"/></svg>LAB-01</span><span><svg class="icon"><use href="#i-monitor"/></svg>LAB-02</span><span><svg class="icon"><use href="#i-monitor"/></svg>LAB-03</span></div><p class="topology-note">Instalar apenas o painel no Windows não controla o tráfego dos outros computadores.</p></div>
+      </div>
+    </section>
+
+    <section class="section compatibility-section" id="compatibilidade"><div class="container"><div class="section-heading"><div><span class="section-kicker">CONEXÕES COM CAPACIDADES CLARAS</span><h2>A integração certa<br>para cada equipamento.</h2></div><p>Os recursos variam por modelo, firmware e acesso administrativo. Confira o alcance antes de conectar um equipamento.</p></div><div class="compatibility-table-wrap"><table class="compatibility-table"><caption class="sr-only">Compatibilidade e recursos das integrações diretas do LabGuard</caption><thead><tr><th scope="col">Família</th><th scope="col">Acesso</th><th scope="col">Recursos implementados</th></tr></thead><tbody><tr><th scope="row"><span class="brand-letter tp">T</span>TP-Link JetStream <small>Gerenciável e CLI compatível</small></th><td><span class="protocol-badge">SSH</span></td><td>Inventário e controle de portas de acesso autorizadas.</td></tr><tr><th scope="row"><span class="brand-letter ci">C</span>Cisco Catalyst <small>IOS / IOS XE compatível</small></th><td><span class="protocol-badge">SSH</span></td><td>Inventário e controle de portas de acesso autorizadas.</td></tr><tr><th scope="row"><span class="brand-letter mi">M</span>MikroTik <small>RouterOS 7 com REST habilitado</small></th><td><span class="protocol-badge">HTTPS</span></td><td>Consulta de interfaces, DHCP e ARP. Sem alteração de firewall.</td></tr><tr><th scope="row"><span class="brand-letter ow">O</span>OpenWrt <small>Com ubus e SSH compatíveis</small></th><td><span class="protocol-badge">SSH</span></td><td>Consulta de interfaces e concessões DHCP.</td></tr></tbody></table></div><div class="compatibility-notes"><p><strong>Outro fabricante?</strong> Importe perfis JSON/ZIP ou baixe um perfil por HTTPS com verificação SHA-256. Um novo protocolo exige um adaptador correspondente.</p><p><strong>Equipamento da Embratel?</strong> Identifique o fabricante e o modelo reais. A operadora pode fornecer aparelhos com interfaces diferentes.</p></div><p class="section-footnote">Os adaptadores precisam ser validados no equipamento real. Desligar uma porta interrompe toda a conexão nela; o filtro seletivo de jogos e IA é aplicado pelo gateway.</p></div></section>
+
+    <section class="section download-section" id="download"><div class="container"><div class="download-card"><div class="download-decoration" aria-hidden="true">✦</div><div class="download-copy"><span class="section-kicker">VAMOS CUIDAR DO LABORATÓRIO?</span><h2>Comece pelo painel.<br>Avance com segurança.</h2><p>Conheça o aplicativo em demonstração, leia o guia e valide sua estrutura antes de colocar as regras em operação.</p><div class="download-actions"><a class="button button-yellow download-link" href="https://github.com/perabru/LabGuard/releases/latest"><svg class="icon"><use href="#i-download"/></svg> Baixar para Windows <svg class="icon arrow"><use href="#i-arrow"/></svg></a><a class="button button-outline-light" href="https://github.com/perabru/LabGuard" target="_blank" rel="noopener"><svg class="icon"><use href="#i-code"/></svg> Ver código-fonte</a></div><p class="release-status" id="release-status">Consulte a versão e os arquivos disponíveis no GitHub.</p></div><div class="download-details"><span class="download-app-icon"><img src="assets/favicon.svg" width="77" height="85" alt=""></span><strong>LabGuard</strong><span>Painel para Windows</span><div class="download-divider"></div><a href="https://github.com/perabru/LabGuard/blob/main/docs/INSTALACAO.md" target="_blank" rel="noopener"><svg class="icon"><use href="#i-book"/></svg> Guia de instalação <span>↗</span></a><a href="https://github.com/perabru/LabGuard/archive/refs/heads/main.zip"><svg class="icon"><use href="#i-code"/></svg> Baixar código em ZIP <span>↗</span></a><small>O gateway Linux é instalado separadamente.</small></div></div></div></section>
+
+    <section class="section faq-section" id="duvidas"><div class="container faq-grid"><div><span class="section-kicker">ANTES DE COMEÇAR</span><h2>Respostas claras.<br>Sem surpresa na aula.</h2><p class="faq-intro">O LabGuard apresenta os controles disponíveis e os limites de cada forma de conexão.</p></div><div class="faq-list"><details><summary>Preciso instalar algo nos computadores dos alunos?<span>+</span></summary><p>O controle de rede do gateway não exige o painel em cada máquina. Os computadores precisam usar a rede e o gateway do laboratório. Políticas contra alterações de DNS, VPNs e outras formas de desvio podem exigir configuração dos próprios computadores.</p></details><details><summary>O programa bloqueia todo uso de inteligência artificial?<span>+</span></summary><p>O perfil usa uma lista de domínios de serviços conhecidos. Você pode acrescentar domínios, mas ele não identifica toda IA da internet, não bloqueia modelos locais e não separa recursos de IA dentro de páginas com domínio compartilhado.</p></details><details><summary>Consigo ver as páginas e mensagens de cada aluno?<span>+</span></summary><p>O painel mostra consultas de domínios e conexões por IP disponíveis no gateway, sem conteúdo HTTPS ou URLs completas. Uma consulta pode vir de um aplicativo ou atividade automática, então não comprova uma visita feita pelo aluno.</p></details><details><summary>Funciona com qualquer roteador ou switch?<span>+</span></summary><p>O gateway pode ser colocado entre o roteador e a rede isolada. Já as integrações diretas dependem do modelo, firmware, protocolo e privilégios disponíveis. TP-Link doméstico, Omada e JetStream não têm a mesma interface.</p></details><details><summary>O instalador Windows também configura a rede?<span>+</span></summary><p>O instalador prepara o painel Windows. O gateway Linux e as interfaces de rede precisam seguir o guia de instalação. Comece com uma máquina de teste e confira bloqueios, restauração e endereços protegidos antes de conectar a turma.</p></details><details><summary>O que acontece quando desligo uma porta do switch?<span>+</span></summary><p>A porta perde toda a conectividade, inclusive com recursos locais. Autorize apenas portas de acesso de computadores, mantendo uplinks, trunks e gerenciamento fora dessa lista. As alterações do switch não são salvas automaticamente na configuração de inicialização.</p></details></div></div></section>
+  </main>
+  <footer class="site-footer"><div class="container footer-top"><a class="brand" href="#inicio"><img src="assets/favicon.svg" width="35" height="39" alt=""><span>Lab<span class="brand-light">Guard</span><small>FOCO NO QUE IMPORTA.</small></span></a><p>Mais espaço para ensinar.<br>Mais clareza para administrar.</p><div class="footer-links"><a href="https://github.com/perabru/LabGuard" target="_blank" rel="noopener">GitHub ↗</a><a href="https://github.com/perabru/LabGuard/blob/main/README.md" target="_blank" rel="noopener">Documentação ↗</a><a href="#duvidas">Dúvidas</a></div></div><div class="container footer-bottom"><span>Projeto de Bruno Michel Pera.</span><span>Interface em Python · criado para laboratórios escolares.</span><a href="REFERENCIAS.md">Referências visuais</a></div></footer>
+</body>
+</html>

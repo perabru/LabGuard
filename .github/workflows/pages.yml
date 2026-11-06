@@ -1,0 +1,36 @@
+name: Publicar site promocional
+
+on:
+  push:
+    branches: [main]
+    paths: ["website/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Preparar Pages
+        uses: actions/configure-pages@v5
+      - name: Conferir página principal
+        run: test -s website/index.html
+      - name: Enviar site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: website
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4

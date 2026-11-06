@@ -2,6 +2,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -20,6 +21,19 @@ def custom_profile():
 
 
 class IntegrationProfilesTests(unittest.TestCase):
+    def test_profile_install_without_fchmod_uses_portable_fallback(self):
+        with tempfile.TemporaryDirectory() as root:
+            manager = IntegrationManager(Path(root) / "registry")
+            with patch("labguard.integrations.core.os.fchmod", None, create=True), \
+                    patch("labguard.integrations.core.os.chmod", wraps=os.chmod) as chmod:
+                profile = manager._install_bytes(json.dumps(custom_profile()).encode())
+            self.assertEqual(profile["id"], "custom_fortigate")
+            self.assertEqual(chmod.call_count, 1)
+            self.assertEqual(chmod.call_args.args[1], 0o600)
+            saved = manager.profile_dir / "custom_fortigate.json"
+            self.assertEqual(json.loads(saved.read_text(encoding="utf-8"))["vendor"], "Fortinet")
+            self.assertFalse(list(manager.profile_dir.glob(".profile-*")))
+
     def test_data_profile_installs_without_code_or_dependencies(self):
         with tempfile.TemporaryDirectory() as root:
             source = Path(root) / "profile.json"

@@ -86,7 +86,7 @@ class TransportTests(unittest.TestCase):
             cmd = transport.command()
             self.assertIn("StrictHostKeyChecking=yes", cmd)
             self.assertIn("BatchMode=yes", cmd)
-            self.assertIn(str(key), cmd)
+            self.assertIn(str(key.resolve()), cmd)
             with patch("labguard.transport.subprocess.run") as run:
                 run.return_value = subprocess.CompletedProcess(cmd, 0, '{"ok":false,"error":"Máquina protegida"}', "")
                 with self.assertRaisesRegex(TransportError, "protegida"):

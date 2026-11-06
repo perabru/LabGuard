@@ -85,7 +85,13 @@ def _atomic_json(path, value):
     fd, temporary = tempfile.mkstemp(prefix=".profile-", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            os.fchmod(stream.fileno(), 0o600)
+            set_descriptor_mode = getattr(os, "fchmod", None)
+            if callable(set_descriptor_mode):
+                set_descriptor_mode(stream.fileno(), 0o600)
+            else:
+                # Windows has no fchmod. The file inherits the user's profile
+                # directory ACL; chmod only clears/sets its read-only flag.
+                os.chmod(temporary, 0o600)
             json.dump(value, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
             stream.flush()
