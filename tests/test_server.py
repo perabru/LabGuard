@@ -318,7 +318,7 @@ class HTTPTests(unittest.TestCase):
         captured = {}
         def generate(snapshot, path, format):
             captured.update(rows=len(snapshot["devices"]), timestamp=snapshot["timestamp"], path=Path(path), format=format)
-            self.assertEqual(Path(path).parent.parent, self.directory / "data")
+            self.assertEqual(Path(path).parent.parent.resolve(), (self.directory / "data").resolve())
             if os.name != "nt":
                 self.assertEqual(Path(path).parent.stat().st_mode & 0o777, 0o700)
             Path(path).write_bytes(b"bounded report")
