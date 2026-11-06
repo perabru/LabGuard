@@ -4,7 +4,7 @@ Painel em Python para conhecer a rede do laboratório e administrar os equipamen
 
 **Começa em Observação real:** consulta o computador, a rota padrão e os vizinhos conhecidos. Para esse primeiro uso, não precisa trocar o roteador, mudar cabos, instalar gateway nem informar credenciais.
 
-[Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.0](docs/MANUAL_DO_USUARIO_V2.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
+[Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.0](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
 
 ## O que cada modo oferece
 
@@ -44,7 +44,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-Os instaladores e portáteis são publicados na [página de versões](https://github.com/perabru/LabGuard/releases) depois da compilação e validação. Confira a versão e os hashes do mesmo lançamento; código 2.0 no repositório não significa que um pacote nativo 2.0 já foi publicado.
+A [versão 2.0.0 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.0.0), com instalador/portátil Windows, desktop Linux e servidores para os dois sistemas. Foram aprovados 277 testes no Linux, 233 no Windows e os testes nativos de instalação, abertura e serviço. Confira a [validação](docs/VALIDACAO.md) e os hashes do mesmo lançamento.
 
 ## Documentação e legado
 

@@ -1,6 +1,8 @@
 # Validação da versão 2.0.0
 
-Preparada em 6 de novembro de 2026. A publicação dos pacotes 2.0.0 depende dos testes nativos no GitHub Actions. Este documento será atualizado com a execução e o commit verificados após a compilação.
+Publicada em 6 de novembro de 2026. O [fluxo completo no GitHub Actions](https://github.com/perabru/LabGuard/actions/runs/42291112160) passou para o commit `0aed0142ccaafe7ee903ef30f93e6e1becb4c013`. A [versão 2.0.0](https://github.com/perabru/LabGuard/releases/tag/v2.0.0) contém os seis pacotes desktop/servidor, quatro autotestes JSON e somas SHA-256.
+
+A suíte completa de **277 testes** passou localmente e no Linux CI; os **233 testes compatíveis com Windows** também passaram. As etapas nativas validaram instalação, abertura da interface e serviços nas plataformas correspondentes. O site e o manual 2.0 passaram no [fluxo de publicação do Pages](https://github.com/perabru/LabGuard/actions/runs/42291112037).
 
 ## Escopo verificado
 
@@ -14,12 +16,14 @@ O servidor conserva autenticação, perfis de consulta/administração, validaç
 
 ## Pacotes nativos
 
-| Pacote | Verificação exigida antes da publicação |
+| Pacote | Verificação executada no fluxo 2.0.0 |
 |---|---|
 | Windows instalador e portátil | Compilação x64, instalação silenciosa, autoteste e abertura da janela em demonstração |
 | Linux Debian e portátil | Compilação x86_64, instalação Debian, autoteste e janela real no Xvfb |
 | Servidor Windows | Autoteste, serviço SCM, PowerShell 5.1, caminhos com espaços e permissões privadas |
 | Servidor Linux | Autoteste, serviço systemd e resposta de saúde em demonstração isolada |
+
+Os pacotes foram compilados no Windows x64 e Ubuntu 22.04 x86_64. A janela foi aberta em demonstração explícita; o modo de início padrão é Observação, confirmado também pelo autoteste do executável. O manual de 13 páginas foi renderizado e revisado; a versão HTML e o site foram conferidos em navegador.
 
 Uma resposta HTTP 200 em `/healthz` confirma apenas o processo ativo. Demonstração e compilação não confirmam regras de rede, WinRM, SSH ou certificados do colégio. A [versão 1.4.0](https://github.com/perabru/LabGuard/releases/tag/v1.4.0) permanece disponível para o fluxo legado; seus pacotes não devem ser confundidos com 2.0.
 
