@@ -1,27 +1,27 @@
 # Validação da versão 1.4.0
 
-Preparada em 6 de novembro de 2026. A compilação e a validação dos pacotes 1.4.0 no GitHub Actions ainda estão pendentes. Este documento não declara aprovados os novos instaladores ou serviços nativos nas plataformas de destino.
+Publicada em 6 de novembro de 2026. Os pacotes 1.4.0 passaram no [fluxo completo do GitHub Actions](https://github.com/perabru/LabGuard/actions/runs/42258536288), associado ao commit `1573bf51aeee16e1f6de52fd9f11f7bed5b957b9`. A [versão publicada](https://github.com/perabru/LabGuard/releases/tag/v1.4.0) inclui instaladores, pacotes de servidor, autotestes e somas SHA-256.
 
 ## Evidências locais
 
-A suíte automatizada local está em expansão para cobrir o dashboard, o gateway, os transportes administrativos, o banco de sites e a administração remota. Os testes usam respostas de rede simuladas; nenhum equipamento do colégio foi acessado ou alterado.
+A suíte completa de 211 testes passou localmente e no Linux CI. Os componentes desktop, de servidor, banco, administração remota, mapa e relatórios também passaram nos testes correspondentes no Windows. A cobertura inclui validação, permissões, limites, preservação de regras, falhas parciais e concessões de sincronização. Os testes usam respostas de rede simuladas; nenhum equipamento do colégio foi acessado ou alterado.
 
 O servidor passou nos testes locais de configuração, autenticação, permissões de consulta/administração, verificação de Host/Origin, limites, estado recente do gateway e recursos estáticos. Foram verificadas operações do banco por HTTP local, revisão de registros, importação, exportação, edição com gateway indisponível e aplicação explícita em segundo plano, incluindo a preservação de regras externas. O autoteste do servidor identificou a versão 1.4.0 e os recursos empacotáveis sem iniciar Tk ou conectar a um gateway real.
 
 O JavaScript do painel web passou na verificação de sintaxe e em testes simulados de login, permissões, cadastro, falha de conexão ao gateway e saída da sessão. Esses testes não substituem a inspeção visual em navegadores e resoluções do ambiente de destino.
 
-As verificações anteriores da interface Tk em demonstração, das unidades systemd e dos scripts de instalação não comprovam a integração com todos os novos recursos ou com sistemas operacionais instalados no laboratório. O estado atualizado de cada pacote depende do fluxo correspondente no GitHub Actions.
+A interface Tk abriu e foi verificada nas sete telas, nos diálogos de banco, administração remota, integrações e mapa, incluindo resoluções reduzidas e exportação SVG/HTML/CSV/PDF. A remoção de jogos foi simulada; nenhum programa de uma máquina do colégio foi removido. O manual de 42 páginas foi renderizado e revisado, e a versão HTML foi inspecionada em navegador.
 
-## Pacotes em validação
+## Pacotes publicados
 
-| Pacote | Verificação prevista no fluxo 1.4.0 |
+| Pacote | Verificação executada no fluxo 1.4.0 |
 |---|---|
 | `LabGuard-Setup.exe` e `LabGuard-Portable.zip` | Compilação Windows x64, instalação silenciosa, autoteste e abertura real da janela |
 | `LabGuard-Linux-amd64.deb` e `LabGuard-Linux-x86_64.tar.gz` | Compilação Linux x86_64, instalação Debian, autoteste e janela real no Xvfb |
 | `LabGuard-Server-Windows.zip` | Autoteste, instalação e resposta de saúde como serviço SCM em demonstração isolada |
 | `LabGuard-Server-Linux-x86_64.tar.gz` | Autoteste, instalação e resposta de saúde como serviço systemd em demonstração isolada |
 
-A publicação depende da aprovação dos fluxos Windows e Linux. Uma resposta HTTP 200 em `/healthz` comprova somente que o processo está ativo; não comprova comunicação com o gateway, aplicação de bloqueios ou administração de uma máquina real. A execução em demonstração não valida WinRM, SSH, certificados ou regras de firewall de um colégio.
+A publicação foi concluída após a aprovação dos fluxos Windows e Linux. O instalador Windows foi verificado também pelo SHA-256 publicado; os testes do serviço Windows usam PowerShell 5.1, caminhos com espaços e verificação das permissões de acesso. Uma resposta HTTP 200 em `/healthz` comprova somente que o processo está ativo; não comprova comunicação com o gateway, aplicação de bloqueios ou administração de uma máquina real. A execução em demonstração não valida WinRM, SSH, certificados ou regras de firewall de um colégio.
 
 ## Pendente no ambiente de destino
 

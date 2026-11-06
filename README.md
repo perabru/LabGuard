@@ -8,7 +8,7 @@ Identidade visual em roxo, azul e amarelo, com cards arredondados, botões visua
 
 A versão 1.4.0 está em validação. Os pacotes desta versão serão disponibilizados após a conclusão do fluxo de compilação e testes; consulte o estado em [VALIDACAO.md](docs/VALIDACAO.md).
 
-[Manual completo](docs/MANUAL_DO_USUARIO.html) · [Manual em PDF](docs/Manual_LabGuard_1.4.pdf) · [Mapa, IP e MAC](docs/REGRAS_IP_MAC.md)
+[Manual completo](https://perabru.github.io/LabGuard/manual/index.html) · [Manual em PDF](docs/Manual_LabGuard_1.4.pdf) · [Mapa, IP e MAC](docs/REGRAS_IP_MAC.md)
 
 ![Painel do LabGuard com dados fictícios de demonstração](website/assets/app-preview.png)
 
