@@ -24,7 +24,16 @@ def self_test(output: str | None = None) -> int:
             database.close()
         if getattr(sys, "frozen", False):
             from winrm.protocol import Protocol  # noqa: F401 - dependency load, no connection
+            from reportlab.platypus import SimpleDocTemplate  # noqa: F401
         snapshot = DemoTransport().request("snapshot")
+        if getattr(sys, "frozen", False):
+            from labguard.reports import export_report
+            with tempfile.TemporaryDirectory(prefix="labguard-reports-selftest-") as temporary:
+                for format in ("svg", "html", "csv", "pdf"):
+                    report = Path(temporary) / ("report." + format)
+                    export_report(snapshot, report, format)
+                    if report.stat().st_size < 100:
+                        raise RuntimeError("Relatórios empacotados indisponíveis.")
         # Diretório não criado: não lê perfis privados do operador neste teste.
         profiles = IntegrationManager(profile_dir=Path(__file__).parent / "__selftest_no_profiles__").list_profiles()
         policy = snapshot["policies"]["ai_block"]
@@ -32,7 +41,8 @@ def self_test(output: str | None = None) -> int:
             raise RuntimeError("Recursos internos do pacote incompletos.")
         payload = {"ok": True, "version": __version__, "catalog_services": len(policy["services"]),
                    "catalog_domains": policy["domain_count"], "integration_profiles": len(profiles),
-                   "banlist_database": "sqlite3", "remote_process_signatures": len(PROCESS_CATALOGUE)}
+                   "banlist_database": "sqlite3", "remote_process_signatures": len(PROCESS_CATALOGUE),
+                   "reports": ["svg", "html", "csv", "pdf"]}
         code = 0
     except Exception as error:
         payload, code = {"ok": False, "error": str(error)}, 1

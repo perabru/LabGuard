@@ -49,7 +49,7 @@ class BanlistWindow(tk.Toplevel):
         ttk.Entry(filters, textvariable=self.search, width=28).pack(side="left", padx=(0, 8))
         ttk.Combobox(filters, textvariable=self.filter_category, values=("Todas",) + CATEGORIES,
                      state="readonly", width=23).pack(side="left", padx=(0, 8))
-        ttk.Combobox(filters, textvariable=self.filter_state, values=("Todos", "Ativos", "Inativos"),
+        ttk.Combobox(filters, textvariable=self.filter_state, values=("Todos", "Ativos", "Inativos", "Excluídos"),
                      state="readonly", width=10).pack(side="left", padx=(0, 8))
         ActionButton(filters, text="Buscar", command=self.refresh).pack(side="left")
         self.book = ttk.Notebook(self)
@@ -58,7 +58,7 @@ class BanlistWindow(tk.Toplevel):
         self.book.add(listing, text="Sites cadastrados")
         self.book.add(history, text="Histórico do banco")
         self.table = self._table(listing, ("domain", "category", "enabled", "notes"),
-                                 ("Domínio e subdomínios", "Categoria", "Ativo", "Observação"))
+                                 ("Domínio e subdomínios", "Categoria", "Estado", "Observação"))
         self.table.bind("<<TreeviewSelect>>", self._select)
         self.audit_table = self._table(history, ("time", "action", "domain", "outcome"),
                                       ("Data UTC", "Ação", "Domínio", "Resultado"))
@@ -114,14 +114,17 @@ class BanlistWindow(tk.Toplevel):
         if self._closed or self._syncing:
             return
         try:
-            state = {"Todos": None, "Ativos": True, "Inativos": False}[self.filter_state.get()]
+            deleted = self.filter_state.get() == "Excluídos"
+            state = {"Todos": None, "Ativos": True, "Inativos": False, "Excluídos": None}[self.filter_state.get()]
             category = "" if self.filter_category.get() == "Todas" else self.filter_category.get()
-            rows = self.db.list_sites(query=self.search.get(), category=category, enabled=state)
+            rows = self.db.list_sites(query=self.search.get(), category=category, enabled=state, include_deleted=deleted)
+            if deleted:
+                rows = [row for row in rows if row["deleted"]]
             self._rows = {row["domain"]: row for row in rows}
             self.table.delete(*self.table.get_children())
             for row in rows:
                 self.table.insert("", "end", iid=row["domain"], values=(row["domain"], row["category"],
-                    "Sim" if row["enabled"] else "Não", row["notes"]))
+                    "Excluído" if row["deleted"] else "Ativo" if row["enabled"] else "Inativo", row["notes"]))
             summary = self.db.summary()
             self.stats.set(f'{summary["total"]} cadastrados     •     {summary["enabled"]} ativos     •     '
                            f'{summary["pending"]} pendentes     •     {summary["owned_rules"]} regras próprias aplicadas'
@@ -145,6 +148,7 @@ class BanlistWindow(tk.Toplevel):
             self.category.set(row["category"])
             self.notes.set(row["notes"])
             self.enabled.set(row["enabled"])
+            self.buttons[1].configure(text="Restaurar" if row["deleted"] else "Salvar")
 
     def _new(self):
         self._selected = None
@@ -153,6 +157,7 @@ class BanlistWindow(tk.Toplevel):
         self.domain.set("")
         self.notes.set("")
         self.enabled.set(True)
+        self.buttons[1].configure(text="Salvar")
         self.domain_entry.focus_set()
 
     def _save(self):
@@ -171,6 +176,8 @@ class BanlistWindow(tk.Toplevel):
         if self._syncing or not self._selected:
             return
         row = self._selected
+        if row.get("deleted"):
+            return
         if not messagebox.askyesno("Excluir cadastro", f'Excluir {row["domain"]} do banco?\nA regra própria será removida da rede na próxima aplicação.', parent=self, default="no"):
             return
         try:

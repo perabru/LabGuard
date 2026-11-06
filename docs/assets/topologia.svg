@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="290" viewBox="0 0 760 290">
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6" fill="none" stroke="#6C42D9" stroke-width="1.4"/></marker></defs>
+  <rect width="760" height="290" rx="16" fill="#F5F3FC"/>
+  <g stroke="#6C42D9" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M200 68H250"/><path d="M460 68H520"/><path d="M610 106V160"/>
+    <path d="M355 160V107" stroke="#3478F6" stroke-dasharray="5 4"/>
+  </g>
+  <g font-family="DejaVu Sans,Arial,sans-serif" text-anchor="middle">
+    <g fill="#FFFFFF" stroke="#D8CDEC" stroke-width="1.5"><rect x="20" y="30" width="180" height="76" rx="12"/><rect x="520" y="30" width="180" height="76" rx="12"/><rect x="520" y="160" width="180" height="76" rx="12"/></g>
+    <rect x="250" y="30" width="210" height="76" rx="12" fill="#6C42D9"/>
+    <rect x="250" y="160" width="210" height="76" rx="12" fill="#E8F0FF" stroke="#3478F6" stroke-width="1.5"/>
+    <g font-size="15" font-weight="700" fill="#21183F"><text x="110" y="61">Internet / roteador</text><text x="610" y="61">Switch do laboratório</text><text x="610" y="192">Máquinas dos alunos</text></g>
+    <text x="355" y="61" font-size="17" font-weight="700" fill="#FFFFFF">Gateway Linux</text>
+    <text x="355" y="84" font-size="12" fill="#FFFFFF">Duas interfaces: WAN e LAN</text>
+    <g font-size="12" fill="#736B87"><text x="110" y="84">Saída para a rede externa</text><text x="610" y="84">Rede interna isolada</text><text x="610" y="215">Usam o gateway como saída</text></g>
+    <text x="355" y="191" font-size="15" font-weight="700" fill="#21183F">Painel ou servidor</text>
+    <text x="355" y="214" font-size="12" fill="#736B87">Windows / Linux, administração</text>
+    <g font-size="11" fill="#6C42D9"><text x="225" y="55">WAN</text><text x="490" y="55">LAN</text><text x="658" y="137">Rede do lab</text></g>
+    <text x="400" y="137" font-size="11" fill="#3478F6">SSH</text>
+  </g>
+  <rect x="20" y="252" width="680" height="25" rx="5" fill="#FFF2C4"/>
+  <text x="32" y="269" font-family="DejaVu Sans,Arial,sans-serif" font-size="11" fill="#77560D">Exemplo lógico: a rede dos alunos não deve ter uma saída paralela por Wi-Fi ou outro cabo.</text>
+</svg>

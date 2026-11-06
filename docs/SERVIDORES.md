@@ -120,6 +120,16 @@ Faça backup com o serviço parado, incluindo o diretório `data` completo, conf
 
 Rotas autenticadas: `GET /api/banlist` (filtros `q`, `category` e `enabled=true|false`), `GET /api/banlist/export` e `GET /api/banlist/sync-status` aceitam consulta. `POST /api/banlist/upsert`, `/delete`, `/import` e `/sync` exigem administração. O último inicia um lote e retorna HTTP 202; acompanhe o estado a cada três segundos. Todos os corpos JSON respeitam o limite de 8 KiB, e os tokens vão exclusivamente no cabeçalho `Authorization: Bearer ...`.
 
+## Mapa, relatórios e controle por endereço
+
+Em **Mapa e relatórios**, use **Carregar mapa** e os downloads **Mapa SVG**, **HTML**, **CSV** ou **PDF**. O desenho representa relações lógicas inferidas do inventário. Não descobre cabos, portas de switch, SSID ou AP; informações Wi-Fi só aparecem quando a fonte as fornece. Consulte [REGRAS_IP_MAC.md](REGRAS_IP_MAC.md) para topologia em ponte, limites de NAT/MAC privado e independência dos escopos.
+
+As exportações usam exclusivamente a última amostra já recebida, sem iniciar SSH ou alterar a rede. Atualize o gateway antes da primeira exportação. Leituras antigas continuam disponíveis com identificação de fonte desatualizada. O cabeçalho `X-LabGuard-Snapshot-State` informa `fresh` ou `stale`. São permitidos até 500 registros de inventário, 1.000 eventos DNS, 1.000 regras diretas e 4 MiB por resposta; SVG mostra até 200 registros e o mapa do PDF até 12. Os relatórios desktop têm limites próprios maiores. A geração é serializada e os arquivos temporários são privados, removidos ao final.
+
+`GET /api/network-map` retorna SVG e `GET /api/report?format=html|csv|pdf` retorna o relatório; ambos permitem viewer/admin e downloads autenticados. Formato desconhecido, parâmetros adicionais e tokens na URL são recusados. A dependência ReportLab acompanha os pacotes; a execução por código-fonte precisa das dependências em `requirements.txt` para gerar PDF.
+
+Em **Máquinas e endereços**, admin pode criar ou retirar regras diretas de IP/MAC. A API existente recebe `set_address_block` com `kind`, `address` e `blocked`. IPv4, MAC unicast e booleanos são validados, assim como leitura recente, saúde de firewall/encaminhamento e proteção administrativa. Novos bloqueios exigem alvo observado; uma regra persistida pode ser retirada sem observação atual da estação. Liberar IP não libera MAC ou suspensão por máquina automaticamente. O gateway reconfere os parâmetros e a sub-rede antes da alteração. Os controles cortam encaminhamento de internet e não desassociam clientes de um rádio Wi-Fi.
+
 ## Proteções e limites
 
 - Escuta apenas em loopback, com verificação de Host e Origin, sem CORS.

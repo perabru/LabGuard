@@ -7,6 +7,7 @@ borda para publicação na internet.
 from __future__ import annotations
 
 from collections import defaultdict, deque
+import copy
 from datetime import datetime, timezone
 import hashlib
 import hmac
@@ -20,6 +21,7 @@ from pathlib import Path
 import re
 import secrets
 import stat
+import tempfile
 import threading
 import time
 from urllib.parse import parse_qs, urlsplit
@@ -28,6 +30,7 @@ from . import __version__
 from .banlist import BanlistDatabase, BanlistError
 from .demo import DemoTransport, normalize_domain
 from .transport import SSHTransport, TransportError
+from .reports import ReportError, export_report, network_map_svg
 
 BIND_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -36,14 +39,17 @@ MAX_HEADERS = 16384
 MAX_RESPONSE = 4 * 1024 * 1024
 MAX_CONFIG = 32768
 MAX_AGE = 20.0
+MAX_REPORT_ROWS = 500
+MAX_REPORT_RULES = 1000
 ASSET_TYPES = {"/": ("index.html", "text/html; charset=utf-8"),
                "/app.css": ("app.css", "text/css; charset=utf-8"),
                "/app.js": ("app.js", "application/javascript; charset=utf-8")}
 PARAMS = {"snapshot": set(), "add_domain": {"domain", "category"},
           "remove_domain": {"domain"}, "set_ai_block": {"enabled"},
-          "set_device_block": {"ip", "blocked"}}
+          "set_device_block": {"ip", "blocked"},
+          "set_address_block": {"kind", "address", "blocked"}}
 PUBLIC_FIELDS = {"mode", "version", "timestamp", "gateway", "health", "devices", "domains",
-                 "events", "connections", "audit", "metrics", "warnings", "policies"}
+                 "events", "connections", "audit", "metrics", "warnings", "policies", "address_blocks"}
 
 
 class ServerError(RuntimeError):
@@ -150,7 +156,7 @@ class ServerConfig:
 
 
 def validate_action(action, params) -> tuple[str, dict]:
-    if action not in PARAMS or not isinstance(params, dict) or set(params) - PARAMS[action]:
+    if not isinstance(action, str) or action not in PARAMS or not isinstance(params, dict) or set(params) - PARAMS[action]:
         raise ServerError("Operação ou parâmetro não permitido.")
     clean = dict(params)
     if action in {"add_domain", "remove_domain"}:
@@ -169,6 +175,24 @@ def validate_action(action, params) -> tuple[str, dict]:
             clean["ip"] = str(ipaddress.IPv4Address(clean.get("ip")))
         except (ValueError, TypeError) as error:
             raise ServerError("IP da máquina inválido.") from error
+    if action == "set_address_block":
+        if clean.get("kind") not in ("ip", "mac") or type(clean.get("blocked")) is not bool:
+            raise ServerError("Informe kind=ip ou mac e blocked=true ou false.")
+        address = clean.get("address")
+        if not isinstance(address, str):
+            raise ServerError("Endereço inválido.")
+        if clean["kind"] == "ip":
+            try:
+                clean["address"] = str(ipaddress.IPv4Address(address))
+            except ValueError as error:
+                raise ServerError("Informe um endereço IPv4 válido.") from error
+        else:
+            if not re.fullmatch(r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", address):
+                raise ServerError("Informe um MAC válido, separado por dois-pontos.")
+            address = address.lower()
+            if address in {"00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"} or int(address[:2], 16) & 1:
+                raise ServerError("Informe um MAC unicast válido.")
+            clean["address"] = address
     return action, clean
 
 
@@ -211,6 +235,7 @@ class Application:
         self.transport = transport or (DemoTransport() if config.demo else SSHTransport(**config.gateway))
         self.limits = Limits()
         self.network_lock = threading.Lock()
+        self.report_lock = threading.Lock()
         self.job_lock = threading.Lock()
         self.cancel_sync = threading.Event()
         self.sync_thread = None
@@ -271,6 +296,44 @@ class Application:
     def sync_status(self):
         with self.job_lock:
             return dict(self.sync_job)
+
+    def report(self, format):
+        if format not in {"svg", "html", "csv", "pdf"}:
+            raise ServerError("Formato de relatório inválido.")
+        if not self.report_lock.acquire(blocking=False):
+            raise ServerError("Há uma exportação em andamento. Aguarde.")
+        try:
+            cached = self.last_snapshot
+            if not isinstance(cached, dict):
+                raise ServerError("Atualize o gateway antes de exportar a primeira amostra.")
+            source = copy.deepcopy(cached)
+            state = "stale" if self.stale or time.monotonic() - self.last_success > MAX_AGE else "fresh"
+            original = len(source.get("devices", []))
+            source["devices"] = source.get("devices", [])[:MAX_REPORT_ROWS]
+            source["events"] = source.get("events", [])[:1000]
+            source["address_blocks"] = source.get("address_blocks", [])[:MAX_REPORT_RULES]
+            notes = []
+            if state == "stale":
+                notes.append("dados anteriores; atualização do gateway não confirmada")
+            if original > MAX_REPORT_ROWS:
+                notes.append(f"exportação do servidor limitada a {MAX_REPORT_ROWS} de {original} registros")
+            if notes:
+                source["timestamp"] = str(source.get("timestamp", "Não informado")) + " | " + "; ".join(notes)
+            if format == "svg":
+                body = network_map_svg(source).encode("utf-8")
+            else:
+                # Dedicated private directory also works under the service
+                # filesystem restrictions. No user-controlled output path.
+                with tempfile.TemporaryDirectory(prefix="report-", dir=self.config.directory / "data") as temporary:
+                    path = Path(temporary) / ("report." + format)
+                    export_report(source, path, format)
+                    with path.open("rb") as stream:
+                        body = stream.read(MAX_RESPONSE + 1)
+            if len(body) > MAX_RESPONSE:
+                raise ServerError("O relatório excedeu 4 MiB. Reduza a amostra ou use outra exportação.")
+            return body, state
+        finally:
+            self.report_lock.release()
 
     def edit_banlist(self, operation, payload):
         with self.job_lock:
@@ -356,9 +419,18 @@ class Application:
                 if self.stale or not self.last_snapshot or time.monotonic() - self.last_success > MAX_AGE:
                     raise ServerError("Atualize o estado do gateway antes de alterar regras.")
                 health = self.last_snapshot.get("health", {})
-                required = ("firewall", "forwarding") if action == "set_device_block" else ("dns",)
+                required = ("firewall", "forwarding") if action in {"set_device_block", "set_address_block"} else ("dns",)
                 if not all(health.get(key) is True for key in required):
                     raise ServerError("O serviço necessário está indisponível. Confira a saúde do gateway.")
+            if action == "set_address_block" and self.last_snapshot:
+                devices = self.last_snapshot.get("devices", [])
+                matches = [row for row in devices if isinstance(row, dict) and str(row.get(params["kind"], "")).lower() == params["address"]]
+                if params["blocked"]:
+                    if not any(row.get("observed", True) is not False for row in matches):
+                        raise ServerError("O endereço ainda não foi observado pelo gateway.")
+                    protected_macs = {str(row.get("mac", "")).lower() for row in devices if isinstance(row, dict) and row.get("protected")}
+                    if any(row.get("protected") or str(row.get("mac", "")).lower() in protected_macs - {""} for row in matches):
+                        raise ServerError("Este endereço pertence a uma máquina protegida.")
             try:
                 snapshot = self.transport.request(action, **params)
             except Exception:
@@ -423,15 +495,20 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         pass
 
-    def _send(self, status: int, body, content_type="application/json; charset=utf-8", *, attachment=None):
+    def _send(self, status: int, body, content_type="application/json; charset=utf-8", *, attachment=None, snapshot_state=None):
         if not isinstance(body, bytes):
             body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         if len(body) > MAX_RESPONSE:
             status, body = 502, b'{"ok":false,"error":"Resposta excede o limite."}'
+            content_type = "application/json; charset=utf-8"
+            attachment = None
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         if attachment:
-            self.send_header("Content-Disposition", 'attachment; filename="labguard-sites.csv"')
+            filename = attachment if isinstance(attachment, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", attachment) else "labguard-sites.csv"
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        if snapshot_state in {"fresh", "stale"}:
+            self.send_header("X-LabGuard-Snapshot-State", snapshot_state)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("Connection", "close")
@@ -439,7 +516,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
         if status == 429:
             self.send_header("Retry-After", "60")
         self.end_headers()
@@ -483,13 +560,14 @@ class Handler(BaseHTTPRequestHandler):
             self._error(403, "Acesso entre sites não permitido.")
             return False
         parsed = urlsplit(self.path)
-        if parsed.scheme or parsed.netloc or parsed.fragment or (parsed.query and (parsed.path != "/api/banlist" or self.command not in {"GET", "HEAD"})):
+        query_routes = {"/api/banlist": {"q", "category", "enabled"}, "/api/report": {"format"}}
+        if parsed.scheme or parsed.netloc or parsed.fragment or (parsed.query and (parsed.path not in query_routes or self.command not in {"GET", "HEAD"})):
             self._error(400, "URL inválida. Use o cabeçalho de autorização.")
             return False
         if parsed.query:
             try:
                 query = parse_qs(parsed.query, strict_parsing=True, keep_blank_values=True, max_num_fields=3)
-                if set(query) - {"q", "category", "enabled"} or any(len(values) != 1 for values in query.values()):
+                if set(query) - query_routes[parsed.path] or any(len(values) != 1 for values in query.values()):
                     raise ValueError()
             except ValueError:
                 self._error(400, "Filtros de consulta inválidos.")
@@ -532,11 +610,29 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send(200, body, mime)
             return
-        if path not in {"/api/snapshot", "/api/banlist", "/api/banlist/export", "/api/banlist/sync-status"}:
+        if path not in {"/api/snapshot", "/api/banlist", "/api/banlist/export", "/api/banlist/sync-status", "/api/network-map", "/api/report"}:
             self._error(404, "Recurso não encontrado.")
             return
         role = self._authenticate()
         if not role:
+            return
+        if path in {"/api/network-map", "/api/report"}:
+            try:
+                format = "svg" if path == "/api/network-map" else parse_qs(urlsplit(self.path).query, keep_blank_values=True).get("format", ["html"])[0]
+                if path == "/api/report" and format not in {"html", "csv", "pdf"}:
+                    raise ServerError("Escolha formato html, csv ou pdf.")
+                body, state = self.app.report(format)
+            except (ServerError, ReportError) as error:
+                self.app.audit("report_export", role, "rejected")
+                self._error(400, str(error)[:250])
+                return
+            except Exception:
+                self.app.audit("report_export", role, "failed")
+                self._error(503, "Não foi possível gerar o relatório. Confira os recursos e o estado do servidor.")
+                return
+            mime = {"svg": "image/svg+xml; charset=utf-8", "html": "text/html; charset=utf-8", "csv": "text/csv; charset=utf-8", "pdf": "application/pdf"}[format]
+            self.app.audit("report_export", role, "cached_" + state)
+            self._send(200, body, mime, attachment="labguard-mapa.svg" if format == "svg" else "labguard-relatorio." + format, snapshot_state=state)
             return
         if path.startswith("/api/banlist"):
             try:

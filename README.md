@@ -8,6 +8,8 @@ Identidade visual em roxo, azul e amarelo, com cards arredondados, botões visua
 
 A versão 1.4.0 está em validação. Os pacotes desta versão serão disponibilizados após a conclusão do fluxo de compilação e testes; consulte o estado em [VALIDACAO.md](docs/VALIDACAO.md).
 
+[Manual completo](docs/MANUAL_DO_USUARIO.html) · [Manual em PDF](docs/Manual_LabGuard_1.4.pdf) · [Mapa, IP e MAC](docs/REGRAS_IP_MAC.md)
+
 ![Painel do LabGuard com dados fictícios de demonstração](website/assets/app-preview.png)
 
 Na operação completa, um gateway Linux dedicado aplica as regras entre o roteador e as máquinas. Essa estrutura funciona com um TP-Link comum porque o gateway controla o tráfego. As integrações diretas com equipamentos TP-Link, Cisco ou fornecidos pela Embratel dependem do modelo, firmware e API disponíveis; cada adaptador informa as operações que suporta. Consulte [integrações e compatibilidade](docs/INTEGRACOES.md).
@@ -16,6 +18,7 @@ Na operação completa, um gateway Linux dedicado aplica as regras entre o rotea
 
 | Recurso | Funcionamento |
 |---|---|
+| Mapa e relatórios | Mapa lógico de LAN/Wi-Fi, ações independentes por IP/MAC e exportação SVG, HTML, CSV e PDF |
 | Máquinas observadas | Junta concessões DHCP e vizinhos de rede, com IP, MAC e nome disponível |
 | Cortar/restaurar internet | Regra de encaminhamento por máquina; endereços de administração protegidos |
 | Mudanças de IP | O gateway atualiza periodicamente a associação IP/MAC, mesmo com o painel fechado |

@@ -4,3 +4,4 @@ Pillow>=10.4,<14
 
 # Incluído no desktop para administração Windows sem agente residente.
 pywinrm>=0.5,<0.6
+reportlab>=4.4,<5

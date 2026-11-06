@@ -21,9 +21,15 @@ CATEGORIES = ("Jogos", "Inteligência artificial", "Adultos", "Outros")
 MAX_SITES = 50000
 MAX_IMPORT = 1000
 MAX_SYNC = 100
+LEASE_SECONDS = 180
+LEASE_REFRESH_SECONDS = 30
 
 
 class BanlistError(RuntimeError):
+    pass
+
+
+class _LeaseLost(BanlistError):
     pass
 
 
@@ -299,8 +305,17 @@ class BanlistDatabase:
             raise BanlistError("Não foi possível identificar o gateway para vincular este banco.")
         return {"mode": snapshot["mode"], "host": str(getattr(transport, "host", "")), "port": str(getattr(transport, "port", "")), "hostname": hostname, "lab_cidr": cidr}
 
-    def _set_tracking(self, domain, owned, status, fingerprint, revision, action="Sincronizar domínio", outcome="Estado atualizado"):
+    @staticmethod
+    def _renew_lease(db, token):
+        now = time.time()
+        updated = db.execute("UPDATE sync_lease SET expires=? WHERE id=1 AND owner=? AND expires>?", (now + LEASE_SECONDS, token, now))
+        if updated.rowcount != 1:
+            raise _LeaseLost("A sincronização perdeu sua concessão. Atualize os dados antes de iniciar outro lote.")
+
+    def _set_tracking(self, domain, owned, status, fingerprint, revision, action="Sincronizar domínio", outcome="Estado atualizado", lease_token=None):
         with self._connection(write=True) as db:
+            if lease_token is not None:
+                self._renew_lease(db, lease_token)
             previous = db.execute("SELECT owned,status,fingerprint,record_revision FROM sync_state WHERE domain=?", (domain,)).fetchone()
             if previous and tuple(previous) == (int(owned), status, fingerprint, revision):
                 return
@@ -316,13 +331,13 @@ class BanlistDatabase:
             raise BanlistError("Já existe uma sincronização em andamento.")
         token = secrets.token_hex(16)
         report = {"applied": [], "operations": [], "errors": [], "pending": 0, "snapshot": None, "target": None, "cancelled": False, "preserved": 0}
-        leased = False
+        leased, domain = False, ""
         try:
             with self._connection(write=True) as db:
                 lease = db.execute("SELECT owner,expires FROM sync_lease WHERE id=1").fetchone()
                 if lease and lease["expires"] > time.time():
                     raise BanlistError("Já existe uma sincronização em andamento para este banco.")
-                db.execute("INSERT OR REPLACE INTO sync_lease(id,owner,expires) VALUES(1,?,?)", (token, time.time() + 180))
+                db.execute("INSERT OR REPLACE INTO sync_lease(id,owner,expires) VALUES(1,?,?)", (token, time.time() + LEASE_SECONDS))
                 leased = True
             snapshot = transport.request("snapshot")
             rules = self._snapshot_rules(snapshot)
@@ -336,11 +351,19 @@ class BanlistDatabase:
                 db.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('sync_target',?)", (serialized,))
                 rows = [dict(row) for row in db.execute("SELECT * FROM sites ORDER BY domain")]
                 tracked = {row["domain"]: dict(row) for row in db.execute("SELECT * FROM sync_state")}
+                self._renew_lease(db, token)
             count = 0
+            next_renewal = time.monotonic() + LEASE_REFRESH_SECONDS
             for row in rows:
                 if cancel_event is not None and cancel_event.is_set():
                     report["cancelled"] = True
                     break
+                # Observe-only batches can also outlive the lease. Refresh on
+                # elapsed time rather than fsync once per unchanged record.
+                if time.monotonic() >= next_renewal:
+                    with self._connection(write=True) as db:
+                        self._renew_lease(db, token)
+                    next_renewal = time.monotonic() + LEASE_REFRESH_SECONDS
                 domain, desired = row["domain"], bool(row["enabled"] and not row["deleted"])
                 record = tracked.get(domain, {})
                 current = rules.get(domain)
@@ -354,14 +377,14 @@ class BanlistDatabase:
                 if desired and current:
                     state = (int(owned), "owned" if owned else "external", fingerprint if owned else "", row["revision"])
                     if tuple(record.get(k) for k in ("owned", "status", "fingerprint", "record_revision")) != state:
-                        self._set_tracking(domain, *state, outcome="Regra existente preservada" if not owned else "Regra própria confirmada")
+                        self._set_tracking(domain, *state, outcome="Regra existente preservada" if not owned else "Regra própria confirmada", lease_token=token)
                     if not owned:
                         report["preserved"] += 1
                     continue
                 if not desired and (not owned or not current):
                     state = (0, "external" if current else "absent", "", row["revision"])
                     if tuple(record.get(k) for k in ("owned", "status", "fingerprint", "record_revision")) != state:
-                        self._set_tracking(domain, *state, outcome="Regra externa preservada" if current else "Sem regra própria aplicada")
+                        self._set_tracking(domain, *state, outcome="Regra externa preservada" if current else "Sem regra própria aplicada", lease_token=token)
                     if current:
                         report["preserved"] += 1
                     continue
@@ -371,9 +394,9 @@ class BanlistDatabase:
                 phase = "adding" if desired else "removing"
                 # Commit intent before touching the gateway. If the process or
                 # final database write fails, ownership is conservative on retry.
-                self._set_tracking(domain, False if desired else owned, phase, fingerprint, row["revision"], outcome="Intenção registrada; resultado de rede ainda não confirmado")
+                self._set_tracking(domain, False if desired else owned, phase, fingerprint, row["revision"], outcome="Intenção registrada; resultado de rede ainda não confirmado", lease_token=token)
                 with self._connection(write=True) as db:
-                    db.execute("UPDATE sync_lease SET expires=? WHERE id=1 AND owner=?", (time.time() + 180, token))
+                    self._renew_lease(db, token)
                 count += 1
                 try:
                     params = {"domain": domain, "category": row["category"]} if desired else {"domain": domain}
@@ -387,7 +410,7 @@ class BanlistDatabase:
                     # Its continued block is correct and never grants ownership.
                     if (desired and not new_fingerprint) or (not desired and new_row and new_row.get("source") != "ai_profile"):
                         raise BanlistError("O gateway não confirmou o resultado esperado.")
-                    self._set_tracking(domain, desired, "owned" if desired else "absent", new_fingerprint, row["revision"], action="Aplicar domínio" if desired else "Remover regra própria", outcome="Aplicação confirmada no gateway")
+                    self._set_tracking(domain, desired, "owned" if desired else "absent", new_fingerprint, row["revision"], action="Aplicar domínio" if desired else "Remover regra própria", outcome="Aplicação confirmada no gateway", lease_token=token)
                     report["applied"].append({"domain": domain, "action": action})
                     report["operations"].append({"domain": domain, "action": action, "status": "applied", "message": "Aplicação confirmada."})
                     snapshot, rules = updated, new_rules
@@ -395,13 +418,20 @@ class BanlistDatabase:
                 except Exception:
                     report["snapshot"] = None
                     try:
-                        self._set_tracking(domain, False if desired else owned, "uncertain_add" if desired else "uncertain_remove", fingerprint, row["revision"], outcome="Resultado não confirmado; revisar antes de outra ação")
+                        self._set_tracking(domain, False if desired else owned, "uncertain_add" if desired else "uncertain_remove", fingerprint, row["revision"], outcome="Resultado não confirmado; revisar antes de outra ação", lease_token=token)
                     except BanlistError:
                         pass
                     error = {"domain": domain, "action": action, "status": "uncertain", "message": "Resultado não confirmado. O gateway pode ter sido alterado; atualize e revise antes de repetir."}
                     report["errors"].append(error)
                     report["operations"].append(error)
                     break
+            report["pending"] = self.summary()["pending"]
+            return report
+        except _LeaseLost as error:
+            report["snapshot"] = None
+            stopped = {"domain": domain, "action": "sync", "status": "stopped", "message": str(error)}
+            report["errors"].append(stopped)
+            report["operations"].append(stopped)
             report["pending"] = self.summary()["pending"]
             return report
         except BanlistError:

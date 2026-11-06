@@ -134,7 +134,8 @@ def verify_privileged_installation(config, config_path):
 def audit_context(request):
     """Only known operation names and validated targets; never log raw parameters."""
     actions = {"add_domain": "Bloquear domínio", "remove_domain": "Remover domínio",
-               "set_device_block": "Alterar internet", "set_ai_block": "Alterar bloqueio de IA"}
+               "set_device_block": "Alterar internet", "set_ai_block": "Alterar bloqueio de IA",
+               "set_address_block": "Alterar bloqueio por endereço"}
     if not isinstance(request, dict):
         return "Solicitação recusada", "Protocolo"
     request_action = request.get("action")
@@ -147,6 +148,12 @@ def audit_context(request):
             return action, domain_name(params.get("domain"))
         if request.get("action") == "set_device_block":
             return action, str(ipv4(params.get("ip"), "IP"))
+        if request.get("action") == "set_address_block":
+            kind = params.get("kind")
+            if kind == "ip":
+                return action, "IP " + str(ipv4(params.get("address"), "IP"))
+            if kind == "mac":
+                return action, "MAC " + mac_address(params.get("address"))
         if request.get("action") == "set_ai_block":
             return action, "Perfil de inteligência artificial"
     except AgentError:
@@ -241,7 +248,16 @@ class Config:
 
 
 def default_state():
-    return {"version": 1, "domains": [], "blocked": {}, "audit": [], "ai_block_enabled": False}
+    return {"version": 1, "domains": [], "blocked": {}, "address_blocks": [], "audit": [], "ai_block_enabled": False}
+
+
+def mac_address(value):
+    if not isinstance(value, str):
+        raise AgentError("Informe um endereço MAC válido.")
+    value = value.strip().lower()
+    if not MAC_RE.fullmatch(value) or value == "00:00:00:00:00:00" or int(value[:2], 16) & 1:
+        raise AgentError("Informe um MAC unicast válido, com seis pares separados por dois-pontos.")
+    return value
 
 
 def load_ai_catalog(path=None):
@@ -348,9 +364,11 @@ def render_dnsmasq(config, state):
 
 def render_nft(config, state, table_exists=False, extra_ips=None):
     ips = {blocked_address(key) for key in state["blocked"]} if extra_ips is None else set(extra_ips)
+    ips.update(row["address"] for row in state.get("address_blocks", []) if row["kind"] == "ip")
     for address in ips:
         config.host(address)
     macs = set()
+    macs.update(mac_address(row["address"]) for row in state.get("address_blocks", []) if row["kind"] == "mac")
     for entry in state["blocked"].values():
         mac = entry.get("mac", "").lower()
         if mac:
@@ -460,7 +478,7 @@ def parse_leases(text, config, timestamp=None):
             continue
         devices[ip] = {"ip": ip, "mac": mac, "name": "" if name == "*" else name[:100],
                        "state": "Concessão ativa" if expiry == 0 or expiry > timestamp else "Concessão expirada",
-                       "last_seen": "", "blocked": False, "protected": ip in config.protected_ips, "dns_queries": 0}
+                       "last_seen": "", "blocked": False, "observed": True, "protected": ip in config.protected_ips, "dns_queries": 0}
     return devices
 
 
@@ -477,6 +495,7 @@ def merge_neighbors(devices, data, config):
         entry = devices.setdefault(ip, {"ip": ip, "name": "", "last_seen": "", "dns_queries": 0,
                                       "blocked": False, "protected": ip in config.protected_ips})
         entry["mac"] = mac
+        entry["observed"] = True
         states = item.get("state", [])
         if isinstance(states, str):
             states = [states]
@@ -560,6 +579,7 @@ class Agent:
         if not isinstance(value, dict) or type(value.get("version")) is not int or value.get("version") != 1:
             raise AgentError("Formato de estado incompatível.")
         value.setdefault("ai_block_enabled", False)
+        value.setdefault("address_blocks", [])
         if type(value["ai_block_enabled"]) is not bool:
             raise AgentError("Estado de bloqueio de IA inválido.")
         if not isinstance(value.get("domains"), list) or len(value["domains"]) > MAX_DOMAINS or not isinstance(value.get("blocked"), dict) or not isinstance(value.get("audit"), list) or len(value["audit"]) > 1000 or len(value["blocked"]) > MAX_DOMAINS:
@@ -575,6 +595,18 @@ class Agent:
             self.config.host(blocked_address(key))
             if not isinstance(entry, dict) or not isinstance(entry.get("mac", ""), str) or (entry.get("mac") and not MAC_RE.fullmatch(entry["mac"])) or not isinstance(entry.get("name", ""), str):
                 raise AgentError("Bloqueio salvo inválido.")
+        if not isinstance(value["address_blocks"], list) or len(value["address_blocks"]) > MAX_DOMAINS:
+            raise AgentError("Regras por endereço salvas inválidas.")
+        seen = set()
+        for row in value["address_blocks"]:
+            if not isinstance(row, dict) or set(row) - {"kind", "address", "created_at", "name"} or row.get("kind") not in ("ip", "mac"):
+                raise AgentError("Regra por endereço salva inválida.")
+            address = str(self.config.host(row.get("address"))) if row["kind"] == "ip" else mac_address(row.get("address"))
+            if address != row.get("address") or (row["kind"], address) in seen:
+                raise AgentError("Regra por endereço duplicada ou não normalizada.")
+            if any(not isinstance(row.get(key, ""), str) or len(row.get(key, "")) > 100 or any(ord(c) < 32 for c in row.get(key, "")) for key in ("name", "created_at")):
+                raise AgentError("Metadados de regra por endereço inválidos.")
+            seen.add((row["kind"], address))
         for row in value["audit"]:
             if not isinstance(row, dict) or any(not isinstance(row.get(key), str) for key in ("time", "action", "target", "outcome")):
                 raise AgentError("Histórico salvo inválido.")
@@ -624,17 +656,31 @@ class Agent:
         except (ValueError, TypeError):
             warnings.append("Não foi possível consultar os vizinhos da interface LAN.")
         blocked_macs = {row.get("mac") for row in state["blocked"].values() if row.get("mac")}
+        explicit_ips = {row["address"] for row in state.get("address_blocks", []) if row["kind"] == "ip"}
+        explicit_macs = {row["address"] for row in state.get("address_blocks", []) if row["kind"] == "mac"}
         for key, entry in state["blocked"].items():
             ip = blocked_address(key)
             devices.setdefault(ip, {"ip": ip, "mac": entry.get("mac", ""), "name": entry.get("name", ""),
                                     "state": "Bloqueio salvo; presença não confirmada", "last_seen": "", "dns_queries": 0,
-                                    "protected": ip in self.config.protected_ips})
+                                    "observed": False, "protected": ip in self.config.protected_ips})
+        for ip in explicit_ips:
+            devices.setdefault(ip, {"ip": ip, "mac": "", "name": "", "state": "Regra IP salva; presença não confirmada",
+                                    "last_seen": "", "dns_queries": 0, "observed": False, "protected": ip in self.config.protected_ips})
         for ip, entry in devices.items():
             saved = state["blocked"].get(ip)
             same_identity = bool(saved and (not saved.get("mac") or not entry.get("mac") or saved["mac"] == entry["mac"]))
-            entry["blocked"] = same_identity or entry.get("mac") in blocked_macs
+            scopes = []
+            if same_identity or entry.get("mac") in blocked_macs:
+                scopes.append("device")
+            if ip in explicit_ips:
+                scopes.append("ip")
+            if entry.get("mac") in explicit_macs:
+                scopes.append("mac")
             if ip in self.config.protected_ips:
-                entry["blocked"] = False
+                scopes = []
+            entry["blocked_by"] = scopes
+            entry["blocked_ip"], entry["blocked_mac"] = "ip" in scopes, "mac" in scopes
+            entry["blocked"] = bool(scopes)
             if entry["blocked"] and not entry.get("mac"):
                 warnings.append(f"{ip}: bloqueio somente por IP; não foi observado MAC.")
         return sorted(devices.values(), key=lambda row: ipaddress.IPv4Address(row["ip"])), warnings
@@ -704,7 +750,7 @@ class Agent:
                             "lan_interface": self.config.lan_interface, "wan_interface": self.config.wan_interface,
                             "ipv6_policy": "Bloqueado no encaminhamento do laboratório"},
                 "health": {"firewall": firewall, "dns": dns, "forwarding": forwarding},
-                "devices": devices, "domains": effective_domains(state, catalog), "events": events,
+                "devices": devices, "address_blocks": copy.deepcopy(state.get("address_blocks", [])), "domains": effective_domains(state, catalog), "events": events,
                 "policies": {"ai_block": {"enabled": state.get("ai_block_enabled", False),
                                           "services": catalog["services"], "domains": catalog["domains"],
                                           "domain_count": len(catalog["domains"]),
@@ -746,9 +792,9 @@ class Agent:
         if not isinstance(request, dict) or type(request.get("version")) is not int or request.get("version") != 1:
             raise AgentError("Protocolo incompatível: use version=1.")
         action, params = request.get("action"), request.get("params", {})
-        if action not in ("snapshot", "add_domain", "remove_domain", "set_device_block", "set_ai_block") or not isinstance(params, dict):
+        if action not in ("snapshot", "add_domain", "remove_domain", "set_device_block", "set_ai_block", "set_address_block") or not isinstance(params, dict):
             raise AgentError("Ação não permitida.")
-        allowed = {"snapshot": set(), "add_domain": {"domain", "category"}, "remove_domain": {"domain"}, "set_device_block": {"ip", "blocked"}, "set_ai_block": {"enabled"}}[action]
+        allowed = {"snapshot": set(), "add_domain": {"domain", "category"}, "remove_domain": {"domain"}, "set_device_block": {"ip", "blocked"}, "set_ai_block": {"enabled"}, "set_address_block": {"kind", "address", "blocked"}}[action]
         if set(params) - allowed:
             raise AgentError("Parâmetro não permitido.")
         with self.lock():
@@ -782,6 +828,32 @@ class Agent:
                     raise AgentError("enabled precisa ser true ou false.")
                 state["ai_block_enabled"] = enabled
                 target = "Perfil de inteligência artificial"
+            elif action == "set_address_block":
+                kind, blocked = params.get("kind"), params.get("blocked")
+                if kind not in ("ip", "mac") or type(blocked) is not bool:
+                    raise AgentError("Use kind=ip ou mac e blocked=true ou false.")
+                address = str(self.config.host(params.get("address"))) if kind == "ip" else mac_address(params.get("address"))
+                target = kind.upper() + " " + address
+                existing = next((row for row in state["address_blocks"] if row["kind"] == kind and row["address"] == address), None)
+                if blocked and not existing:
+                    if kind == "ip" and address in self.config.protected_ips:
+                        raise AgentError("Este endereço pertence a uma máquina protegida.")
+                    devices, _ = self.devices(state)
+                    matches = [row for row in devices if row.get("observed") and row.get("ip" if kind == "ip" else "mac") == address]
+                    if not matches:
+                        raise AgentError("O endereço ainda não foi observado pelo gateway.")
+                    if any(row["protected"] for row in matches):
+                        raise AgentError("Este endereço pertence a uma máquina protegida.")
+                    selected = matches[0]
+                    if selected.get("mac") and any(row.get("observed") and row["protected"] and row.get("mac") == selected["mac"] for row in devices):
+                        raise AgentError("Esse MAC está associado a uma máquina protegida.")
+                    if len(state["address_blocks"]) >= MAX_DOMAINS:
+                        raise AgentError("Limite de 10.000 regras por endereço atingido.")
+                    state["address_blocks"].append({"kind": kind, "address": address, "name": selected.get("name", ""), "created_at": now()})
+                elif not blocked:
+                    if not existing:
+                        raise AgentError("Não há regra salva para esse endereço neste escopo.")
+                    state["address_blocks"] = [row for row in state["address_blocks"] if row is not existing]
             else:
                 target = str(self.config.host(params.get("ip")))
                 blocked = params.get("blocked")
@@ -805,13 +877,16 @@ class Agent:
                     for key, row in list(state["blocked"].items()):
                         if (mac and row.get("mac") == mac) or (not row.get("mac") and blocked_address(key) == target):
                             del state["blocked"][key]
-            state["audit"].append({"time": now(), "action": {"add_domain": "Bloquear domínio", "remove_domain": "Remover domínio", "set_device_block": "Cortar internet" if params.get("blocked") else "Liberar internet", "set_ai_block": "Ativar bloqueio de IA" if params.get("enabled") else "Desativar bloqueio de IA"}[action],
-                                   "target": target, "outcome": "Aplicado"})
+            outcome = "Aplicado"
+            if action in ("set_device_block", "set_address_block") and not params.get("blocked"):
+                outcome = "Escopo removido; outros bloqueios independentes podem permanecer"
+            state["audit"].append({"time": now(), "action": {"add_domain": "Bloquear domínio", "remove_domain": "Remover domínio", "set_device_block": "Cortar internet" if params.get("blocked") else "Liberar internet", "set_ai_block": "Ativar bloqueio de IA" if params.get("enabled") else "Desativar bloqueio de IA", "set_address_block": "Bloquear endereço" if params.get("blocked") else "Liberar endereço"}[action],
+                                   "target": target, "outcome": outcome})
             state["audit"] = state["audit"][-1000:]
             old_dns = self.config.dnsmasq_config.read_text() if self.config.dnsmasq_config.exists() else None
             had_table = self.table_exists()
             try:
-                if action == "set_device_block":
+                if action in ("set_device_block", "set_address_block"):
                     # Never report success when acceleration can bypass these hooks.
                     rules = self.command(["nft", "list", "ruleset"])
                     if re.search(r"\bflowtable\b|\bflow\s+(?:add|offload)\b", rules.stdout):
@@ -823,7 +898,7 @@ class Agent:
             except Exception as exc:
                 rollback_errors = []
                 try:
-                    if action == "set_device_block":
+                    if action in ("set_device_block", "set_address_block"):
                         if had_table:
                             self.nft_apply(previous, self.current_block_ips(previous))
                         elif self.table_exists():
@@ -856,7 +931,7 @@ class Agent:
                             "lan_interface": self.config.lan_interface, "wan_interface": self.config.wan_interface,
                             "ipv6_policy": "Política configurada; verificação indisponível"},
                 "health": {"firewall": False, "dns": False, "forwarding": False},
-                "devices": [], "domains": effective_domains(state, catalog), "events": [], "connections": [],
+                "devices": [], "address_blocks": copy.deepcopy(state.get("address_blocks", [])), "domains": effective_domains(state, catalog), "events": [], "connections": [],
                 "audit": list(reversed(state["audit"][-250:])),
                 "policies": {"ai_block": {"enabled": state.get("ai_block_enabled", False), "services": catalog["services"],
                                           "domains": catalog["domains"], "domain_count": len(catalog["domains"]),

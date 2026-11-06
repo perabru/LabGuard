@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+from contextlib import closing
 import csv
 from datetime import datetime, timedelta, timezone
 import io
@@ -102,7 +103,7 @@ class BanlistTests(unittest.TestCase):
         for version, expected in (((3, 40, 1), "DELETE"), ((3, 51, 2), "DELETE"), ((3, 51, 3), "WAL"), ((3, 50, 7), "WAL"), ((3, 44, 6), "WAL"), ((3, 52, 0), "WAL")):
             with self.subTest(version=version):
                 self.assertEqual(_journal_mode(version), expected)
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.executemany("INSERT INTO audit(time,action,domain,outcome) VALUES('time','action','','ok')", [()] * 10004)
         self.store.upsert("audit.example")
         self.assertEqual(len(self.store.audit(limit=10000)), 10000)
@@ -296,11 +297,73 @@ class BanlistTests(unittest.TestCase):
 
     def test_other_process_lease_prevents_duplicate_network_batches(self):
         self.store.upsert("leased.example")
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("INSERT INTO sync_lease(id,owner,expires) VALUES(1,'other',strftime('%s','now')+180)")
         with self.assertRaises(BanlistError):
             BanlistDatabase(self.path).sync(self.transport)
         self.assertEqual(self.transport.calls, [])
+
+    def test_lease_loss_during_observation_stops_next_mutation_and_keeps_partial_report(self):
+        for domain in ("a-added.example", "poki.com", "z-never-added.example"):
+            self.store.upsert(domain)
+        clock = [1000.0]
+        original = self.store._set_tracking
+
+        def tracking(domain, *args, **kwargs):
+            result = original(domain, *args, **kwargs)
+            if domain == "poki.com":
+                clock[0] += 181
+                with closing(sqlite3.connect(self.path)) as db, db:
+                    db.execute("UPDATE sync_lease SET owner='new-worker',expires=? WHERE id=1", (clock[0] + 180,))
+            return result
+
+        with patch("labguard.banlist.time.time", side_effect=lambda: clock[0]), patch("labguard.banlist.time.monotonic", side_effect=lambda: clock[0]), patch.object(self.store, "_set_tracking", side_effect=tracking):
+            report = self.store.sync(self.transport)
+        self.assertEqual(report["applied"], [{"domain": "a-added.example", "action": "add_domain"}])
+        self.assertEqual([item[1]["domain"] for item in self.transport.mutations], ["a-added.example"])
+        self.assertEqual(report["errors"][0]["status"], "stopped")
+        self.assertIsNone(report["snapshot"])
+        self.assertEqual(report["operations"][0]["status"], "applied")
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute("SELECT owner FROM sync_lease").fetchone()[0], "new-worker")
+
+    def test_unchanged_observations_renew_lease_without_waiting(self):
+        for domain in ("crazygames.com", "friv.com", "poki.com", "roblox.com"):
+            self.store.upsert(domain)
+        self.store.sync(self.transport)
+        clock = [1000.0]
+
+        def monotonic():
+            clock[0] += 40
+            return clock[0]
+
+        original = self.store._renew_lease
+        with patch("labguard.banlist.time.time", side_effect=lambda: clock[0]), patch("labguard.banlist.time.monotonic", side_effect=monotonic), patch.object(self.store, "_renew_lease", wraps=original) as renew:
+            report = self.store.sync(self.transport)
+        self.assertGreater(clock[0] - 1000, 180)
+        self.assertGreaterEqual(renew.call_count, 5)
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["preserved"], 4)
+
+    def test_lease_loss_after_network_response_never_overwrites_new_worker_tracking(self):
+        self.store.upsert("inflight.example")
+        original = self.transport.request
+
+        def request(action, **params):
+            snapshot = original(action, **params)
+            if action == "add_domain":
+                with closing(sqlite3.connect(self.path)) as db, db:
+                    db.execute("UPDATE sync_lease SET owner='new-worker' WHERE id=1")
+                    db.execute("UPDATE sync_state SET status='external',owned=0 WHERE domain='inflight.example'")
+            return snapshot
+
+        with patch.object(self.transport, "request", side_effect=request):
+            report = self.store.sync(self.transport)
+        self.assertEqual(report["applied"], [])
+        self.assertEqual(report["errors"][0]["status"], "uncertain")
+        self.assertIsNone(report["snapshot"])
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute("SELECT owned,status FROM sync_state").fetchone(), (0, "external"))
 
     def test_initial_transport_failure_is_sanitized_and_lease_released(self):
         self.store.upsert("offline.example")

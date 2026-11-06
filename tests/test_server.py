@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import http.client
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -62,6 +63,17 @@ class ConfigTests(unittest.TestCase):
                                ("add_domain", {"domain": "https://example.com"})]:
             with self.subTest(action=action, params=params), self.assertRaises((ValueError, ServerError)):
                 validate_action(action, params)
+
+    def test_address_actions_require_typed_unicast_addresses(self):
+        for params in ({"kind": "ip", "address": "::1", "blocked": True},
+                       {"kind": "mac", "address": "ff:ff:ff:ff:ff:ff", "blocked": True},
+                       {"kind": "mac", "address": "01:00:5e:00:00:01", "blocked": True},
+                       {"kind": "mac", "address": "00:00:00:00:00:00", "blocked": True},
+                       {"kind": "mac", "address": "02:00:00:00:00:01", "blocked": "true"},
+                       {"kind": "command", "address": "echo", "blocked": True}):
+            with self.subTest(params=params), self.assertRaises(ServerError):
+                validate_action("set_address_block", params)
+        self.assertEqual(validate_action("set_address_block", {"kind": "mac", "address": "02:AA:BB:CC:DD:01", "blocked": True})[1]["address"], "02:aa:bb:cc:dd:01")
 
     @unittest.skipIf(os.name == "nt", "SCM nativo é testado no Windows CI.")
     def test_scm_mode_never_executes_on_linux(self):
@@ -281,6 +293,95 @@ class HTTPTests(unittest.TestCase):
         self.assertTrue(self.app.stale)
         with self.assertRaisesRegex(ServerError, "Atualize"):
             self.app.start_sync({}, "admin")
+
+    def test_viewer_reports_use_only_cached_snapshot_and_download_safely(self):
+        self.assertEqual(self.request("/api/network-map")[0], 401)
+        self.assertEqual(self.request("/api/report?format=csv", token=self.viewer)[0], 400)
+        self.app.execute("snapshot", {})
+        with patch.object(self.app.transport, "request", side_effect=RuntimeError("offline")) as network:
+            for route, expected in (("/api/network-map", b"<svg"), ("/api/report?format=csv", b"IP;MAC"),
+                                    ("/api/report?format=html", b"<!doctype html>")):
+                status, headers, body = self.request(route, token=self.viewer)
+                self.assertEqual(status, 200)
+                self.assertIn(expected, body)
+                self.assertIn("attachment", headers["Content-Disposition"])
+                self.assertEqual(headers["X-LabGuard-Snapshot-State"], "fresh")
+                self.assertNotIn(self.viewer.encode(), body)
+            network.assert_not_called()
+        for query in ("format=../../secrets.json", "format=svg", "format=csv&format=html", "format=html&token=x"):
+            self.assertEqual(self.request("/api/report?" + query, token=self.viewer)[0], 400)
+
+    def test_report_row_bytes_private_temp_and_stale_marking(self):
+        source = self.app.execute("snapshot", {})
+        self.app.last_snapshot["devices"] = [dict(source["devices"][0]) for _ in range(501)]
+        self.app.stale = True
+        captured = {}
+        def generate(snapshot, path, format):
+            captured.update(rows=len(snapshot["devices"]), timestamp=snapshot["timestamp"], path=Path(path), format=format)
+            self.assertEqual(Path(path).parent.parent, self.directory / "data")
+            if os.name != "nt":
+                self.assertEqual(Path(path).parent.stat().st_mode & 0o777, 0o700)
+            Path(path).write_bytes(b"bounded report")
+        with patch("labguard.server.export_report", side_effect=generate):
+            status, headers, body = self.request("/api/report?format=csv", token=self.viewer)
+        self.assertEqual((status, body), (200, b"bounded report"))
+        self.assertEqual(headers["X-LabGuard-Snapshot-State"], "stale")
+        self.assertEqual(captured["rows"], 500)
+        self.assertIn("500 de 501", captured["timestamp"])
+        self.assertIn("dados anteriores", captured["timestamp"])
+        self.assertFalse(captured["path"].parent.exists())
+        self.assertEqual(len(self.app.last_snapshot["devices"]), 501)
+        with patch("labguard.server.export_report", side_effect=lambda _s, path, _f: Path(path).write_bytes(b"x" * (4 * 1024 * 1024 + 1))):
+            self.assertEqual(self.request("/api/report?format=csv", token=self.viewer)[0], 400)
+
+    @unittest.skipUnless(importlib.util.find_spec("reportlab"), "PDF usa dependência opcional ReportLab.")
+    def test_viewer_can_export_pdf(self):
+        self.app.execute("snapshot", {})
+        status, headers, body = self.request("/api/report?format=pdf", token=self.viewer)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "application/pdf")
+        self.assertTrue(body.startswith(b"%PDF"))
+
+    def test_address_actions_rbac_independent_scopes_and_protected_target(self):
+        snapshot = self.app.execute("snapshot", {})
+        device = next(row for row in snapshot["devices"] if not row.get("protected"))
+        payload = {"action": "set_address_block", "params": {"kind": "ip", "address": device["ip"], "blocked": True}}
+        self.assertEqual(self.request("/api/action", token=self.viewer, method="POST", payload=payload)[0], 403)
+        self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload=payload)[0], 200)
+        payload["params"].update(kind="mac", address=device["mac"])
+        self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload=payload)[0], 200)
+        payload["params"].update(kind="ip", address=device["ip"], blocked=False)
+        status, _, body = self.request("/api/action", token=self.admin, method="POST", payload=payload)
+        self.assertEqual(status, 200)
+        data = json.loads(body)["data"]
+        changed = next(row for row in data["devices"] if row["ip"] == device["ip"])
+        self.assertTrue(changed["blocked"])
+        self.assertIn("mac", changed["blocked_by"])
+        self.assertFalse(changed["blocked_ip"])
+        protected = next(row for row in data["devices"] if row.get("protected"))
+        payload["params"].update(address=protected["ip"], blocked=True)
+        with patch.object(self.app.transport, "request") as network:
+            self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload=payload)[0], 400)
+            network.assert_not_called()
+        self.assertIn("address_blocks", data)
+
+    def test_real_address_change_requires_firewall_and_forwarding_not_dns(self):
+        source = self.app.execute("snapshot", {})
+        source["mode"] = "gateway"
+        source["health"]["dns"] = False
+        self.app.config.demo = False
+        self.app.last_snapshot = source
+        self.app.last_success = time.monotonic()
+        target = next(row for row in source["devices"] if not row.get("protected"))
+        params = {"kind": "ip", "address": target["ip"], "blocked": True}
+        with patch.object(self.app.transport, "request", return_value=source) as network:
+            self.app.execute("set_address_block", params)
+            network.assert_called_once()
+        self.app.last_snapshot["health"]["firewall"] = False
+        with patch.object(self.app.transport, "request") as network:
+            with self.assertRaisesRegex(ServerError, "indisponível"):
+                self.app.execute("set_address_block", params)
+            network.assert_not_called()
 
 
 if __name__ == "__main__":

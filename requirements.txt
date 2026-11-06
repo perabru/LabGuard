@@ -1,4 +1,6 @@
 # Interface e gateway: Python 3.10+ com biblioteca padrão e Tkinter.
 # Administração remota opcional de Windows por WinRM/HTTPS:
 pywinrm>=0.5,<0.6
+# Exportação de relatórios PDF (incluída nos instaladores):
+reportlab>=4.4,<5
 # A operação real também exige OpenSSH; Linux desktop exige python3-tk.

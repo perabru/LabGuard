@@ -8,7 +8,7 @@ project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_root"
 python3 -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --name LabGuard \
   --add-data 'gateway/ai_services.json:gateway' --add-data 'docs:docs' --add-data 'README.md:.' \
-  --collect-submodules labguard --collect-submodules winrm main.py
+  --collect-data reportlab --collect-submodules labguard --collect-submodules winrm main.py
 cp packaging/LEIA-ME.html dist/LabGuard/LEIA-ME.html
 cp -R docs dist/LabGuard/docs
 cp README.md dist/LabGuard/README.md
@@ -43,8 +43,8 @@ dpkg-deb --root-owner-group --build "$package_root" dist/release/LabGuard-Linux-
 
 python3 -m PyInstaller --noconfirm --clean --onedir --console --noupx --name LabGuardServer \
   --add-data 'gateway/ai_services.json:gateway' --add-data 'server/assets:server/assets' --add-data 'docs:docs' \
-  --collect-submodules labguard --exclude-module labguard.gui --exclude-module labguard.integration_gui \
-  --exclude-module labguard.remote_gui --exclude-module labguard.banlist_gui \
+  --collect-data reportlab --collect-submodules labguard --exclude-module labguard.gui --exclude-module labguard.integration_gui \
+  --exclude-module labguard.network_map_gui --exclude-module labguard.remote_gui --exclude-module labguard.banlist_gui \
   --exclude-module labguard.ui --exclude-module tkinter server_main.py
 cp -R server dist/LabGuardServer/server
 cp -R docs dist/LabGuardServer/docs

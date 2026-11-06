@@ -145,6 +145,8 @@ class App(tk.Tk):
                          fill="x", padx=15, pady=0)
         ActionButton(sidebar, text="Banco de sites", style="Nav.TButton", height=39,
                      command=self._open_banlist).pack(fill="x", padx=15, pady=(5, 0))
+        ActionButton(sidebar, text="Mapa e relatórios", style="Nav.TButton", height=39,
+                     command=self._open_network_map).pack(fill="x", padx=15, pady=(4, 0))
         tk.Label(sidebar, text="LabGuard 1.4 · Administração", bg=SIDEBAR, fg="#BCA7D9",
                  justify="left", anchor="w", font=(self.font_family, 8)).pack(
                      side="bottom", padx=24, pady=14, fill="x")
@@ -222,6 +224,33 @@ class App(tk.Tk):
         RemoteWindow(self, device["ip"], protected=bool(device.get("protected")),
                      events_callback=lambda: self.snapshot.get("events", []),
                      domains_callback=lambda: self.snapshot.get("domains", []))
+
+    def _open_network_map(self):
+        from .network_map_gui import NetworkMapWindow
+        NetworkMapWindow(self, snapshot_callback=lambda: self.snapshot,
+                         action_callback=self._set_address_block)
+
+    def _set_address_block(self, kind, address, blocked):
+        from .network_map_gui import valid_address
+        if kind not in ("ip", "mac") or type(blocked) is not bool or not valid_address(kind, address):
+            self.status.set("Endereço de rede inválido.")
+            return
+        if not self._mutation_allowed(("firewall", "forwarding")):
+            return
+        address = address.lower()
+        if any(row.get("protected") and str(row.get(kind, "")).lower() == address
+               for row in self.snapshot.get("devices", [])):
+            self.status.set("Endereço administrativo protegido.")
+            return
+        verb = "Bloquear" if blocked else "Desbloquear"
+        if not self._live_confirmation(f"{verb} {kind.upper()}",
+            f"{verb} a internet pelo {kind.upper()} {address}?\n\nA regra é independente dos demais bloqueios. Liberar este endereço pode manter a máquina bloqueada por outro escopo. A ação não desassocia o aparelho do Wi-Fi."):
+            return
+        if not self._mutation_allowed(("firewall", "forwarding")):
+            return
+        transport = self.transport
+        self._run_job(lambda: transport.request("set_address_block", kind=kind, address=address, blocked=blocked),
+                      label=f"{verb} {kind.upper()} {address}", alert=True)
 
     def show_page(self, name):
         self._page = name
@@ -628,7 +657,7 @@ class App(tk.Tk):
             "Esta conexão administra o gateway. Para equipamentos compatíveis, abra Roteadores / switches e confira os recursos do adaptador.")
         self._responsive_wrap(tk.Label(help_box, text=help_text, bg=PANEL, fg=MUTED, justify="left", anchor="w",
                  wraplength=850, font=(self.font_family, 10))).pack(fill="x")
-        ActionButton(parent, text="Abrir manual de instalação", command=self._open_manual).grid(
+        ActionButton(parent, text="Abrir manual do usuário", command=self._open_manual).grid(
             row=4, column=0, sticky="w", pady=(14, 0))
 
     def _pick_file(self, variable):
@@ -639,7 +668,8 @@ class App(tk.Tk):
     def _open_manual(self):
         import webbrowser
         root = Path(__file__).resolve().parents[1]
-        candidates = [root / "docs" / "INSTALACAO.md", root / "README.md"]
+        candidates = [root / "docs" / "MANUAL_DO_USUARIO.html", root / "docs" / "Manual_LabGuard_1.4.pdf",
+                      root / "docs" / "INSTALACAO.md", root / "README.md"]
         path = next((p for p in candidates if p.is_file()), None)
         if path:
             webbrowser.open(path.as_uri())
@@ -838,10 +868,12 @@ class App(tk.Tk):
         protected = not device or device.get("protected")
         permitted = self._mutation_allowed(("firewall", "forwarding"), notify=False)
         self.block_button.configure(state="disabled" if not permitted or protected or device.get("blocked") else "normal")
-        self.unblock_button.configure(state="disabled" if not permitted or protected or not device.get("blocked") else "normal")
+        legacy = bool(device and ("device" in device.get("blocked_by", []) if "blocked_by" in device else device.get("blocked")))
+        self.unblock_button.configure(state="disabled" if not permitted or protected or not legacy else "normal")
         self.device_note.set("Nenhuma máquina selecionada." if not device else
             f"{device.get('name') or 'Sem nome'} | {device['ip']} | Última evidência: {self._time(device.get('last_seen', ''))}" +
-            (" | Equipamento protegido" if device.get("protected") else ""))
+            (" | Equipamento protegido" if device.get("protected") else "") +
+            (" | Escopos: " + ", ".join(device["blocked_by"]) + ". IP/MAC: use Mapa e relatórios." if device.get("blocked_by") else ""))
 
     def _device_dns(self):
         device = self._selected_device()
@@ -914,7 +946,7 @@ class App(tk.Tk):
         if not device or device.get("protected"):
             return
         verb = "Suspender" if blocked else "Restaurar"
-        if not self._live_confirmation(f"{verb} internet", f"{verb} a internet de {device.get('name') or 'máquina'} ({device['ip']})?\n\nA ação altera o encaminhamento no gateway."):
+        if not self._live_confirmation(f"{verb} internet", f"{verb} a internet de {device.get('name') or 'máquina'} ({device['ip']})?\n\nA ação altera o bloqueio legado de máquina. Regras independentes de IP ou MAC permanecem; consulte Mapa e relatórios."):
             return
         transport = self.transport
         self._run_job(lambda: transport.request("set_device_block", ip=device["ip"], blocked=blocked),

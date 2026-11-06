@@ -21,6 +21,64 @@ class DomainTests(unittest.TestCase):
 
 
 class DemoTests(unittest.TestCase):
+    def test_ip_mac_and_legacy_scopes_are_independent(self):
+        demo = DemoTransport()
+        ip, mac = "192.168.50.101", "02:00:00:00:00:01"
+        demo.request("set_device_block", ip=ip, blocked=True)
+        demo.request("set_address_block", kind="ip", address=ip, blocked=True)
+        data = demo.request("set_address_block", kind="mac", address=mac, blocked=True)
+        device = next(row for row in data["devices"] if row["ip"] == ip)
+        self.assertEqual(device["blocked_by"], ["device", "ip", "mac"])
+        data = demo.request("set_address_block", kind="ip", address=ip, blocked=False)
+        self.assertEqual(next(row for row in data["devices"] if row["ip"] == ip)["blocked_by"], ["device", "mac"])
+        data = demo.request("set_device_block", ip=ip, blocked=False)
+        self.assertEqual(next(row for row in data["devices"] if row["ip"] == ip)["blocked_by"], ["mac"])
+        data = demo.request("set_address_block", kind="mac", address=mac, blocked=False)
+        self.assertFalse(next(row for row in data["devices"] if row["ip"] == ip)["blocked"])
+
+    def test_mac_follows_dhcp_while_explicit_ip_does_not(self):
+        demo = DemoTransport()
+        demo.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+        demo.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=True)
+        demo.state["devices"][0]["ip"] = "192.168.50.150"
+        demo.state["devices"][1]["ip"] = "192.168.50.101"
+        data = demo.request("snapshot")
+        self.assertEqual(next(row for row in data["devices"] if row["ip"].endswith(".150"))["blocked_by"], ["mac"])
+        self.assertEqual(next(row for row in data["devices"] if row["ip"].endswith(".101"))["blocked_by"], ["ip"])
+
+    def test_address_rules_can_be_removed_offline(self):
+        demo = DemoTransport()
+        demo.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+        demo.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=True)
+        demo.state["devices"] = [row for row in demo.state["devices"] if row["ip"] != "192.168.50.101"]
+        placeholder = next(row for row in demo.request("snapshot")["devices"] if row["ip"] == "192.168.50.101")
+        self.assertFalse(placeholder["observed"])
+        demo.request("set_address_block", kind="ip", address="192.168.50.101", blocked=False)
+        data = demo.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=False)
+        self.assertEqual(data["address_blocks"], [])
+        with self.assertRaises(ValueError):
+            demo.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+
+    def test_new_address_action_rejects_invalid_unobserved_protected_and_extra_params(self):
+        demo = DemoTransport()
+        for kind, address in (("ip", "192.168.50.10"), ("ip", "192.168.50.150"), ("ip", "192.168.51.101"),
+                              ("ip", "192.168.50.255"), ("mac", "02:00:00:00:00:0c"), ("mac", "02:00:00:00:00:99"),
+                              ("mac", "00:00:00:00:00:00"), ("mac", "ff:ff:ff:ff:ff:ff"), ("mac", "01:00:5e:00:00:01")):
+            with self.subTest(kind=kind, address=address), self.assertRaises(ValueError):
+                demo.request("set_address_block", kind=kind, address=address, blocked=True)
+        for extra in ({"blocked": "false"}, {"kind": "both"}, {"shell": "whoami"}):
+            params = dict(kind="ip", address="192.168.50.101", blocked=True)
+            params.update(extra)
+            with self.subTest(extra=extra), self.assertRaises(ValueError):
+                demo.request("set_address_block", **params)
+        self.assertEqual(demo.request("snapshot")["address_blocks"], [])
+
+    def test_admin_mac_on_another_ip_is_still_protected(self):
+        demo = DemoTransport()
+        demo.state["devices"][0]["mac"] = demo.state["devices"][-1]["mac"]
+        with self.assertRaisesRegex(ValueError, "protegida"):
+            demo.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+
     def test_ai_profile_toggle_preserves_manual_overlap_and_history(self):
         demo = DemoTransport()
         before = demo.request("snapshot")

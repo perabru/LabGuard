@@ -239,6 +239,104 @@ class GatewayTests(unittest.TestCase):
         rendered = g.render_nft(self.config, g.default_state())
         self.assertLess(rendered.index("192.168.50.10"), rendered.index("ether saddr @blocked_mac"))
 
+    def test_independent_ip_mac_and_legacy_scopes_are_not_removed_together(self):
+        self.request("set_device_block", ip="192.168.50.101", blocked=True)
+        self.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+        result = self.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=True)
+        self.assertEqual(result["devices"][0]["blocked_by"], ["device", "ip", "mac"])
+        self.assertTrue(result["devices"][0]["blocked_ip"])
+        self.assertTrue(result["devices"][0]["blocked_mac"])
+        result = self.request("set_address_block", kind="ip", address="192.168.50.101", blocked=False)
+        self.assertEqual(result["devices"][0]["blocked_by"], ["device", "mac"])
+        self.assertTrue(result["devices"][0]["blocked"])
+        result = self.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=False)
+        self.assertEqual(result["devices"][0]["blocked_by"], ["device"])
+        result = self.request("set_device_block", ip="192.168.50.101", blocked=False)
+        self.assertEqual(result["devices"][0]["blocked_by"], [])
+        self.assertFalse(result["devices"][0]["blocked"])
+        self.assertEqual(self.agent.load_state()["address_blocks"], [])
+
+    def test_fixed_ip_stays_and_mac_follows_dhcp_changes(self):
+        self.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+        self.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=True)
+        self.runner.neighbors = [{"dst": "192.168.50.101", "lladdr": "02:00:00:00:00:02", "state": ["REACHABLE"]},
+                                 {"dst": "192.168.50.102", "lladdr": "02:00:00:00:00:01", "state": ["REACHABLE"]}]
+        result = self.request("snapshot")
+        first, second = result["devices"]
+        self.assertEqual(first["blocked_by"], ["ip"])
+        self.assertEqual(second["blocked_by"], ["mac"])
+        self.assertEqual(set(self.runner.kernel_ips), {"192.168.50.101", "192.168.50.102"})
+        rendered = g.render_nft(self.config, self.agent.load_state(), extra_ips=[])
+        self.assertIn("192.168.50.101", rendered)
+        self.assertIn("elements = { 02:00:00:00:00:01 };", rendered)
+
+    def test_saved_address_rules_can_be_released_offline_but_not_authorize_new_blocks(self):
+        self.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+        self.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=True)
+        self.runner.neighbors = []
+        result = self.request("snapshot")
+        self.assertFalse(result["devices"][0]["observed"])
+        self.assertTrue(result["devices"][0]["blocked_ip"])
+        with self.assertRaises(g.AgentError):
+            self.request("set_device_block", ip="192.168.50.102", blocked=True)
+        self.request("set_address_block", kind="ip", address="192.168.50.101", blocked=False)
+        result = self.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=False)
+        self.assertEqual(result["address_blocks"], [])
+        with self.assertRaises(g.AgentError):
+            self.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+        with self.assertRaises(g.AgentError):
+            self.request("set_address_block", kind="mac", address="02:00:00:00:00:01", blocked=False)
+
+    def test_address_scopes_reject_protected_unobserved_invalid_and_extra_parameters(self):
+        for kind, address in (("ip", "192.168.50.10"), ("ip", "192.168.50.255"), ("ip", "192.168.51.101"),
+                              ("ip", "192.168.50.150"), ("mac", "02:00:00:00:00:99"), ("mac", "00:00:00:00:00:00"),
+                              ("mac", "ff:ff:ff:ff:ff:ff"), ("mac", "01:00:5e:00:00:01"), ("mac", "02:00:00:00:00:01;reboot")):
+            with self.subTest(kind=kind, address=address), self.assertRaises(g.AgentError):
+                self.request("set_address_block", kind=kind, address=address, blocked=True)
+        for extra in ({"blocked": "false"}, {"kind": "both"}, {"password": "do-not-audit-secret"}):
+            params = dict(kind="ip", address="192.168.50.101", blocked=True)
+            params.update(extra)
+            with self.subTest(extra=extra), self.assertRaises(g.AgentError):
+                self.request("set_address_block", **params)
+        self.assertNotIn("do-not-audit-secret", str(self.agent.load_state()["audit"]))
+        self.assertFalse(any(args == ["nft", "-f", "-"] for args, _ in self.runner.calls))
+
+    def test_admin_mac_cannot_be_blocked_through_another_ip(self):
+        self.runner.neighbors.append({"dst": "192.168.50.10", "lladdr": "02:00:00:00:00:01", "state": ["REACHABLE"]})
+        for kind, address in (("ip", "192.168.50.101"), ("mac", "02:00:00:00:00:01")):
+            with self.subTest(kind=kind), self.assertRaisesRegex(g.AgentError, "protegida"):
+                self.request("set_address_block", kind=kind, address=address, blocked=True)
+
+    def test_address_scope_failure_rolls_back_without_dropping_legacy_rules(self):
+        self.request("set_device_block", ip="192.168.50.101", blocked=True)
+        self.runner.fail_apply = True
+        with self.assertRaisesRegex(g.AgentError, "anterior foi restaurada"):
+            self.request("set_address_block", kind="ip", address="192.168.50.101", blocked=True)
+        state = self.agent.load_state()
+        self.assertEqual(state["address_blocks"], [])
+        self.assertIn("192.168.50.101", state["blocked"])
+        self.assertEqual(self.runner.kernel_ips, ["192.168.50.101"])
+
+    def test_legacy_state_version_one_adds_optional_address_rules_without_losing_entries(self):
+        state = g.default_state()
+        state.pop("address_blocks")
+        state["blocked"] = {"192.168.50.101": {"mac": "02:00:00:00:00:01", "name": "LAB"}}
+        self.agent.save_state(state)
+        loaded = self.agent.load_state()
+        self.assertEqual(loaded["version"], 1)
+        self.assertEqual(loaded["blocked"], state["blocked"])
+        self.assertEqual(loaded["address_blocks"], [])
+
+    def test_malformed_address_state_is_rejected(self):
+        invalid = (None, {}, ["bad"], [{"kind": "ip", "address": "192.168.51.1"}],
+                   [{"kind": "mac", "address": "02:AA:00:00:00:01"}],
+                   [{"kind": "mac", "address": "02:00:00:00:00:01", "unexpected": "x"}],
+                   [{"kind": "ip", "address": "192.168.50.101"}] * 2)
+        for rules in invalid:
+            self.agent.save_state(dict(g.default_state(), address_blocks=rules))
+            with self.subTest(rules=rules), self.assertRaises(g.AgentError):
+                self.agent.load_state()
+
     def test_reconcile_failure_is_visible_health_error(self):
         self.request("set_device_block", ip="192.168.50.101", blocked=True)
         self.runner.kernel_ips = []
