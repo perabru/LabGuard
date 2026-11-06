@@ -1,0 +1,5 @@
+# O painel e o agente usam somente a biblioteca padrão do Python 3.10+.
+# Tkinter é um componente do instalador Python no Windows.
+# Linux desktop: instale python3-tk pelo gerenciador de pacotes.
+# A conexão real também exige o cliente OpenSSH do sistema operacional.
+# Os pacotes do gateway estão descritos em docs/INSTALACAO.md.

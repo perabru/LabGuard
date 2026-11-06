@@ -1,0 +1,8 @@
+[Unit]
+Description=LabGuard - atualizar bloqueios conforme DHCP e vizinhos
+Requires=labguard-firewall.service
+After=labguard-firewall.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/labguard/agent.py --config /etc/labguard/config.json --reconcile

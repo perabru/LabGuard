@@ -1,0 +1,836 @@
+"""Interface desktop do LabGuard. Rede e SSH nunca executam no thread do Tk."""
+from __future__ import annotations
+
+import csv
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from pathlib import Path
+import queue
+import tkinter as tk
+from tkinter import font as tkfont
+from tkinter import filedialog, messagebox, ttk
+
+from .demo import DemoTransport
+from .transport import SSHTransport, TransportError
+
+
+from .ui import (ActionButton, RoundCard, IconBadge, BG, PANEL, CARD, TEXT,
+                 MUTED, PURPLE, BLUE, GREEN, AMBER, RED, SIDEBAR, BORDER)
+
+
+def csv_safe(value):
+    """Impede que nomes recebidos da rede sejam fórmulas em planilhas."""
+    text = str(value if value is not None else "")
+    return "'" + text if text.lstrip().startswith(("=", "+", "-", "@")) else text
+
+
+class App(tk.Tk):
+    def __init__(self, transport=None):
+        super().__init__()
+        self.title("LabGuard | Controle de rede do laboratório")
+        self.geometry("1280x820")
+        self.minsize(1024, 700)
+        self.configure(bg=BG)
+        self.transport = transport or DemoTransport()
+        self.snapshot = {}
+        self._generation = 0
+        self._busy = False
+        self._closed = False
+        self._results = queue.Queue()
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="labguard-ssh")
+        self._shown_events = []
+        self._pages = {}
+        self._nav_buttons = {}
+        self._page = "overview"
+        self._style()
+        self._build()
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.after(60, self._drain)
+        self.after(100, self.refresh)
+        self.after(5000, self._auto_refresh)
+
+    def _style(self):
+        installed = set(tkfont.families(self))
+        self.font_family = next((name for name in (
+            "Segoe UI", "DejaVu Sans", "Liberation Sans", "Arial", "Helvetica")
+            if name in installed), tkfont.nametofont("TkDefaultFont").actual("family"))
+        tkfont.nametofont("TkDefaultFont").configure(family=self.font_family, size=10)
+        self.option_add("*Font", (self.font_family, 10))
+        self.option_add("*TCombobox*Listbox.background", PANEL)
+        self.option_add("*TCombobox*Listbox.foreground", TEXT)
+        style = ttk.Style(self)
+        style.theme_use("clam")
+        style.configure("TFrame", background=BG)
+        style.configure("Panel.TFrame", background=PANEL)
+        style.configure("TLabel", background=BG, foreground=TEXT)
+        style.configure("Muted.TLabel", foreground=MUTED)
+        style.configure("TEntry", fieldbackground=PANEL, foreground=TEXT, insertcolor=TEXT,
+                        bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER, padding=9)
+        style.configure("TCombobox", fieldbackground=PANEL, foreground=TEXT,
+                        background=CARD, arrowcolor=PURPLE, padding=8, bordercolor=BORDER)
+        style.map("TCombobox", fieldbackground=[("readonly", PANEL)],
+                  foreground=[("readonly", TEXT)], selectbackground=[("readonly", PANEL)])
+        style.configure("TNotebook", background=BG, borderwidth=0)
+        style.configure("TNotebook.Tab", background=CARD, foreground=MUTED, padding=(18, 11), borderwidth=0)
+        style.map("TNotebook.Tab", background=[("selected", PANEL)], foreground=[("selected", PURPLE)])
+        style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT,
+                        borderwidth=0, rowheight=39, font=(self.font_family, 10),
+                        lightcolor=BORDER, darkcolor=BORDER)
+        style.configure("Treeview.Heading", background="#EDE7FA", foreground="#5C467D",
+                        font=(self.font_family, 9, "bold"), padding=(12, 13), relief="flat")
+        style.map("Treeview", background=[("selected", "#DED0FA")],
+                  foreground=[("selected", "#39215F")])
+        style.map("Treeview.Heading", background=[("active", "#E1D5F7")])
+        style.configure("Vertical.TScrollbar", background="#D4C7EB", troughcolor=BG,
+                        bordercolor=BG, arrowcolor=PURPLE)
+        style.configure("Horizontal.TScrollbar", background="#D4C7EB", troughcolor=BG,
+                        bordercolor=BG, arrowcolor=PURPLE)
+
+    def _build(self):
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        sidebar = tk.Frame(self, bg=SIDEBAR, width=218)
+        sidebar.grid(row=0, column=0, sticky="nsew")
+        sidebar.grid_propagate(False)
+        brand = tk.Frame(sidebar, bg=SIDEBAR)
+        brand.pack(fill="x", padx=22, pady=(25, 28))
+        IconBadge(brand, kind="shield", color=AMBER, tint="#453064", size=42).pack(side="left", padx=(0, 10))
+        words = tk.Frame(brand, bg=SIDEBAR)
+        words.pack(side="left")
+        tk.Label(words, text="LabGuard", font=(self.font_family, 19, "bold"),
+                 bg=SIDEBAR, fg="white", anchor="w").pack(fill="x")
+        tk.Label(words, text="CONTROLE ESCOLAR", bg=SIDEBAR, fg="#BDA7DF",
+                 font=(self.font_family, 7, "bold"), anchor="w").pack(fill="x", pady=(3, 0))
+        tk.Label(sidebar, text="SEU LABORATÓRIO", bg=SIDEBAR, fg="#A48BC6",
+                 font=(self.font_family, 8, "bold"), anchor="w").pack(fill="x", padx=26, pady=(0, 8))
+        pages = [("overview", "Visão geral"), ("devices", "Máquinas"),
+                 ("domains", "Sites e IA"), ("dns", "Histórico DNS"),
+                 ("connections", "Conexões por IP"), ("audit", "Auditoria"),
+                 ("connection", "Conectar e ajuda")]
+        self._nav_labels = dict(pages)
+        for name, label in pages:
+            button = ActionButton(sidebar, text=label, style="Nav.TButton",
+                                  height=43, font=(self.font_family, 9),
+                                  command=lambda n=name: self.show_page(n))
+            button.pack(fill="x", padx=13, pady=3)
+            self._nav_buttons[name] = button
+        tk.Frame(sidebar, bg="#4B3566", height=1).pack(fill="x", padx=24, pady=(16, 14))
+        ActionButton(sidebar, text="Roteadores e switches", style="Yellow.TButton",
+                     font=(self.font_family, 9, "bold"), command=self._open_integrations).pack(
+                         fill="x", padx=15, pady=0)
+        tk.Label(sidebar, text="Mais foco na aprendizagem.\nMais clareza para administrar.\n\nLabGuard 1.3", bg=SIDEBAR, fg="#BCA7D9",
+                 justify="left", anchor="w", font=(self.font_family, 8)).pack(
+                     side="bottom", padx=24, pady=23, fill="x")
+
+        main = tk.Frame(self, bg=BG)
+        main.grid(row=0, column=1, sticky="nsew", padx=26, pady=23)
+        main.grid_columnconfigure(0, weight=1)
+        main.grid_rowconfigure(2, weight=1)
+        header = tk.Frame(main, bg=BG)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 15))
+        title_box = tk.Frame(header, bg=BG)
+        title_box.pack(side="left")
+        tk.Label(title_box, text="ADMINISTRAÇÃO DO LABORATÓRIO", bg=BG, fg=PURPLE,
+                 font=(self.font_family, 8, "bold"), anchor="w").pack(fill="x", pady=(0, 4))
+        self.page_title = tk.Label(title_box, text="Visão geral", bg=BG, fg=TEXT,
+                                  font=(self.font_family, 24, "bold"), anchor="w")
+        self.page_title.pack(fill="x")
+        self.refresh_button = ActionButton(header, text="Atualizar", style="Purple.TButton", command=self.refresh)
+        self.refresh_button.pack(side="right", pady=(8, 0))
+        self.mode_banner = tk.Label(main, text="DEMONSTRAÇÃO | dados fictícios | nenhum bloqueio real",
+                                   bg="#FFF2C4", fg="#77560D", anchor="w", padx=16, pady=11,
+                                   font=(self.font_family, 9, "bold"))
+        self.mode_banner.grid(row=1, column=0, sticky="ew", pady=(0, 18))
+        self.content = tk.Frame(main, bg=BG)
+        self.content.grid(row=2, column=0, sticky="nsew")
+        self.content.grid_columnconfigure(0, weight=1)
+        self.content.grid_rowconfigure(0, weight=1)
+        for name, _ in pages:
+            frame = ttk.Frame(self.content)
+            frame.grid(row=0, column=0, sticky="nsew")
+            self._pages[name] = frame
+        self._build_overview(self._scrollable_page(self._pages["overview"]))
+        self._build_devices(self._pages["devices"])
+        self._build_dns(self._pages["dns"])
+        self._build_domains(self._pages["domains"])
+        self._build_connections(self._pages["connections"])
+        self._build_audit(self._pages["audit"])
+        self._build_connection(self._scrollable_page(self._pages["connection"]))
+        footer = tk.Frame(main, bg=BG)
+        footer.grid(row=3, column=0, sticky="ew", pady=(13, 0))
+        self.status = tk.StringVar(value="Carregando demonstração…")
+        self._responsive_wrap(tk.Label(footer, textvariable=self.status, bg=BG, fg=MUTED,
+            anchor="w", font=(self.font_family, 8), wraplength=900, justify="left")).pack(fill="x")
+        self.show_page("overview")
+
+    def _open_integrations(self):
+        from .integration_gui import IntegrationWindow
+        IntegrationWindow(self)
+
+    def show_page(self, name):
+        self._page = name
+        self._pages[name].tkraise()
+        for key, button in self._nav_buttons.items():
+            button.configure(face="#4B2F76" if key == name else SIDEBAR,
+                             fg="white" if key == name else "#D5CAE9")
+        self.page_title.configure(text=self._nav_labels[name])
+
+    def _hint(self, parent, text, row=0):
+        label = ttk.Label(parent, text=text, style="Muted.TLabel", wraplength=870,
+                          justify="left")
+        label.grid(row=row, column=0, sticky="ew", pady=(0, 15))
+        self._responsive_wrap(label)
+        return label
+
+    @staticmethod
+    def _responsive_wrap(label, padding=0):
+        label.bind("<Configure>", lambda event: label.configure(
+            wraplength=max(120, event.width - padding)), add="+")
+        return label
+
+    def _scrollable_page(self, parent):
+        """Mantém orientações e formulários acessíveis em telas de 700 px."""
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(0, weight=1)
+        canvas = tk.Canvas(parent, bg=BG, highlightthickness=0, borderwidth=0)
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns", padx=(9, 0))
+        inner = ttk.Frame(canvas)
+        window = canvas.create_window((0, 0), window=inner, anchor="nw")
+        inner.bind("<Configure>", lambda _: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window, width=event.width))
+        return inner
+
+    def _table(self, parent, columns, row, widths=None):
+        container = ttk.Frame(parent)
+        container.grid(row=row, column=0, sticky="nsew")
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+        keys = [c[0] for c in columns]
+        table = ttk.Treeview(container, columns=keys, show="headings", selectmode="browse")
+        for index, (key, label) in enumerate(columns):
+            table.heading(key, text=label, anchor="w")
+            table.column(key, width=(widths or {}).get(key, 135), minwidth=80, anchor="w")
+        table.grid(row=0, column=0, sticky="nsew")
+        vs = ttk.Scrollbar(container, orient="vertical", command=table.yview)
+        hs = ttk.Scrollbar(container, orient="horizontal", command=table.xview)
+        vs.grid(row=0, column=1, sticky="ns")
+        hs.grid(row=1, column=0, sticky="ew")
+        table.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
+        table.tag_configure("blocked", foreground=RED)
+        table.tag_configure("protected", foreground=GREEN)
+        return table
+
+    def _build_overview(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        hero = RoundCard(parent, color=PURPLE, border=PURPLE, padding=22, radius=22)
+        hero.grid(row=0, column=0, sticky="ew", pady=(0, 17))
+        hero.body.grid_columnconfigure(0, weight=1)
+        tk.Label(hero.body, text="SEU ESPAÇO PARA ENSINAR", bg=PURPLE, fg="#DCCEFF",
+                 font=(self.font_family, 8, "bold"), anchor="w").grid(row=0, column=0, sticky="ew")
+        tk.Label(hero.body, text="Laboratório sob controle.", bg=PURPLE, fg="white",
+                 font=(self.font_family, 21, "bold"), anchor="w").grid(row=1, column=0, sticky="w", pady=(6, 7))
+        self._responsive_wrap(tk.Label(hero.body, text="Máquinas, sites e serviços de IA em um painel simples.",
+            bg=PURPLE, fg="#E9DFFF", justify="left", anchor="w", wraplength=510)).grid(row=2, column=0, sticky="ew")
+        ActionButton(hero.body, text="Conectar gateway", style="Yellow.TButton",
+                     command=lambda: self.show_page("connection")).grid(row=1, column=1, rowspan=2, padx=(18, 0))
+        cards = tk.Frame(parent, bg=BG)
+        cards.grid(row=1, column=0, sticky="ew", pady=(0, 17))
+        self.metric_labels = {}
+        metrics = [("observed_devices", "Máquinas observadas", BLUE, "computer", "#E7F0FF"),
+                   ("blocked_devices", "Internet suspensa", RED, "shield", "#FDEBF0"),
+                   ("queries_window", "Consultas DNS", PURPLE, "activity", "#EFE8FD"),
+                   ("blocked_events_window", "Bloqueios DNS", "#9A6B00", "dns", "#FFF3C7")]
+        for col, (key, title, color, kind, tint) in enumerate(metrics):
+            cards.grid_columnconfigure(col, weight=1, uniform="metrics")
+            card = RoundCard(cards, padding=15)
+            card.grid(row=0, column=col, sticky="nsew", padx=(0, 10 if col < 3 else 0))
+            IconBadge(card.body, kind=kind, color=color, tint=tint, size=33).pack(anchor="w")
+            value = tk.Label(card.body, text="-", bg=PANEL, fg=TEXT,
+                             font=(self.font_family, 27, "bold"), anchor="w")
+            value.pack(fill="x", pady=(8, 0))
+            self._responsive_wrap(tk.Label(card.body, text=title, bg=PANEL, fg=MUTED,
+                 font=(self.font_family, 8), anchor="w", justify="left", wraplength=150)).pack(fill="x", pady=(2, 0))
+            self.metric_labels[key] = value
+        title_bar = tk.Frame(parent, bg=BG)
+        title_bar.grid(row=2, column=0, sticky="ew", pady=(0, 11))
+        tk.Label(title_bar, text="O que você quer fazer?", bg=BG, fg=TEXT,
+                 font=(self.font_family, 14, "bold"), anchor="w").pack(side="left")
+        quick = tk.Frame(parent, bg=BG)
+        quick.grid(row=3, column=0, sticky="ew", pady=(0, 17))
+        actions = [("Máquinas", "Veja os computadores e controle sua internet.", "computer", BLUE, "#E7F0FF", "Ver máquinas", "Accent.TButton", lambda: self.show_page("devices")),
+                   ("Sites e IA", "Edite a lista de jogos e ative o perfil de IA.", "ai", PURPLE, "#EFE8FD", "Gerenciar sites", "Purple.TButton", lambda: self.show_page("domains")),
+                   ("Equipamentos", "Conecte roteadores e switches compatíveis.", "network", "#9A6B00", "#FFF3C7", "Ver integrações", "Yellow.TButton", self._open_integrations)]
+        for col, (title, text, kind, color, tint, label, style, command) in enumerate(actions):
+            quick.grid_columnconfigure(col, weight=1, uniform="quick")
+            card = RoundCard(quick, padding=18)
+            card.grid(row=0, column=col, sticky="nsew", padx=(0, 12 if col < 2 else 0))
+            IconBadge(card.body, kind=kind, color=color, tint=tint).pack(anchor="w")
+            tk.Label(card.body, text=title, bg=PANEL, fg=TEXT,
+                     font=(self.font_family, 12, "bold"), anchor="w").pack(fill="x", pady=(12, 5))
+            self._responsive_wrap(tk.Label(card.body, text=text, bg=PANEL, fg=MUTED,
+                justify="left", anchor="w", wraplength=220, font=(self.font_family, 9))).pack(fill="x", pady=(0, 13))
+            ActionButton(card.body, text=label, style=style, command=command).pack(fill="x")
+        connection = RoundCard(parent, padding=18)
+        connection.grid(row=4, column=0, sticky="ew", pady=(0, 14))
+        tk.Label(connection.body, text="Estado do gateway", bg=PANEL, fg=TEXT,
+                 font=(self.font_family, 12, "bold"), anchor="w").pack(fill="x", pady=(0, 9))
+        self.gateway_summary = tk.StringVar(value="Gateway: aguardando dados…")
+        self._responsive_wrap(tk.Label(connection.body, textvariable=self.gateway_summary,
+            bg=PANEL, fg=MUTED, justify="left", anchor="w", font=(self.font_family, 9), wraplength=850)).pack(fill="x")
+        self._hint(parent, "Leitura com contexto: máquinas são observadas por DHCP/vizinhos; consultas DNS não comprovam visitas nem revelam conteúdo HTTPS. O controle real exige configuração da rede.", row=5)
+
+    def _build_devices(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(2, weight=1)
+        self._hint(parent, "Selecione uma máquina para suspender sua internet ou consultar os domínios solicitados. Equipamentos protegidos não podem ser suspensos.")
+        bar = ttk.Frame(parent)
+        bar.grid(row=1, column=0, sticky="ew", pady=(0, 13))
+        ActionButton(bar, text="Ver consultas DNS", command=self._device_dns).pack(side="left")
+        self.block_button = ActionButton(bar, text="Suspender internet", style="Danger.TButton",
+                                       command=lambda: self._set_block(True))
+        self.block_button.pack(side="left", padx=8)
+        self.unblock_button = ActionButton(bar, text="Restaurar internet", command=lambda: self._set_block(False))
+        self.unblock_button.pack(side="left")
+        self.devices_table = self._table(parent, [("name", "Máquina"), ("ip", "IP"),
+            ("mac", "MAC"), ("state", "Evidência de presença"), ("access", "Internet"),
+            ("queries", "Consultas"), ("protected", "Protegida")], 2,
+            {"name": 140, "mac": 160, "state": 170, "queries": 90, "protected": 90})
+        self.devices_table.bind("<<TreeviewSelect>>", self._device_selection)
+        self.device_note = tk.StringVar(value="Nenhuma máquina selecionada.")
+        self._responsive_wrap(ttk.Label(parent, textvariable=self.device_note, style="Muted.TLabel", wraplength=850)).grid(
+            row=3, column=0, sticky="ew", pady=(12, 0))
+        self._device_selection()
+
+    def _build_dns(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(2, weight=1)
+        self._hint(parent, "Domínios solicitados por cada IP, inclusive serviços em segundo plano. A amostra é limitada aos registros disponíveis no gateway.")
+        bar = ttk.Frame(parent)
+        bar.grid(row=1, column=0, sticky="ew", pady=(0, 13))
+        ttk.Label(bar, text="Máquina / IP").pack(side="left", padx=(0, 8))
+        self.dns_ip = tk.StringVar(value="Todas")
+        self.dns_ip_combo = ttk.Combobox(bar, textvariable=self.dns_ip, values=["Todas"], width=19, state="readonly")
+        self.dns_ip_combo.pack(side="left")
+        self.dns_ip_combo.bind("<<ComboboxSelected>>", lambda _: self._render_dns())
+        ttk.Label(bar, text="Buscar domínio").pack(side="left", padx=(17, 8))
+        self.dns_search = tk.StringVar()
+        self.dns_search.trace_add("write", lambda *_: self._render_dns())
+        ttk.Entry(bar, textvariable=self.dns_search, width=23).pack(side="left")
+        ActionButton(bar, text="Exportar CSV", command=self._export_dns).pack(side="right")
+        self.dns_table = self._table(parent, [("time", "Horário"), ("ip", "IP solicitante"),
+            ("domain", "Domínio"), ("type", "Tipo"), ("status", "Resultado observado")], 2,
+            {"time": 175, "domain": 265, "type": 80, "status": 205})
+        self.dns_count = tk.StringVar(value="0 registros exibidos")
+        ttk.Label(parent, textvariable=self.dns_count, style="Muted.TLabel").grid(
+            row=3, column=0, sticky="w", pady=(12, 0))
+
+    def _build_domains(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(4, weight=1)
+        self._hint(parent, "Lista global do laboratório. Informe apenas o domínio: exemplo.com. Os subdomínios também serão incluídos no bloqueio DNS.")
+        ai_surface = RoundCard(parent, padding=18)
+        ai_surface.grid(row=1, column=0, sticky="ew", pady=(0, 14))
+        ai_card = ai_surface.body
+        ai_card.grid_columnconfigure(0, weight=1)
+        tk.Label(ai_card, text="Bloquear serviços de IA", bg=PANEL, fg=TEXT,
+                 anchor="w", font=(self.font_family, 13, "bold")).grid(row=0, column=0, sticky="ew")
+        self.ai_state_text = tk.StringVar(value="Carregando perfil de IA…")
+        self.ai_state_label = tk.Label(ai_card, textvariable=self.ai_state_text, bg=PANEL,
+                                      fg=MUTED, anchor="w", justify="left")
+        self._responsive_wrap(self.ai_state_label).grid(row=1, column=0, sticky="ew", pady=(5, 0))
+        self.ai_toggle_button = ActionButton(ai_card, text="Ativar bloqueio de IA",
+                                          style="Accent.TButton", state="disabled",
+                                          command=self._toggle_ai_block)
+        self.ai_toggle_button.grid(row=0, column=1, rowspan=2, padx=(12, 0))
+        self.ai_catalog_button = ActionButton(ai_card, text="Ver serviços incluídos",
+                                           state="disabled", command=self._show_ai_catalog)
+        self.ai_catalog_button.grid(row=2, column=0, sticky="w", pady=(10, 0))
+        self._responsive_wrap(tk.Label(ai_card,
+            text="Bloqueia os domínios cadastrados. IA integrada em outros sites ou local precisa de controles adicionais.",
+            bg=PANEL, fg=MUTED, anchor="w", justify="left", wraplength=850)).grid(
+                row=3, column=0, columnspan=2, sticky="ew", pady=(9, 0))
+        bar = ttk.Frame(parent)
+        bar.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+        self.domain_input = tk.StringVar()
+        self.category_input = tk.StringVar(value="Jogos")
+        ttk.Entry(bar, textvariable=self.domain_input, width=32).pack(side="left")
+        ttk.Combobox(bar, textvariable=self.category_input, values=["Jogos", "Inteligência artificial", "Redes sociais", "Outros"],
+                     width=16).pack(side="left", padx=8)
+        ActionButton(bar, text="Adicionar domínio", style="Accent.TButton", command=self._add_domain).pack(side="left")
+        actions = ttk.Frame(parent)
+        actions.grid(row=3, column=0, sticky="ew", pady=(0, 12))
+        ActionButton(actions, text="Importar lista .txt", command=self._import_domains).pack(side="left")
+        ActionButton(actions, text="Remover selecionado", command=self._remove_domain).pack(side="left", padx=8)
+        self.domains_table = self._table(parent, [("domain", "Domínio bloqueado"),
+            ("category", "Categoria"), ("source", "Origem"), ("created", "Adicionado em")], 4,
+            {"domain": 280, "category": 180, "source": 140, "created": 180})
+        self._responsive_wrap(ttk.Label(parent, text="Mudanças aplicam-se a novas resoluções DNS. O serviço DNS/DHCP é reiniciado brevemente para reler as regras.",
+                  style="Muted.TLabel", wraplength=870)).grid(row=5, column=0, sticky="ew", pady=(12, 0))
+
+    def _build_connections(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(1, weight=1)
+        self._hint(parent, "Conexões observadas no gateway. Destinos por IP podem hospedar muitos sites; esta tabela não revela URLs completas ou conteúdo HTTPS.")
+        self.connections_table = self._table(parent, [("source", "IP da máquina"),
+            ("dest", "IP de destino"), ("proto", "Protocolo"), ("port", "Porta de destino"),
+            ("state", "Estado")], 1, {"source": 185, "dest": 185, "state": 210})
+
+    def _build_audit(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(1, weight=1)
+        self._hint(parent, "Registro das ações administrativas disponibilizado pelo gateway. A auditoria de demonstração também é fictícia.")
+        self.audit_table = self._table(parent, [("time", "Horário"), ("action", "Ação"),
+            ("target", "Alvo"), ("outcome", "Resultado")], 1,
+            {"time": 190, "action": 220, "target": 230, "outcome": 200})
+
+    def _build_connection(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        self._hint(parent, "Conecte a interface ao gateway Linux do laboratório. A autenticação usa uma chave SSH; senhas e chaves privadas não são copiadas para o programa.")
+        form_surface = RoundCard(parent, padding=20)
+        form_surface.grid(row=1, column=0, sticky="ew")
+        form = form_surface.body
+        form.grid_columnconfigure(1, weight=1)
+        self.host_var = tk.StringVar(value="192.168.50.1")
+        self.port_var = tk.StringVar(value="22")
+        self.user_var = tk.StringVar(value="labguard")
+        self.key_var = tk.StringVar()
+        self.known_hosts_var = tk.StringVar()
+        fields = [("Endereço do gateway", self.host_var), ("Porta SSH", self.port_var),
+                  ("Usuário SSH", self.user_var), ("Arquivo da chave privada", self.key_var),
+                  ("known_hosts (opcional)", self.known_hosts_var)]
+        for row, (label, var) in enumerate(fields):
+            tk.Label(form, text=label, bg=PANEL, fg=MUTED, anchor="w").grid(
+                row=row, column=0, sticky="w", padx=(0, 18), pady=6)
+            ttk.Entry(form, textvariable=var).grid(row=row, column=1, sticky="ew", pady=6)
+            if row in (3, 4):
+                ActionButton(form, text="Selecionar", command=lambda v=var: self._pick_file(v)).grid(
+                    row=row, column=2, padx=(9, 0))
+        actions = ttk.Frame(parent)
+        actions.grid(row=2, column=0, sticky="ew", pady=(15, 19))
+        ActionButton(actions, text="Conectar ao gateway", style="Accent.TButton", command=self._connect).pack(side="left")
+        ActionButton(actions, text="Abrir demonstração", command=self._switch_demo).pack(side="left", padx=9)
+        help_surface = RoundCard(parent, padding=19)
+        help_surface.grid(row=3, column=0, sticky="ew")
+        help_box = help_surface.body
+        tk.Label(help_box, text="Antes da primeira conexão", bg=PANEL, fg=TEXT,
+                 font=(self.font_family, 13, "bold"), anchor="w").pack(fill="x", pady=(0, 8))
+        help_text = (
+            "1. Instale o gateway Linux com duas interfaces, entre o roteador e o switch do laboratório.\n"
+            "2. Configure a rede, os IPs protegidos e a chave administrativa conforme o manual.\n"
+            "3. Verifique a impressão digital SSH no console do gateway e cadastre-a no known_hosts.\n"
+            "4. Se a chave tiver senha, carregue-a no ssh-agent. O programa usa o OpenSSH do sistema.\n\n"
+            "A chave do servidor é verificada rigorosamente. Uma falha de conexão mantém o modo anterior e exibe o erro.\n"
+            "Esta conexão administra o gateway. Para equipamentos compatíveis, abra Roteadores / switches e confira os recursos do adaptador.")
+        self._responsive_wrap(tk.Label(help_box, text=help_text, bg=PANEL, fg=MUTED, justify="left", anchor="w",
+                 wraplength=850, font=(self.font_family, 10))).pack(fill="x")
+        ActionButton(parent, text="Abrir manual de instalação", command=self._open_manual).grid(
+            row=4, column=0, sticky="w", pady=(14, 0))
+
+    def _pick_file(self, variable):
+        selected = filedialog.askopenfilename(parent=self, title="Selecionar arquivo")
+        if selected:
+            variable.set(selected)
+
+    def _open_manual(self):
+        import webbrowser
+        root = Path(__file__).resolve().parents[1]
+        candidates = [root / "docs" / "INSTALACAO.md", root / "README.md"]
+        path = next((p for p in candidates if p.is_file()), None)
+        if path:
+            webbrowser.open(path.as_uri())
+        else:
+            messagebox.showinfo("Manual", "Consulte o README e a pasta docs do pacote LabGuard.", parent=self)
+
+    def _run_job(self, function, *, label, on_success=None, alert=False):
+        if self._busy or self._closed:
+            self.status.set("Aguarde a operação em andamento antes de iniciar outra ação.")
+            return False
+        self._busy = True
+        generation = self._generation
+        self.status.set(label + "…")
+        self.refresh_button.configure(state="disabled")
+        def work():
+            try:
+                result = function()
+                self._results.put((generation, True, result, on_success, alert, label))
+            except Exception as exc:
+                self._results.put((generation, False, str(exc), None, alert, label))
+        self._executor.submit(work)
+        return True
+
+    def _drain(self):
+        if self._closed:
+            return
+        try:
+            while True:
+                generation, ok, value, callback, alert, label = self._results.get_nowait()
+                if generation != self._generation:
+                    continue
+                self._busy = False
+                self.refresh_button.configure(state="normal")
+                if ok:
+                    if callback:
+                        callback(value)
+                    else:
+                        self._apply_snapshot(value)
+                else:
+                    mode = "demonstração" if self.snapshot.get("mode", "demo") == "demo" else "gateway"
+                    if mode == "gateway":
+                        self.mode_banner.configure(
+                            text="GATEWAY SEM ATUALIZAÇÃO | conexão não confirmada | dados anteriores",
+                            bg="#FFF2C4", fg="#77560D")
+                    self.status.set(f"Falha: {value}  |  Modo {mode}; dados anteriores mantidos.")
+                    if alert:
+                        messagebox.showerror("Operação não concluída", value, parent=self)
+        except queue.Empty:
+            pass
+        self.after(80, self._drain)
+
+    def refresh(self):
+        transport = self.transport
+        self._run_job(lambda: transport.request("snapshot"), label="Atualizando dados")
+
+    def _auto_refresh(self):
+        if self._closed:
+            return
+        if not self._busy:
+            self.refresh()
+        self.after(5000, self._auto_refresh)
+
+    def _connect(self):
+        if self._busy:
+            self.status.set("Aguarde a operação atual para conectar ao gateway.")
+            return
+        try:
+            port = int(self.port_var.get().strip())
+            transport = SSHTransport(host=self.host_var.get().strip(), port=port,
+                user=self.user_var.get().strip(), key_path=self.key_var.get().strip(),
+                known_hosts=self.known_hosts_var.get().strip() or None)
+        except (ValueError, TransportError) as exc:
+            messagebox.showerror("Configuração inválida", str(exc), parent=self)
+            return
+        self._generation += 1
+        def connected(snapshot):
+            if snapshot.get("mode") != "gateway":
+                messagebox.showerror("Resposta inválida", "O destino SSH não retornou um gateway real.", parent=self)
+                self.status.set("Conexão não ativada; modo anterior mantido.")
+                return
+            self.transport = transport
+            self._apply_snapshot(snapshot)
+            self.show_page("overview")
+        self._run_job(lambda: transport.request("snapshot"), label="Conectando ao gateway",
+                      on_success=connected, alert=True)
+
+    def _switch_demo(self):
+        if self._busy:
+            self.status.set("Aguarde a operação atual para trocar de modo.")
+            return
+        self._generation += 1
+        self.transport = DemoTransport()
+        self.snapshot = {}
+        self.mode_banner.configure(text="DEMONSTRAÇÃO | dados fictícios | nenhum bloqueio real", bg="#FFF2C4", fg="#77560D")
+        self.refresh()
+
+    @staticmethod
+    def _fill_tree(tree, rows):
+        selection = tree.selection()
+        scroll = tree.yview()
+        children = tree.get_children()
+        if children:
+            tree.delete(*children)
+        for iid, values, tags in rows:
+            tree.insert("", "end", iid=str(iid), values=values, tags=tags)
+        for iid in selection:
+            if tree.exists(iid):
+                tree.selection_set(iid)
+        if scroll:
+            tree.yview_moveto(scroll[0])
+
+    def _apply_snapshot(self, data):
+        if not isinstance(data, dict) or data.get("mode") not in ("demo", "gateway"):
+            self.status.set("O gateway retornou uma resposta inválida. Dados anteriores mantidos.")
+            return
+        self.snapshot = data
+        demo = data["mode"] == "demo"
+        self.mode_banner.configure(
+            text="DEMONSTRAÇÃO | dados fictícios | nenhum bloqueio real" if demo else "GATEWAY CONECTADO | controle real da rede configurada",
+            bg="#FFF2C4" if demo else "#DDF3E9", fg="#77560D" if demo else GREEN)
+        for key, label in self.metric_labels.items():
+            label.configure(text=str(data.get("metrics", {}).get(key, 0)))
+        gateway = data.get("gateway", {})
+        health = data.get("health", {})
+        state = lambda key: "ativo" if health.get(key) else "indisponível"
+        self.gateway_summary.set(
+            f"{gateway.get('hostname', 'Gateway')}  |  Rede {gateway.get('lab_cidr', '-')}\n"
+            f"LAN: {gateway.get('lan_interface', '-')}   >   WAN: {gateway.get('wan_interface', '-')}\n"
+            f"Firewall: {state('firewall')}   |   DNS: {state('dns')}   |   Encaminhamento: {state('forwarding')}\n"
+            f"IPv6: {gateway.get('ipv6_policy', 'consulte o gateway')}")
+        self._fill_tree(self.devices_table, [(d["ip"], (
+            d.get("name") or "Sem nome", d["ip"], d.get("mac") or "-", d.get("state", "Observada"),
+            "Suspensa" if d.get("blocked") else "Permitida", d.get("dns_queries", 0),
+            "Sim" if d.get("protected") else "Não"),
+            ("protected",) if d.get("protected") else (("blocked",) if d.get("blocked") else ()))
+            for d in data.get("devices", [])])
+        self._device_selection()
+        ips = sorted({d["ip"] for d in data.get("devices", [])} |
+                     {e.get("client_ip", "") for e in data.get("events", [])} - {""})
+        self.dns_ip_combo.configure(values=["Todas"] + ips)
+        if self.dns_ip.get() not in ["Todas"] + ips:
+            self.dns_ip.set("Todas")
+        self._render_dns()
+        self._render_ai_policy()
+        self._fill_tree(self.domains_table, [(d["domain"], (
+            d["domain"], d.get("category", "Outros"),
+            "Perfil IA" if d.get("source") == "ai_profile" else "Manual",
+            self._time(d.get("created_at", ""))), ())
+            for d in data.get("domains", [])])
+        self._fill_tree(self.connections_table, [(i, (c.get("source_ip", ""),
+            c.get("destination_ip", ""), c.get("protocol", ""), c.get("port", ""), c.get("state", "")), ())
+            for i, c in enumerate(data.get("connections", []))])
+        self._fill_tree(self.audit_table, [(i, (self._time(a.get("time", "")), a.get("action", ""),
+            a.get("target", ""), a.get("outcome", "")), ()) for i, a in enumerate(data.get("audit", []))])
+        warnings = data.get("warnings", [])
+        stamp = self._time(data.get("timestamp", ""))
+        self.status.set(f"Atualizado: {stamp}  |  Atualização automática a cada 5 s" +
+                        ("  |  " + " | ".join(map(str, warnings)) if warnings else ""))
+
+    @staticmethod
+    def _time(value):
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone().strftime("%d/%m/%Y %H:%M:%S")
+        except (ValueError, TypeError):
+            return str(value or "-")
+
+    def _selected_device(self):
+        selection = self.devices_table.selection()
+        if not selection:
+            return None
+        return next((d for d in self.snapshot.get("devices", []) if d.get("ip") == selection[0]), None)
+
+    def _device_selection(self, _event=None):
+        device = self._selected_device()
+        protected = not device or device.get("protected")
+        self.block_button.configure(state="disabled" if protected or device.get("blocked") else "normal")
+        self.unblock_button.configure(state="disabled" if protected or not device.get("blocked") else "normal")
+        self.device_note.set("Nenhuma máquina selecionada." if not device else
+            f"{device.get('name') or 'Sem nome'} | {device['ip']} | Última evidência: {self._time(device.get('last_seen', ''))}" +
+            (" | Equipamento protegido" if device.get("protected") else ""))
+
+    def _device_dns(self):
+        device = self._selected_device()
+        if not device:
+            messagebox.showinfo("Selecione uma máquina", "Selecione uma linha na tabela de máquinas.", parent=self)
+            return
+        self.dns_ip.set(device["ip"])
+        self.dns_search.set("")
+        self._render_dns()
+        self.show_page("dns")
+
+    def _render_dns(self):
+        selected_ip = self.dns_ip.get()
+        term = self.dns_search.get().strip().lower()
+        self._shown_events = [e for e in self.snapshot.get("events", [])
+            if (selected_ip == "Todas" or e.get("client_ip") == selected_ip)
+            and term in e.get("domain", "").lower()]
+        self._fill_tree(self.dns_table, [(i, (self._time(e.get("time", "")), e.get("client_ip", ""),
+            e.get("domain", ""), e.get("query_type", ""), e.get("status", "Consulta")),
+            ("blocked",) if "bloqueio" in e.get("status", "").lower() else ())
+            for i, e in enumerate(self._shown_events)])
+        self.dns_count.set(f"{len(self._shown_events)} registros exibidos | amostra recente, não histórico completo de navegação")
+
+    def _live_confirmation(self, title, text):
+        if self.snapshot.get("mode") == "demo":
+            return True
+        return messagebox.askyesno(title, text, parent=self, icon="warning", default="no")
+
+    def _set_block(self, blocked):
+        device = self._selected_device()
+        if not device or device.get("protected"):
+            return
+        verb = "Suspender" if blocked else "Restaurar"
+        if not self._live_confirmation(f"{verb} internet", f"{verb} a internet de {device.get('name') or 'máquina'} ({device['ip']})?\n\nA ação altera o encaminhamento no gateway."):
+            return
+        transport = self.transport
+        self._run_job(lambda: transport.request("set_device_block", ip=device["ip"], blocked=blocked),
+                      label=f"{verb} internet de {device['ip']}", alert=True)
+
+    def _add_domain(self):
+        domain = self.domain_input.get().strip()
+        category = self.category_input.get().strip() or "Outros"
+        if not domain:
+            messagebox.showinfo("Informe o domínio", "Exemplo: jogos.exemplo.com", parent=self)
+            return
+        if not self._live_confirmation("Adicionar bloqueio DNS", f"Bloquear {domain} e seus subdomínios em todo o laboratório?\n\nO serviço DNS/DHCP será reiniciado brevemente. Caches e conexões existentes podem continuar."):
+            return
+        transport = self.transport
+        def done(snapshot):
+            self.domain_input.set("")
+            self._apply_snapshot(snapshot)
+        self._run_job(lambda: transport.request("add_domain", domain=domain, category=category),
+                      label="Adicionando domínio", on_success=done, alert=True)
+
+    def _ai_policy(self):
+        policies = self.snapshot.get("policies", {})
+        policy = policies.get("ai_block") if isinstance(policies, dict) else None
+        if not isinstance(policy, dict) or type(policy.get("enabled")) is not bool:
+            return None
+        return policy
+
+    def _render_ai_policy(self):
+        policy = self._ai_policy()
+        if policy is None:
+            self.ai_state_text.set("Atualize o agente do gateway para usar o perfil de IA.")
+            self.ai_state_label.configure(fg=MUTED)
+            self.ai_toggle_button.configure(state="disabled", text="Perfil indisponível")
+            self.ai_catalog_button.configure(state="disabled")
+            return
+        enabled = policy["enabled"]
+        count = len(policy.get("domains", []))
+        services = len(policy.get("services", []))
+        self.ai_state_text.set(f"{'Ativo' if enabled else 'Desativado'} | {services} serviços, {count} domínios no perfil")
+        self.ai_state_label.configure(fg=GREEN if enabled else MUTED)
+        self.ai_toggle_button.configure(state="normal",
+            text="Desativar bloqueio de IA" if enabled else "Ativar bloqueio de IA")
+        self.ai_catalog_button.configure(state="normal")
+
+    def _toggle_ai_block(self):
+        if self._busy:
+            self.status.set("Aguarde a operação em andamento antes de alterar o perfil de IA.")
+            return
+        policy = self._ai_policy()
+        if policy is None:
+            self.status.set("Atualize o agente do gateway para usar o perfil de IA.")
+            return
+        enabled = not policy["enabled"]
+        verb = "Ativar" if enabled else "Desativar"
+        count = len(policy.get("domains", []))
+        message = (f"{verb} o perfil de bloqueio de IA em todo o laboratório?\n\n"
+            f"O perfil contém {count} domínios dos serviços listados em 'Ver serviços incluídos'. "
+            "Ele não identifica automaticamente toda IA da internet. Regras manuais permanecem cadastradas.\n\n"
+            "O serviço DNS/DHCP será reiniciado uma vez. Caches e conexões existentes podem continuar.")
+        if not self._live_confirmation(f"{verb} bloqueio de IA", message):
+            return
+        transport = self.transport
+        self._run_job(lambda: transport.request("set_ai_block", enabled=enabled),
+                      label=f"{verb} perfil de IA", alert=True)
+
+    def _show_ai_catalog(self):
+        policy = self._ai_policy()
+        if policy is None:
+            return
+        dialog = tk.Toplevel(self)
+        dialog.title("LabGuard | Serviços de IA incluídos")
+        dialog.geometry("710x510")
+        dialog.minsize(480, 330)
+        dialog.configure(bg=BG)
+        dialog.transient(self)
+        dialog.grid_columnconfigure(0, weight=1)
+        dialog.grid_rowconfigure(1, weight=1)
+        self._responsive_wrap(tk.Label(dialog,
+            text="Perfil global de IA: os domínios abaixo e seus subdomínios. Para incluir outros serviços, adicione seus domínios na lista manual.",
+            bg=BG, fg=TEXT, wraplength=660, justify="left", anchor="w")).grid(
+                row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=16)
+        body = tk.Text(dialog, bg=PANEL, fg=TEXT, relief="flat", padx=14, pady=12,
+                       wrap="word", font=(self.font_family, 10))
+        body.grid(row=1, column=0, sticky="nsew", padx=(18, 0))
+        scrollbar = ttk.Scrollbar(dialog, orient="vertical", command=body.yview)
+        scrollbar.grid(row=1, column=1, sticky="ns", padx=(0, 18))
+        body.configure(yscrollcommand=scrollbar.set)
+        for service in policy.get("services", []):
+            body.insert("end", f"{service.get('name', 'Serviço')}\n")
+            for domain in service.get("domains", []):
+                body.insert("end", f"  {domain}\n")
+            body.insert("end", "\n")
+        body.configure(state="disabled")
+        ActionButton(dialog, text="Fechar", command=dialog.destroy).grid(
+            row=2, column=0, columnspan=2, sticky="e", padx=18, pady=14)
+
+    def _remove_domain(self):
+        selection = self.domains_table.selection()
+        if not selection:
+            messagebox.showinfo("Selecione um domínio", "Selecione o domínio que deseja remover da lista.", parent=self)
+            return
+        domain = selection[0]
+        row = next((d for d in self.snapshot.get("domains", []) if d.get("domain") == domain), {})
+        if row.get("source") == "ai_profile":
+            messagebox.showinfo("Domínio do perfil de IA",
+                "Este domínio pertence ao perfil de IA. Desative o perfil para retirar suas regras. "
+                "Você pode adicionar os domínios que deseja manter na lista manual.", parent=self)
+            return
+        policy = self._ai_policy()
+        overlap = bool(policy and policy["enabled"] and domain in policy.get("domains", []))
+        note = "\n\nEste domínio continuará bloqueado pelo perfil de IA ativo." if overlap else ""
+        if not self._live_confirmation("Remover bloqueio DNS", f"Remover a regra manual de {domain}?{note}\n\nO serviço DNS/DHCP será reiniciado brevemente."):
+            return
+        transport = self.transport
+        self._run_job(lambda: transport.request("remove_domain", domain=domain), label="Removendo domínio", alert=True)
+
+    def _import_domains(self):
+        if self._busy:
+            self.status.set("Aguarde a operação atual antes de importar.")
+            return
+        path = filedialog.askopenfilename(parent=self, title="Lista de domínios - um por linha",
+                                          filetypes=[("Texto", "*.txt"), ("Todos", "*.*")])
+        if not path:
+            return
+        try:
+            if Path(path).stat().st_size > 128 * 1024:
+                raise ValueError("A lista deve ter até 128 KB e 100 domínios por importação.")
+            lines = [line.strip() for line in Path(path).read_text(encoding="utf-8-sig").splitlines()
+                     if line.strip() and not line.lstrip().startswith("#")]
+            domains = list(dict.fromkeys(lines))
+            if not domains or len(domains) > 100:
+                raise ValueError("Importe entre 1 e 100 domínios por vez, um domínio por linha.")
+        except (OSError, UnicodeError, ValueError) as exc:
+            messagebox.showerror("Lista inválida", str(exc), parent=self)
+            return
+        if not self._live_confirmation("Importar bloqueios", f"Adicionar {len(domains)} domínios em todo o laboratório?\n\nCada domínio será aplicado separadamente, com reinício breve do DNS/DHCP. Se houver falha, os anteriores continuam adicionados."):
+            return
+        transport = self.transport
+        category = self.category_input.get().strip() or "Outros"
+        def import_list():
+            snapshot = None
+            completed = 0
+            for domain in domains:
+                try:
+                    snapshot = transport.request("add_domain", domain=domain, category=category)
+                    completed += 1
+                except Exception as exc:
+                    raise TransportError(f"Importação interrompida em {domain}: {exc}. {completed} item(ns) anterior(es) já aplicado(s); atualize o painel.") from exc
+            return snapshot
+        self._run_job(import_list, label=f"Importando {len(domains)} domínios", alert=True)
+
+    def _export_dns(self):
+        events = list(self._shown_events)
+        if not events:
+            messagebox.showinfo("Sem registros", "Não há registros no filtro atual para exportar.", parent=self)
+            return
+        path = filedialog.asksaveasfilename(parent=self, title="Exportar amostra DNS",
+            initialfile="LabGuard_consultas_DNS.csv", defaultextension=".csv", filetypes=[("CSV", "*.csv")])
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8-sig", newline="") as output:
+                writer = csv.writer(output, delimiter=";")
+                writer.writerow(["Modo", "Horário", "IP solicitante", "Domínio", "Tipo", "Resultado observado"])
+                for event in events:
+                    writer.writerow([csv_safe(v) for v in [self.snapshot.get("mode", ""),
+                        event.get("time", ""), event.get("client_ip", ""), event.get("domain", ""),
+                        event.get("query_type", ""), event.get("status", "")]])
+            self.status.set(f"Exportados {len(events)} registros para {path}")
+        except OSError as exc:
+            messagebox.showerror("Não foi possível exportar", str(exc), parent=self)
+
+    def close(self):
+        self._closed = True
+        self._generation += 1
+        self._executor.shutdown(wait=False, cancel_futures=True)
+        self.destroy()
+
+
+def main():
+    App().mainloop()
+

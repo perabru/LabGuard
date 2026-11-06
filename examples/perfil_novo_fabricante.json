@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "novo_fabricante_consulta",
+  "name": "MODELO A CONFERIR - consulta SSH",
+  "vendor": "PREENCHA O FABRICANTE REAL",
+  "family": "ssh_inventory",
+  "device_class": "Equipamento gerenciável com CLI documentada",
+  "description": "Modelo de perfil. Ajuste os dados e comandos ao manual do equipamento antes de instalar.",
+  "notes": "Somente consulta. Este exemplo não certifica compatibilidade nem habilita corte de portas ou bloqueio de sites.",
+  "source_url": "https://fabricante.example/manual-do-modelo",
+  "inventory_commands": ["show interfaces status", "show mac address-table"]
+}

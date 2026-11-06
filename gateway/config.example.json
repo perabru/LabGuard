@@ -1,0 +1,13 @@
+{
+  "lab_cidr": "192.168.50.0/24",
+  "gateway_ip": "192.168.50.1",
+  "lan_interface": "enp2s0",
+  "wan_interface": "enp1s0",
+  "dhcp_start": "192.168.50.100",
+  "dhcp_end": "192.168.50.220",
+  "protected_ips": ["192.168.50.10"],
+  "upstream_dns": ["192.168.0.1"],
+  "state_dir": "/var/lib/labguard",
+  "log_dir": "/var/log/labguard",
+  "dnsmasq_config": "/etc/labguard/dnsmasq.conf"
+}

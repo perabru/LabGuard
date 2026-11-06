@@ -1,0 +1,132 @@
+name: Gerar instalador Windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "main.py"
+      - "labguard/**"
+      - "gateway/**"
+      - "tests/**"
+      - "docs/**"
+      - "packaging/**"
+      - "scripts/build_windows.ps1"
+      - "requirements-build.txt"
+      - ".github/workflows/windows-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LABGUARD_VERSION: "1.3.0"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Disponibilizar Tcl/Tk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+      - name: Executar testes sem alterar a rede
+        run: python -m unittest discover -s tests -v
+      - name: Validar configuração do gateway
+        run: python gateway/agent.py --config gateway/config.example.json --validate-config
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+      - name: Instalar ferramentas de empacotamento
+        run: python -m pip install -r requirements-build.txt
+      - name: Testar a interface e integrações no Windows
+        shell: pwsh
+        run: |
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py")
+          foreach ($pattern in $patterns) {
+            python -m unittest discover -s tests -p $pattern -v
+            if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
+          }
+      - name: Disponibilizar Inno Setup
+        shell: pwsh
+        run: |
+          $paths = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 7\ISCC.exe")
+          $found = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $found) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Não foi possível instalar o Inno Setup." }
+          }
+      - name: Gerar executável, instalador e pacote portátil
+        shell: pwsh
+        run: ./scripts/build_windows.ps1 -Version $env:LABGUARD_VERSION
+      - name: Testar a instalação e recursos empacotados
+        shell: pwsh
+        run: |
+          $installDir = Join-Path $env:RUNNER_TEMP "LabGuardInstalled"
+          $setup = (Resolve-Path "dist/release/LabGuard-Setup.exe").Path
+          $install = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=`"$installDir`"") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Instalação falhou: $($install.ExitCode)" }
+          $exe = Join-Path $installDir "LabGuard.exe"
+          if (-not (Test-Path $exe)) { throw "Executável não foi instalado." }
+          $report = Join-Path $env:RUNNER_TEMP "LabGuard-self-test.json"
+          $check = Start-Process -FilePath $exe -ArgumentList @("--self-test", "--output", "`"$report`"") -Wait -PassThru
+          if ($check.ExitCode -ne 0 -or -not (Test-Path $report)) { throw "O executável instalado não concluiu o autoteste." }
+          $result = Get-Content $report -Raw | ConvertFrom-Json
+          if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4) { throw "Recursos empacotados incompletos." }
+          $app = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 4
+          $app.Refresh()
+          if ($app.HasExited) { throw "A interface encerrou inesperadamente." }
+          $app.CloseMainWindow() | Out-Null
+          if (-not $app.WaitForExit(10000)) { $app.Kill() }
+          Copy-Item $report "dist/release/windows-self-test.json"
+          $hashes = Get-ChildItem "dist/release" -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" } | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant())  $($_.Name)" }
+          $hashes | Set-Content "dist/release/SHA256SUMS.txt" -Encoding ascii
+      - name: Preservar os pacotes verificados
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Windows-${{ env.LABGUARD_VERSION }}
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publicar os downloads
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = "v$env:LABGUARD_VERSION"
+          gh release view $tag --repo $env:GH_REPO --json tagName 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            @"
+          LabGuard $env:LABGUARD_VERSION
+
+          Interface em roxo, azul e amarelo, perfil de bloqueio de IA e central de integrações de rede.
+          O instalador e os recursos empacotados passaram nos testes automáticos do Windows.
+
+          O filtro de domínios e o corte por máquina dependem do gateway configurado. As capacidades das integrações diretas variam por modelo. Consulte os guias antes de usar em rede real.
+          "@ | Set-Content release-notes.txt -Encoding utf8
+            gh release create $tag --repo $env:GH_REPO --target $env:GITHUB_SHA --title "LabGuard $env:LABGUARD_VERSION" --notes-file release-notes.txt --latest
+            if ($LASTEXITCODE -ne 0) { throw "Não foi possível criar a versão." }
+          }
+          $files = Get-ChildItem "dist/release" -File | Select-Object -ExpandProperty FullName
+          gh release upload $tag @files --repo $env:GH_REPO --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Não foi possível publicar os arquivos." }

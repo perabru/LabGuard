@@ -1,0 +1,13 @@
+/var/log/labguard/dnsmasq.log {
+    daily
+    rotate 7
+    maxsize 20M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 dnsmasq dnsmasq
+    postrotate
+        /bin/systemctl kill -s USR2 --kill-who=main labguard-dnsmasq.service >/dev/null 2>&1 || true
+    endscript
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=LabGuard - DNS e DHCP do laboratorio
+Requires=labguard-firewall.service
+After=network-online.target labguard-firewall.service
+
+[Service]
+Type=simple
+ExecStartPre=/usr/sbin/dnsmasq --test --conf-file=/etc/labguard/dnsmasq.conf
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --pid-file= --conf-file=/etc/labguard/dnsmasq.conf
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "updated_at": "2026-11-06",
+  "services": [
+    {
+      "name": "ChatGPT e API OpenAI",
+      "domains": [
+        "chatgpt.com",
+        "chat.openai.com",
+        "api.openai.com"
+      ],
+      "source_url": "https://help.openai.com/en/articles/9247338-network-recommendations-for-chatgpt-errors-on-web-and-apps"
+    },
+    {
+      "name": "Claude e API Anthropic",
+      "domains": [
+        "claude.ai",
+        "claude.com",
+        "api.anthropic.com",
+        "a-api.anthropic.com"
+      ],
+      "source_url": "https://code.claude.com/docs/en/desktop"
+    },
+    {
+      "name": "Gemini e Google AI Studio",
+      "domains": [
+        "gemini.google.com",
+        "aistudio.google.com",
+        "generativelanguage.googleapis.com"
+      ],
+      "source_url": "https://support.google.com/gemini/answer/13275745?hl=pt-BR"
+    },
+    {
+      "name": "Microsoft Copilot",
+      "domains": [
+        "copilot.microsoft.com",
+        "copilot.com"
+      ],
+      "source_url": "https://copilot.microsoft.com/"
+    },
+    {
+      "name": "GitHub Copilot",
+      "domains": [
+        "githubcopilot.com",
+        "copilot-proxy.githubusercontent.com"
+      ],
+      "source_url": "https://docs.github.com/en/copilot/reference/copilot-allowlist-reference"
+    },
+    {
+      "name": "DeepSeek",
+      "domains": [
+        "deepseek.com"
+      ],
+      "source_url": "https://api-docs.deepseek.com/"
+    },
+    {
+      "name": "Perplexity",
+      "domains": [
+        "perplexity.ai",
+        "perplexity.com"
+      ],
+      "source_url": "https://www.perplexity.ai/"
+    },
+    {
+      "name": "Grok",
+      "domains": [
+        "grok.com",
+        "api.x.ai"
+      ],
+      "source_url": "https://docs.x.ai/overview"
+    },
+    {
+      "name": "Poe",
+      "domains": [
+        "poe.com"
+      ],
+      "source_url": "https://poe.com/"
+    },
+    {
+      "name": "Mistral",
+      "domains": [
+        "chat.mistral.ai",
+        "api.mistral.ai"
+      ],
+      "source_url": "https://chat.mistral.ai/"
+    },
+    {
+      "name": "Qwen",
+      "domains": [
+        "chat.qwen.ai"
+      ],
+      "source_url": "https://chat.qwen.ai/"
+    }
+  ]
+}

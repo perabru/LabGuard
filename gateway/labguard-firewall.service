@@ -1,0 +1,15 @@
+[Unit]
+Description=LabGuard - regras IPv4 do laboratorio
+DefaultDependencies=no
+Wants=network-pre.target
+After=local-fs.target systemd-sysctl.service
+Before=network-pre.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/labguard/agent.py --config /etc/labguard/config.json --apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
