@@ -6,6 +6,15 @@ Painel em Python para conhecer a rede do laboratório e administrar os equipamen
 
 [Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.0](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
 
+## Se a identificação falhar
+
+1. Em **Início**, clique **Não identificou? Ver passo a passo**.
+2. Confira o sintoma e siga as etapas de leitura para seu sistema.
+3. Use **Atualizar consulta**. O assistente não aplica regras nem muda cabos, DNS ou firewall.
+4. Para modelo desconhecido ou acesso à API recusado, confira etiqueta, modelo, firmware, certificado e permissões com a TI.
+
+Poucos vizinhos e o MAC vazio do próprio PC podem ser limitações da amostra. Consulte o [passo a passo completo](https://perabru.github.io/LabGuard/manual2/index.html#erro-de-identificacao) ou o [diagnóstico técnico](docs/DIAGNOSTICO_DA_REDE.md). Não compartilhe senhas, tokens ou chaves.
+
 ## O que cada modo oferece
 
 | Modo | Uso |
@@ -44,7 +53,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A [versão 2.0.0 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.0.0), com instalador/portátil Windows, desktop Linux e servidores para os dois sistemas. Foram aprovados 277 testes no Linux, 233 no Windows e os testes nativos de instalação, abertura e serviço. Confira a [validação](docs/VALIDACAO.md) e os hashes do mesmo lançamento.
+A versão **2.0.1**, com ajuda para identificação, está em validação dos pacotes nativos. Os instaladores serão publicados após os testes; acompanhe a [página de versões](https://github.com/perabru/LabGuard/releases) e a [validação](docs/VALIDACAO.md).
 
 ## Documentação e legado
 

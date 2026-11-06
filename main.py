@@ -19,6 +19,10 @@ def self_test(output: str | None = None) -> int:
         from labguard.controller import create_transport
         from labguard.discovery import LocalObservationTransport
         from labguard.direct_routeros import DirectRouterOSTransport
+        from labguard.diagnostics import build_diagnostic_plan
+        identification = build_diagnostic_plan({"mode": "observation", "interfaces": [], "devices": [], "gateway": {}}, system="Windows")
+        if len(identification["steps"]) < 3 or "no_gateway" not in identification["cases"]:
+            raise RuntimeError("Ajuda de identificação indisponível no pacote.")
         with tempfile.TemporaryDirectory(prefix="labguard-selftest-") as temporary:
             database = BanlistDatabase(Path(temporary) / "data" / "banlist.sqlite3")
             database.upsert("selftest.example", "Jogos")
@@ -46,6 +50,7 @@ def self_test(output: str | None = None) -> int:
                    "catalog_domains": policy["domain_count"], "integration_profiles": len(profiles),
                    "banlist_database": "sqlite3", "remote_process_signatures": len(PROCESS_CATALOGUE),
                    "reports": ["svg", "html", "csv", "pdf"],
+                   "identification_help_steps": len(identification["steps"]),
                    "startup_mode": "observation", "controller_modes": ["observation", "routeros", "legacy", "demo"]}
         code = 0
     except Exception as error:

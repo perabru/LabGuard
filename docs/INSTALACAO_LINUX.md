@@ -96,3 +96,9 @@ bash scripts/build_linux.sh 2.0.0
 O GitHub Actions compila no Ubuntu 22.04, testa o `.deb`, abre uma janela real em demonstração no Xvfb e valida o servidor em systemd com demonstração. Os pacotes Windows são gerados em Windows. A publicação aguarda a conclusão das duas plataformas.
 
 Referências: [PyInstaller](https://pyinstaller.org/en/stable/usage.html), [recursos empacotados](https://pyinstaller.org/en/stable/runtime-information.html) e [campos do pacote Debian](https://www.debian.org/doc/debian-policy/ch-controlfields.html).
+
+## Identificação local e comando ip
+
+A observação usa o comando `ip`, do pacote `iproute2`. O instalador `.deb` declara essa dependência. Na versão portátil, no servidor Linux ou ao executar o código-fonte, confirme que `ip -4 address show up` e `ip -4 route show default` estão disponíveis. Se o comando estiver ausente, a TI deve instalar `iproute2` pelo gerenciador da distribuição; o LabGuard não instala ferramentas automaticamente.
+
+No desktop, abra **Início → Não identificou? Ver passo a passo**. No servidor, o diagnóstico corresponde ao host do serviço, que pode estar em outra rede em relação ao navegador. Consulte o [passo a passo](https://perabru.github.io/LabGuard/manual2/index.html#erro-de-identificacao).

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Execute em Linux x86_64. CI usa Ubuntu 22.04 (glibc 2.35).
 set -euo pipefail
-version="${1:-2.0.0}"
+version="${1:-2.0.1}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Versão inválida.' >&2; exit 1; }
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Compile em Linux x86_64.' >&2; exit 1; }
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,7 +37,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: LabGuard <noreply@users.noreply.github.com>
 Installed-Size: $installed_size
-Depends: libc6 (>= 2.35), libx11-6, libxext6, libxrender1, libxft2, libfontconfig1, libfreetype6, libxcb1, openssh-client
+Depends: libc6 (>= 2.35), libx11-6, libxext6, libxrender1, libxft2, libfontconfig1, libfreetype6, libxcb1, openssh-client, iproute2
 Homepage: https://perabru.github.io/LabGuard/
 Description: Painel de administracao de laboratorios escolares
  Interface grafica de observacao local e controle direto de equipamentos compativeis.

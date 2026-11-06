@@ -3,13 +3,14 @@ from pathlib import Path
 import hashlib
 import json
 import os
+import queue
 import tempfile
 from time import monotonic
 import types
 import unittest
 from unittest.mock import Mock, patch
 
-from labguard.simple_gui import App, PolicyBankSelection, mutation_reason, snapshot_capabilities
+from labguard.simple_gui import App, DiagnosticWindow, PolicyBankSelection, mutation_reason, snapshot_capabilities
 
 
 def snapshot(mode="equipment", **caps):
@@ -159,6 +160,58 @@ class SimpleUiTests(unittest.TestCase):
         opened = Mock()
         self.assertTrue(App._run_job(app, lambda:(opened, snapshot()), label="Conectar"))
         opened.close.assert_called_once()
+
+    def test_diagnostic_retry_only_reads_current_connection_and_never_creates_one(self):
+        app = self.app("observation")
+        app._management_authorized = False
+        app.transport.kind = "observation"
+        with patch("labguard.simple_gui.create_transport") as factory:
+            self.assertTrue(app._diagnostic_refresh())
+            app._run_job.call_args.args[0]()
+        app.transport.request.assert_called_once_with("snapshot")
+        factory.assert_not_called(); self.assertFalse(app._management_authorized)
+
+    def test_diagnostic_retry_rejects_legacy_snapshot_kind_or_raw_ssh(self):
+        from labguard.transport import SSHTransport
+        for mode, kind, raw in (("gateway", "", False), ("observation", "legacy", False), ("observation", "", True)):
+            app = self.app(mode)
+            app.transport = SSHTransport.__new__(SSHTransport) if raw else Mock(kind=kind)
+            app.transport.request = Mock()
+            self.assertFalse(app._diagnostic_refresh())
+            app._run_job.assert_not_called(); app.transport.request.assert_not_called()
+
+    def test_diagnostic_window_is_reused_without_network_or_permission_changes(self):
+        app = self.app("observation"); window = Mock(); window.winfo_exists.return_value = True
+        app._diagnostics_window = window
+        with patch("labguard.simple_gui.DiagnosticWindow") as constructor:
+            self.assertIs(app._open_diagnostics(), window)
+        constructor.assert_not_called(); window.lift.assert_called_once()
+        app.transport.request.assert_not_called()
+
+    def test_worker_error_offers_help_without_opening_it_or_retaining_raw_error(self):
+        app = self.app(); app._generation = 0; app._results = queue.Queue()
+        app._results.put((0, False, "HTTP 401 secret-password-xyz https://admin:secret-password-xyz@router/rest", None, True))
+        app.refresh_button = Mock(); app.password_var = Mock(); app.error_help_button = Mock()
+        app._render_home = Mock(); app._notify_diagnostics = Mock(); app._refresh_mutation_controls = Mock()
+        app.after = Mock(); app._open_diagnostics = Mock()
+        with patch("labguard.simple_gui.messagebox.showerror") as dialog:
+            app._drain()
+        self.assertEqual(app._last_error, "authentication")
+        app.error_help_button.pack.assert_called_once(); app._open_diagnostics.assert_not_called()
+        self.assertNotIn("secret-password-xyz", app.status.set.call_args.args[0])
+        self.assertNotIn("secret-password-xyz", dialog.call_args.args[1])
+        self.assertNotIn("https://", dialog.call_args.args[1])
+        self.assertIn("revise o estado", dialog.call_args.args[1])
+
+    def test_diagnostic_navigation_is_bounded_and_does_not_request_data(self):
+        window = DiagnosticWindow.__new__(DiagnosticWindow)
+        window.plan = {"steps": [{"id": "start"}, {"id": "finish"}]}; window.index = 0
+        window._show_step = Mock(); window.owner = Mock()
+        window._back(); self.assertEqual(window.index, 0)
+        window._next(); window._next(); self.assertEqual(window.index, 1)
+        window._back(); self.assertEqual(window.index, 0)
+        self.assertEqual(window._show_step.call_count, 2)
+        window.owner._diagnostic_refresh.assert_not_called()
 
 
 class PolicyBankSelectionTests(unittest.TestCase):

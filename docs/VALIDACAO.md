@@ -1,4 +1,14 @@
-# Validação da versão 2.0.0
+# Validação da versão 2.0.1
+
+Preparada em 6 de novembro de 2026. O assistente de identificação, os guias e o empacotamento Linux foram atualizados; os novos pacotes nativos aguardam o fluxo Windows/Linux. A validação e os links do lançamento serão registrados aqui após a compilação.
+
+## Alteração desta versão
+
+O desktop inclui **Não identificou? Ver passo a passo**, com orientação por sintoma e sistema. A consulta de diagnóstico não altera regras, rede, arquivos de configuração ou capacidades. O assistente não usa demonstração para substituir uma leitura falhada e não exibe segredos a partir das mensagens de erro. O painel de servidor oferece um guia equivalente. O pacote Debian passa a declarar a dependência `iproute2`; a versão portátil continua dependendo das ferramentas locais.
+
+O manual inclui verificações de IP/gateway, inventário parcial, MAC ausente, modelo desconhecido e acesso HTTPS/API. Uma informação ausente nem sempre representa erro: o cache local é limitado, o MAC do próprio PC pode ficar vazio e a descoberta cobre IPv4 privada.
+
+## Evidência anterior: 2.0.0
 
 Publicada em 6 de novembro de 2026. O [fluxo completo no GitHub Actions](https://github.com/perabru/LabGuard/actions/runs/42291112160) passou para o commit `0aed0142ccaafe7ee903ef30f93e6e1becb4c013`. A [versão 2.0.0](https://github.com/perabru/LabGuard/releases/tag/v2.0.0) contém os seis pacotes desktop/servidor, quatro autotestes JSON e somas SHA-256.
 

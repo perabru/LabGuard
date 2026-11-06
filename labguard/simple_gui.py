@@ -170,6 +170,8 @@ class App(tk.Tk):
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="labguard-controle")
         self._pages, self._nav, self._device_rows = {}, {}, {}
         self._map_windows = []
+        self._last_error = ""
+        self._diagnostics_window = None
         self._banks = PolicyBankSelection(Path.home()/".labguard"/"banlists")
         self._style()
         self._build()
@@ -223,8 +225,12 @@ class App(tk.Tk):
             button.grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 7, 0))
             self._nav[key] = button
         self.mode_text = tk.StringVar(value="OBSERVAÇÃO LOCAL · identificando os dados disponíveis")
-        self.mode_banner = self._label(self, textvariable=self.mode_text, bg="#E8F0FF", fg="#2456A3", padx=15, pady=10)
-        self.mode_banner.grid(row=2, column=0, sticky="ew", padx=23, pady=(0, 12))
+        mode_shell = tk.Frame(self, bg=BG)
+        mode_shell.grid(row=2, column=0, sticky="ew", padx=23, pady=(0, 12))
+        mode_shell.columnconfigure(0, weight=1)
+        self.mode_banner = self._label(mode_shell, textvariable=self.mode_text, bg="#E8F0FF", fg="#2456A3", padx=15, pady=10)
+        self.mode_banner.grid(row=0, column=0, sticky="ew")
+        ActionButton(mode_shell, text="Não identificou? Ver passo a passo", command=self._open_diagnostics, height=38).grid(row=0, column=1, padx=(9, 0))
         content = tk.Frame(self, bg=BG); content.grid(row=3, column=0, sticky="nsew", padx=23)
         content.columnconfigure(0, weight=1); content.rowconfigure(0, weight=1)
         for key in self._nav:
@@ -239,6 +245,7 @@ class App(tk.Tk):
         self._label(footer, textvariable=self.status, font=(self.font_family, 8)).pack(side="left", fill="x", expand=True)
         self.refresh_button = ActionButton(footer, text="Atualizar", command=self.refresh, height=35)
         self.refresh_button.pack(side="right")
+        self.error_help_button = ActionButton(footer, text="Ver passo a passo", command=self._open_diagnostics, height=35)
         self.show_page("home")
 
     def _scroll_page(self, parent):
@@ -505,9 +512,14 @@ class App(tk.Tk):
                 if ok:(callback or self._apply_snapshot)(value)
                 else:
                     self._snapshot_stale = True; self.password_var.set("")
-                    self.status.set("Não foi possível confirmar a leitura. " + value)
+                    from .diagnostics import classify_connection_error, safe_error_message
+                    self._last_error = classify_connection_error(value) or "connection_error"
+                    self.error_help_button.pack(side="right", padx=(0, 8), before=self.refresh_button)
+                    safe_message = safe_error_message(self._last_error)
+                    self.status.set(safe_message)
                     self._render_home()
-                    if alert:messagebox.showerror("Conexão não confirmada", value, parent=self)
+                    self._notify_diagnostics()
+                    if alert:messagebox.showerror("Operação não confirmada", safe_message, parent=self)
                 self._refresh_mutation_controls()
         except queue.Empty:pass
         self._drain_id = self.after(70, self._drain)
@@ -528,13 +540,46 @@ class App(tk.Tk):
             self._snapshot_stale = True; self.status.set("Resposta não reconhecida. Dados anteriores mantidos.")
             self._refresh_mutation_controls(); return False
         self.snapshot = snapshot; self._snapshot_stale = False; self._last_snapshot_monotonic = monotonic()
+        self._last_error = ""
+        self.error_help_button.pack_forget()
         bank_warning = ""
         try:self._banks.path_for(snapshot, self.transport)
         except OSError:bank_warning = " A referência do banco não pôde ser salva; confira a pasta privada antes de preparar a lista."
         self._render_home(); self._render_devices(); self._render_sites(); self._render_activity()
         self._refresh_mutation_controls()
         self.status.set("Leitura atualizada: " + self._time(snapshot.get("timestamp")) + ". Consulte o modo e os recursos antes de agir." + bank_warning + (" " + self._banks.warning if self._banks.warning else ""))
+        self._notify_diagnostics()
         return True
+
+    def _notify_diagnostics(self):
+        window = self.__dict__.get("_diagnostics_window")
+        if window is not None:
+            try:
+                if window.winfo_exists():window.refresh_plan()
+            except tk.TclError:pass
+
+    def _open_diagnostics(self):
+        window = self.__dict__.get("_diagnostics_window")
+        if window is not None:
+            try:
+                if window.winfo_exists():window.refresh_plan(); window.lift(); return window
+            except tk.TclError:pass
+        self._diagnostics_window = DiagnosticWindow(self)
+        return self._diagnostics_window
+
+    def _diagnostic_retry_available(self):
+        from .transport import SSHTransport
+        return self.transport is not None and self.snapshot.get("mode") in {"observation", "equipment", "demo"} and getattr(self.transport, "kind", "") != "legacy" and not isinstance(self.transport, SSHTransport)
+
+    def _diagnostic_refresh(self):
+        if self.transport is None:
+            self.status.set("Ainda não há uma conexão para consultar. Escolha Observação ou um equipamento em Início.")
+            return False
+        if not self._diagnostic_retry_available():
+            self.status.set("A consulta do perfil SSH legado pode reconciliar políticas; siga o fluxo avançado ou escolha Observação em Início. O assistente não troca o perfil.")
+            return False
+        transport = self.transport
+        return self._run_job(lambda: transport.request("snapshot"), label="Conferindo a identificação pela conexão atual")
 
     @staticmethod
     def _time(value):
@@ -790,4 +835,118 @@ class App(tk.Tk):
                 try:close() if callable(close) else child.destroy()
                 except tk.TclError:pass
         self._close_transport(self.transport); self._executor.shutdown(wait=False, cancel_futures=True)
+        self.destroy()
+
+
+class DiagnosticWindow(tk.Toplevel):
+    """Passo a passo de leitura: sem comandos remotos, descoberta extra ou mutação."""
+    def __init__(self, parent):
+        import platform
+        from .diagnostics import CASE_LABELS
+        super().__init__(parent)
+        self.owner = parent; self._closed = False
+        self.plan = {"steps": [], "facts": {}}; self.index = 0
+        self.title("LabGuard | Ajuda para identificar a rede")
+        self.geometry("900x680"); self.minsize(760, 560); self.configure(bg=BG)
+        self.transient(parent); self.protocol("WM_DELETE_WINDOW", self.close)
+        self.columnconfigure(0, weight=1); self.rowconfigure(4, weight=1)
+        self.case_var = tk.StringVar(value="Verificações sugeridas")
+        system = platform.system(); self.system_var = tk.StringVar(value=system if system in {"Windows", "Linux"} else "Outro")
+        self._case_ids = {label: key for key, label in CASE_LABELS.items()}
+        self._label(self, "Ajuda para identificar a rede", fg=TEXT, font=(parent.font_family, 20, "bold")).grid(row=0, column=0, sticky="ew", padx=22, pady=(19, 5))
+        self._label(self, "Siga as verificações que correspondem ao seu caso. O assistente não executa comandos nem altera configurações.").grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 12))
+        choices = tk.Frame(self, bg=BG); choices.grid(row=2, column=0, sticky="ew", padx=22)
+        choices.columnconfigure(1, weight=1)
+        self._label(choices, "Quero conferir").grid(row=0, column=0, padx=(0, 9))
+        cases = ttk.Combobox(choices, textvariable=self.case_var, values=["Verificações sugeridas", *CASE_LABELS.values()], state="readonly")
+        cases.grid(row=0, column=1, sticky="ew"); cases.bind("<<ComboboxSelected>>", lambda _: self.refresh_plan(preserve=False))
+        ttk.Combobox(choices, textvariable=self.system_var, values=["Windows", "Linux", "Outro"], state="readonly", width=10).grid(row=0, column=2, padx=(10, 0))
+        self.system_var.trace_add("write", lambda *_: self.refresh_plan(preserve=False))
+        self.context = tk.StringVar(); self.progress = tk.StringVar()
+        line = tk.Frame(self, bg=BG); line.grid(row=3, column=0, sticky="ew", padx=22, pady=(11, 9))
+        self._label(line, textvariable=self.context, fg=PURPLE).pack(side="left", fill="x", expand=True)
+        self._label(line, textvariable=self.progress, fg=TEXT).pack(side="right")
+        shell = RoundCard(self, padding=14); shell.grid(row=4, column=0, sticky="nsew", padx=22)
+        shell.body.columnconfigure(0, weight=1); shell.body.rowconfigure(0, weight=1)
+        self.canvas = tk.Canvas(shell.body, bg=PANEL, highlightthickness=0)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(shell.body, orient="vertical", command=self.canvas.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns"); self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.body = tk.Frame(self.canvas, bg=PANEL)
+        item = self.canvas.create_window(0, 0, window=self.body, anchor="nw")
+        self.body.bind("<Configure>", lambda _: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(item, width=e.width))
+        self.bind("<MouseWheel>", lambda e: self.canvas.yview_scroll(-1 if e.delta > 0 else 1, "units"), add="+")
+        self.bind("<Button-4>", lambda _: self.canvas.yview_scroll(-1, "units"), add="+")
+        self.bind("<Button-5>", lambda _: self.canvas.yview_scroll(1, "units"), add="+")
+        self.bind("<Next>", lambda _: self.canvas.yview_scroll(1, "pages"), add="+")
+        self.bind("<Prior>", lambda _: self.canvas.yview_scroll(-1, "pages"), add="+")
+        controls = tk.Frame(self, bg=BG); controls.grid(row=5, column=0, sticky="ew", padx=22, pady=(12, 7))
+        self.back_button = ActionButton(controls, text="Voltar", command=self._back, height=37); self.back_button.pack(side="left")
+        self.next_button = ActionButton(controls, text="Avançar", command=self._next, style="Purple.TButton", height=37); self.next_button.pack(side="left", padx=7)
+        self.retry_button = ActionButton(controls, text="Atualizar consulta", command=self._refresh_query, style="Accent.TButton", height=37); self.retry_button.pack(side="left")
+        self.copy_button = ActionButton(controls, text="Copiar comandos", command=self._copy_commands, height=37); self.copy_button.pack(side="left", padx=7)
+        ActionButton(controls, text="Fechar", command=self.close, height=37).pack(side="right")
+        self.feedback = tk.StringVar(value="Nenhuma consulta foi iniciada pelo assistente.")
+        self._label(self, textvariable=self.feedback, font=(parent.font_family, 8)).grid(row=6, column=0, sticky="ew", padx=22, pady=(0, 16))
+        self.refresh_plan()
+
+    def _label(self, parent, text="", **kwargs):
+        label = tk.Label(parent, text=text, bg=kwargs.pop("bg", BG), fg=kwargs.pop("fg", MUTED), anchor="w", justify="left", **kwargs)
+        label.bind("<Configure>", lambda e: label.configure(wraplength=max(120, e.width-4)))
+        return label
+
+    def refresh_plan(self, preserve=True):
+        from .diagnostics import build_diagnostic_plan
+        if self._closed:return
+        previous = self.plan["steps"][self.index]["id"] if self.plan["steps"] else None
+        self.plan = build_diagnostic_plan(self.owner.snapshot, self.owner.__dict__.get("_last_error", ""),
+            system=self.system_var.get(), case=self._case_ids.get(self.case_var.get()))
+        ids = [step["id"] for step in self.plan["steps"]]
+        self.index = ids.index(previous) if preserve and previous in ids else 0
+        facts = self.plan["facts"]
+        mode = {"demo": "DEMONSTRAÇÃO · dados fictícios", "observation": "Observação local", "equipment": "Equipamento", "gateway": "SSH legado", "unknown": "Modo não confirmado"}[facts["mode"]]
+        self.context.set(f"{mode} · {facts['observed_neighbors']} vizinho(s) · {facts['known_macs']} MAC(s) conhecido(s)")
+        self.retry_button.configure(state="normal" if self.owner._diagnostic_retry_available() and not self.owner._busy else "disabled")
+        if facts["mode"] == "gateway":self.feedback.set("Consulta desabilitada no SSH legado: essa rotina pode reconciliar políticas existentes. O assistente não troca o modo.")
+        self._show_step()
+
+    def _show_step(self):
+        for widget in self.body.winfo_children():widget.destroy()
+        step = self.plan["steps"][self.index]
+        self.progress.set(f"Passo {self.index+1} de {len(self.plan['steps'])}")
+        self._label(self.body, step["title"], bg=PANEL, fg=PURPLE, font=(self.owner.font_family, 14, "bold")).pack(fill="x", pady=(1, 13))
+        for number, instruction in enumerate(step["instructions"], 1):
+            self._label(self.body, f"{number}. {instruction}", bg=PANEL, fg=TEXT).pack(fill="x", pady=(0, 13))
+        if step["commands"]:
+            self._label(self.body, "Comandos de consulta · execução manual", bg=PANEL, fg=PURPLE, font=(self.owner.font_family, 9, "bold")).pack(fill="x", pady=(3, 6))
+            commands = tk.Text(self.body, height=len(step["commands"])+1, bg="#F1EDF9", fg=TEXT, font=("Courier", 10), relief="flat", wrap="word", padx=11, pady=8)
+            commands.insert("1.0", "\n".join(step["commands"])); commands.configure(state="disabled"); commands.pack(fill="x")
+        self.back_button.configure(state="normal" if self.index else "disabled")
+        self.next_button.configure(state="normal" if self.index < len(self.plan["steps"])-1 else "disabled")
+        self.copy_button.configure(state="normal" if step["commands"] else "disabled")
+        self.canvas.yview_moveto(0)
+
+    def _back(self):
+        if self.index:self.index -= 1; self._show_step()
+
+    def _next(self):
+        if self.index < len(self.plan["steps"])-1:self.index += 1; self._show_step()
+
+    def _copy_commands(self):
+        commands = self.plan["steps"][self.index]["commands"]
+        if commands:
+            self.clipboard_clear(); self.clipboard_append("\n".join(commands))
+            self.feedback.set("Comandos copiados. O assistente não os executou.")
+
+    def _refresh_query(self):
+        if self.owner._diagnostic_refresh():
+            self.retry_button.configure(state="disabled")
+            self.feedback.set("Consulta solicitada na conexão atual. Nenhuma ação de bloqueio será repetida.")
+        else:self.feedback.set("A consulta não foi iniciada. Aguarde a operação atual ou confira o modo em Início.")
+
+    def close(self):
+        if self._closed:return
+        self._closed = True
+        if self.owner.__dict__.get("_diagnostics_window") is self:self.owner._diagnostics_window = None
         self.destroy()

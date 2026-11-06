@@ -25,7 +25,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "2.0.0"
+  LABGUARD_VERSION: "2.0.1"
 
 jobs:
   test:
@@ -64,7 +64,7 @@ jobs:
       - name: Testar componentes compatíveis com Windows
         shell: pwsh
         run: |
-          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_direct_routeros.py", "test_simple_gui.py")
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
           foreach ($pattern in $patterns) {
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
@@ -93,7 +93,7 @@ jobs:
           $check = Start-Process -FilePath $exe -ArgumentList @("--self-test", "--output", "`"$report`"") -Wait -PassThru
           if ($check.ExitCode -ne 0 -or -not (Test-Path $report)) { throw "Autoteste do painel não concluiu." }
           $result = Get-Content $report -Raw | ConvertFrom-Json
-          if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4) { throw "Recursos empacotados incompletos." }
+          if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4 -or $result.identification_help_steps -lt 3) { throw "Recursos empacotados incompletos." }
           $app = Start-Process -FilePath $exe -ArgumentList @("--demo") -PassThru
           Start-Sleep -Seconds 4
           $app.Refresh()
@@ -173,7 +173,7 @@ jobs:
       - name: Instalar dependências de compilação e teste gráfico
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk xvfb x11-utils openssh-client libx11-6 libxext6 libxrender1 libxft2 libfontconfig1 libfreetype6 libxcb1
+          sudo apt-get install -y python3-tk xvfb x11-utils openssh-client iproute2 libx11-6 libxext6 libxrender1 libxft2 libfontconfig1 libfreetype6 libxcb1
           python -m pip install -r requirements-build.txt
       - name: Gerar pacotes Linux desktop e servidor
         run: bash scripts/build_linux.sh "$LABGUARD_VERSION"
@@ -235,7 +235,9 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          LabGuard 2.0.0: nova interface simplificada, observação local da rede e controle direto de equipamentos compatíveis.
+          LabGuard 2.0.1: assistente passo a passo para falhas de identificação da rede.
+
+          Inclui orientação por sintoma no desktop e no manual: IP/gateway ausente, poucos dispositivos ou MACs, modelo desconhecido e falhas de HTTPS, autenticação ou API. Atualizar consulta solicita apenas uma nova leitura; nenhuma regra é aplicada pelo assistente.
 
           O desktop inicia em observação local; dados fictícios aparecem somente ao selecionar a demonstração. Equipamentos compatíveis podem ser configurados diretamente, sem tornar um gateway Linux adicional obrigatório para o painel.
 

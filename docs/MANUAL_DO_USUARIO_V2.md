@@ -1,10 +1,10 @@
-# LabGuard 2.0 - Manual do usuário
+# LabGuard 2.0.1 - Manual do usuário
 
 Começar na rede existente, conectar um controlador e conferir cada resultado.
 
-Edição 2.0 | 6 de novembro de 2026
+Edição 2.0.1 | 6 de novembro de 2026
 
-Este manual acompanha a interface simplificada 2.0. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote 1.4 não contém automaticamente as funções descritas aqui.
+Este manual acompanha a interface simplificada 2.0.1 e sua ajuda de identificação da rede. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote 1.4 não contém automaticamente as funções descritas aqui.
 
 ## 1. Primeiro uso em cinco passos
 
@@ -248,13 +248,67 @@ Quem usa o agente SSH anterior pode manter o modo avançado. Ele tem requisitos 
 
 Esses requisitos do legado não se aplicam ao início em Observação nem à consulta por API. O [manual 1.4](MANUAL_DO_USUARIO.md) e o [PDF 1.4](Manual_LabGuard_1.4.pdf) permanecem como referência desse caminho.
 
-## 12. Diagnóstico e teste de aceitação
+## 12. Erro de identificação: passo a passo {#erro-de-identificacao}
+
+### Abrir o assistente
+
+1. Em **Início**, clique **Não identificou? Ver passo a passo**. Após uma falha, há também um botão de ajuda junto ao erro.
+2. No assistente **Ajuda para identificar a rede**, confira o caso sugerido ou escolha outro. Uma sugestão não confirma a causa.
+3. Use **Voltar / Avançar** para ler as etapas. Os comandos são executados manualmente; a ajuda não os executa.
+4. Em Observação ou MikroTik direto, clique **Atualizar consulta**. A leitura usa a conexão atual; não troca credenciais, perfil, firewall, DNS ou rotas. Para corrigir IP, certificado ou conta, volte a Início e reconecte.
+
+No gateway SSH legado, o botão fica desabilitado: uma consulta avançada pode reconciliar políticas existentes. Siga o fluxo do legado ou escolha Observação em Início; a ajuda não troca o modo automaticamente.
+
+### Conferir IP e rota
+
+Abra um terminal na conta habitual. As consultas normais não exigem administrador ou `sudo`.
+
+| Windows | Linux | Confira |
+|---|---|---|
+| `ipconfig /all` | `ip -4 addr` | Interface conectada e IPv4 do laboratório |
+| `route print -4` | `ip -4 route` | Rota padrão, gateway e interface de saída |
+| `arp -a` | `ip -4 neigh` | IPs/MACs já conhecidos no cache local |
+
+Se faltar `ip` no Linux portátil ou pelo código-fonte, peça à TI a instalação de **iproute2** pelo gerenciador da distribuição. O pacote Debian declara essa dependência.
+
+Confira o cabo ou SSID e compare a interface com o planejamento da TI. VPNs e várias conexões podem criar mais de uma rota. Uma rede só local pode não ter gateway padrão. Não altere DHCP ou rotas por tentativa: uma estação com IP fixo pode não aparecer nas concessões DHCP.
+
+### Poucas máquinas ou MAC vazio
+
+A Observação lê um **cache parcial**, não faz varredura completa. Cache vazio pode ser normal; entrada antiga ou `STALE` não comprova presença. O MAC do próprio computador fica vazio por desenho da coleta e isso não é falha.
+
+VLANs, roteadores, NAT, pontos de acesso e isolamento Wi-Fi podem ocultar vizinhos e seus MACs. A coleta automática cobre IPv4 privado `10.x`, `172.16-31.x` e `192.168.x`; redes somente IPv6 ou outros endereços podem ficar fora da lista. Continue em Observação sem exigir um MikroTik.
+
+## 13. Modelo desconhecido e falha na API
+
+### Confirmar o equipamento
+
+1. Encontre o gateway na rota e confirme com a TI qual equipamento exerce esse papel. Ele pode ser diferente do ponto de acesso.
+2. Leia fabricante e modelo na etiqueta ou no inventário autorizado. No painel local já usado pela escola, confira também o firmware.
+3. Vivo ou Embratel são operadoras, não uma API universal. Não deduza o modelo pelo MAC e não selecione MikroTik por tentativa.
+4. Sem perfil compatível confirmado, mantenha **Observar esta rede**. A consulta local funciona sem credenciais administrativas.
+
+### Resolver a conexão administrativa
+
+| Caso | Passo a passo |
+|---|---|
+| HTTPS ou certificado | Confira IP literal, porta e data/hora. No MikroTik direto, o certificado precisa de SAN de tipo IP correspondente e cadeia confiável. Use a CA institucional correta e reconecte em consulta. Nomes DNS não são aceitos nesse adaptador |
+| HTTP 401 ou 403 | Confira conta e equipamento. Peça à TI que verifique permissões REST e restrições de origem. 401/403 podem envolver autenticação, autorização ou política; não conclua automaticamente que a senha está errada |
+| API indisponível | Confirme perfil, modelo e firmware. MikroTik direto exige RouterOS 7 com REST HTTPS já preparado; um painel web acessível não comprova uma API compatível. Domínios exigem 7.18 ou posterior e os requisitos do capítulo 5 |
+| Tempo esgotado | Confira conexão, IP e porta autorizados. Aguarde a consulta atual. Peça à TI que confira disponibilidade e restrições de gestão; depois tente uma leitura. Não repita uma alteração de resultado incerto antes de conferir o estado |
+
+Não desative TLS, validação de certificado ou firewall para prosseguir. O assistente não habilita serviços de gestão nem libera capacidades de bloqueio.
+
+Para suporte, informe versão, sistema, modo, categoria da falha, etapa realizada e modelo/firmware confirmados. Revise IPs e capturas antes de compartilhar. **Nunca inclua senha, token, chave privada ou saída bruta com credenciais.**
+
+O [guia completo de diagnóstico](DIAGNOSTICO_DA_REDE.md) detalha os comandos e cada caso do assistente.
+
+## 14. Teste de aceitação e suporte
 
 | Situação | Próximo passo |
 |---|---|
-| Poucas máquinas em Observação | Confira rota, VLAN e vizinhos; não espere descoberta física completa |
+| Identificação incompleta ou API com falha | Use o assistente dos capítulos 12 e 13; a hipótese não confirma a causa |
 | Bloqueio indisponível | Leia modo, capacidade, permissões e requisitos |
-| Falha HTTPS | Confira endereço, porta, certificado, CA e serviço |
 | Conecta mas não corta | Confira autorização, WAN, FastTrack, IPv6 e saída alternativa |
 | Site ainda abre | Verifique DNS do cliente, cache, DoH/VPN e domínio |
 | Aviso não aparece | Confira WinRM/SSH, sessão e permissões |
@@ -274,4 +328,4 @@ Esses requisitos do legado não se aplicam ao início em Observação nem à con
 - [MikroTik: conexões e FastTrack](https://help.mikrotik.com/docs/spaces/ROS/pages/130220087/Connection+tracking).
 - [Microsoft: configuração do WinRM](https://learn.microsoft.com/en-us/windows/win32/winrm/installation-and-configuration-for-windows-remote-management).
 
-Para suporte, informe versão, sistema, modo, modelo/firmware e mensagem apresentada. Não inclua senhas, tokens ou chaves privadas.
+Para suporte, informe versão, sistema, modo, modelo/firmware e categoria da falha. Não inclua senhas, tokens ou chaves privadas.

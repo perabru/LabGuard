@@ -34,6 +34,14 @@
       </div>
       <section class="health-card" aria-labelledby="health-title"><div><span class="eyebrow">FONTE E CONTROLE</span><h2 id="health-title">Estado da conexão</h2></div><div id="health" class="health-list"></div></section>
       <p id="warnings" class="warnings" hidden></p>
+      <details class="panel identification-help"><summary><strong>Não identificou a rede? Ver passo a passo</strong></summary>
+        <ol><li>Confirme que o computador ou servidor está conectado à rede do laboratório e confira o modo ativo. Uma leitura em demonstração usa dados fictícios.</li>
+        <li>Sem IP ou gateway? No próprio host do servidor, consulte <code>ipconfig /all</code> no Windows ou <code>ip -4 address show up</code> e <code>ip -4 route show default</code> no Linux. O inventário local cobre IPv4 privada; IPv6 e IP público não aparecem nesta edição.</li>
+        <li>Poucos dispositivos ou MAC vazio? A tabela local é um cache parcial. O MAC do próprio computador pode ficar vazio; confirme os alunos no painel autorizado do roteador. Wi-Fi de convidados, isolamento, VLAN e NAT podem limitar a lista.</li>
+        <li>Modelo desconhecido? Confira etiqueta, modelo e firmware com a TI. A operadora e o MAC não comprovam uma integração compatível.</li>
+        <li>Falha de acesso ao equipamento? Confira IP, porta, certificado, API e permissões. Preserve a validação HTTPS. Corrija a causa e confira o resultado com a TI. Este guia não executa comandos nem altera configurações. O modo avançado com gateway pode reconciliar políticas existentes durante a leitura; siga o procedimento desse modo.</li></ol>
+        <p class="small-note">O servidor consulta a rede do host onde está instalado, que pode ser diferente da rede deste navegador. Não compartilhe senhas, tokens ou chaves. <a href="https://perabru.github.io/LabGuard/manual2/index.html#erro-de-identificacao" target="_blank" rel="noopener noreferrer">Abrir guia completo de identificação</a>.</p>
+      </details>
       <section id="network-panel" class="panel network-panel" aria-labelledby="network-title">
         <div class="panel-heading"><div><span class="eyebrow">REDE E DOCUMENTAÇÃO</span><h2 id="network-title">Mapa do laboratório</h2><p>Uma visão lógica das máquinas e regras informadas pela fonte conectada.</p></div><button id="map-load" class="button secondary" type="button">Carregar mapa</button></div>
         <p class="small-note">As ligações são inferidas dos dados disponíveis. O mapa não identifica portas físicas de switches. SSID e ponto de acesso aparecem apenas quando informados pela fonte.</p>

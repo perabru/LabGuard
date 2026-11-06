@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>LabGuard 2.0.0 · Manual do usuário</title>
+<title>LabGuard 2.0.1 · Manual do usuário</title>
 <style>
 :root{--purple:#6938c9;--deep:#2f195b;--blue:#1364d8;--yellow:#f9cc45;--ink:#1e293b;--muted:#596477;--line:#dfe5ee;--paper:#fff;--wash:#f5f6fb;--lavender:#f0eafd}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--wash);color:var(--ink);font-family:Arial,"Liberation Sans",sans-serif;font-size:16px;line-height:1.68}a{color:var(--blue);text-decoration-thickness:1px;text-underline-offset:3px}a:hover{color:var(--purple)}a:focus-visible{outline:3px solid var(--yellow);outline-offset:4px}p,ul,ol,dl,blockquote,pre,table{margin:0 0 1.15em}h1,h2,h3,h4{line-height:1.22;color:var(--deep);font-weight:750}h1{font-size:2.5rem;letter-spacing:-.035em;margin:0 0 .5em}h2{font-size:1.85rem;letter-spacing:-.025em;margin:2.1em 0 .7em;padding-top:.5em;border-top:3px solid var(--purple)}h3{font-size:1.2rem;margin:1.6em 0 .65em;color:var(--blue)}h4{font-size:1.05rem;margin:1.4em 0 .55em}li{padding-left:.15em;margin:.35em 0}li>p{margin-bottom:.6em}strong{color:#302248}hr{border:0;border-top:1px solid var(--line);margin:2em 0}code,kbd{font-family:"DejaVu Sans Mono","Liberation Mono",monospace;font-size:.88em;background:#edf1f8;border-radius:4px;padding:.12em .3em;overflow-wrap:anywhere}pre{background:#f1f4fa;border:1px solid #d7dfec;border-left:4px solid var(--blue);border-radius:8px;padding:16px 18px;overflow-x:auto;line-height:1.5;font-size:.91rem;white-space:pre-wrap;overflow-wrap:anywhere}pre code{background:none;padding:0;border-radius:0;font-size:inherit}blockquote{margin-left:0;padding:16px 20px;border-left:5px solid var(--yellow);background:#fff9e5;border-radius:0 8px 8px 0;color:#4b4228}blockquote p:last-child{margin-bottom:0}table{width:100%;border-collapse:collapse;font-size:.92rem;line-height:1.5;overflow-wrap:anywhere}th,td{border:1px solid var(--line);padding:11px 13px;text-align:left;vertical-align:top}th{background:var(--lavender);color:var(--deep);font-weight:700}tbody tr:nth-child(even){background:#f8faff}img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:10px;margin:1.5em auto}svg{display:block;max-width:100%;height:auto;margin:1.5em auto}figure{margin:1.5em 0}figcaption{font-size:.86rem;color:var(--muted);text-align:center;margin-top:.5em}.document{max-width:1120px;margin:36px auto 60px;background:var(--paper);box-shadow:0 15px 65px #25285410;border:1px solid #e2e6ef;border-radius:18px;overflow:hidden}.cover{position:relative;padding:68px 68px 56px;background:linear-gradient(135deg,#251147 0%,#5936b0 57%,#1863bf 100%);color:#fff}.cover:before{content:"";position:absolute;left:0;top:0;width:100%;height:9px;background:var(--yellow)}.brand{font-weight:800;font-size:1.15rem;letter-spacing:.08em;margin-bottom:45px}.brand-mark{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;background:var(--yellow);color:var(--deep);border-radius:11px;margin-right:12px;letter-spacing:0}.eyebrow{font-size:.8rem;letter-spacing:.15em;text-transform:uppercase;font-weight:700;color:#f9d96f;margin-bottom:15px}.cover h1{font-size:3.9rem;max-width:730px;color:#fff;font-weight:750;line-height:1.05;letter-spacing:-.05em;margin:0 0 24px}.subtitle{font-size:1.14rem;max-width:690px;line-height:1.65;color:#ecedff;margin:0 0 35px}.cover-meta{display:flex;gap:14px;flex-wrap:wrap}.cover-meta span{display:inline-block;border:1px solid #ffffff44;border-radius:50px;padding:7px 14px;font-size:.83rem;color:#fff}.cover-meta span:first-child{background:var(--yellow);border-color:var(--yellow);color:var(--deep);font-weight:700}.reading-note{padding:18px 68px;background:#fff7d9;border-bottom:1px solid #f0e0a8;font-size:.88rem;color:#594a1d}.reading-note strong{color:#493b18}#TOC{margin:0 68px;padding:44px 0 26px;border-bottom:1px solid var(--line)}#TOC h2{border:0;margin:0 0 20px;padding:0;font-size:1.55rem}#TOC>ul{columns:2;column-gap:42px;font-size:.9rem;line-height:1.5;padding-left:20px}#TOC li{break-inside:avoid;margin:0 0 11px}#TOC li ul{list-style:circle;padding-left:19px;margin:.5em 0 .9em;font-size:.88em}#TOC a{text-decoration:none;color:#3a3761}#TOC a:hover{text-decoration:underline;color:var(--blue)}main{padding:25px 68px 52px}main>h1:first-child{font-size:2rem;margin-top:1.1em}main>:first-child{margin-top:1.1em}.doc-footer{padding:22px 68px;background:#f0eafd;border-top:1px solid #ded3f7;color:#5b4b78;font-size:.83rem;display:flex;justify-content:space-between;gap:20px}.doc-footer a{color:var(--purple)}.footnotes{font-size:.88em;color:var(--muted)}.sourceCode .co{color:#586676}.sourceCode .st{color:#146442}.sourceCode .kw,.sourceCode .cf{color:#6938c9}.sourceCode .fu{color:#1458ac}
 @media(max-width:900px){.document{margin:0;border-radius:0;border:0;box-shadow:none}.cover{padding:55px 28px 40px}.cover h1{font-size:3rem}.brand{margin-bottom:36px}.reading-note{padding:18px 28px}#TOC{margin:0 28px;padding-top:30px}#TOC>ul{columns:1}main{padding:20px 28px 40px}.doc-footer{padding:20px 28px}table{font-size:.85rem}th,td{padding:9px}h2{font-size:1.6rem}}
 @media print{
-@page{size:A4;margin:17mm 16mm 19mm;@bottom-left{content:"LabGuard 2.0.0 · Manual do usuário";font-family:Arial,sans-serif;font-size:8pt;color:#687082}@bottom-right{content:counter(page);font-family:Arial,sans-serif;font-size:8pt;color:#687082}}
+@page{size:A4;margin:17mm 16mm 19mm;@bottom-left{content:"LabGuard 2.0.1 · Manual do usuário";font-family:Arial,sans-serif;font-size:8pt;color:#687082}@bottom-right{content:counter(page);font-family:Arial,sans-serif;font-size:8pt;color:#687082}}
 html{scroll-behavior:auto}body{background:#fff;font-size:10.2pt;line-height:1.54;color:#202b3a;-webkit-print-color-adjust:exact;print-color-adjust:exact}.document{max-width:none;margin:0;background:#fff;border:0;border-radius:0;box-shadow:none;overflow:visible}.cover{padding:28mm 14mm 22mm;min-height:238mm;break-after:page;background:linear-gradient(140deg,#29134e,#5631a9 65%,#2364ba)}.cover:before{height:3mm}.brand{font-size:14pt;margin-bottom:25mm}.brand-mark{width:10mm;height:10mm;border-radius:3mm}.eyebrow{font-size:8.4pt;letter-spacing:.12em;margin-bottom:6mm}.cover h1{font-size:43pt;max-width:140mm;margin-bottom:10mm;line-height:1.08}.subtitle{font-size:13pt;line-height:1.7;margin-bottom:14mm;max-width:140mm}.cover-meta{gap:3mm}.cover-meta span{font-size:8.5pt;padding:2mm 4mm}.reading-note{padding:5mm 0;font-size:9pt;border:0;background:none;color:#4b4f5b}.reading-note strong{color:#2f195b}#TOC{margin:0;padding:7mm 0 3mm;border:0;break-after:page}#TOC h2{font-size:21pt;break-before:auto;padding:0;border:0}#TOC>ul{columns:1;column-gap:0;font-size:9.8pt;line-height:1.45;padding-left:6mm}#TOC li{margin-bottom:2.2mm}#TOC li ul{margin:1mm 0 2mm;font-size:8.8pt}main{padding:0}main>h1:first-child{font-size:23pt;margin-top:3mm;break-before:auto}h2{font-size:21pt;margin:0 0 6mm;padding-top:4mm;border-top:1mm solid var(--purple);break-before:page}h3{font-size:13pt;margin:6mm 0 3mm}h4{font-size:11pt}h1,h2,h3,h4{break-after:avoid}p,li{orphans:3;widows:3}p,ul,ol,dl,blockquote,pre,table{margin-bottom:3.8mm}li{margin:1.4mm 0}table{font-size:8.7pt;line-height:1.42;break-inside:auto}th,td{padding:2.5mm 3mm}thead{display:table-header-group}tr{break-inside:avoid}pre{font-size:8.4pt;line-height:1.45;padding:3.5mm 4mm;border-radius:2mm;break-inside:avoid}blockquote{padding:4mm 5mm;break-inside:avoid}svg{width:100%;max-height:70mm;height:auto;break-inside:avoid}img{max-height:70mm;object-fit:contain;break-inside:avoid;border-radius:2mm}a{color:#164c9f;text-decoration:none}main a[href^="https://"]{overflow-wrap:anywhere}.doc-footer{margin-top:9mm;padding:5mm 0;background:none;border-top:1px solid var(--line);font-size:8pt;color:#596477}.doc-footer a[href="#inicio"]{display:none}.footnotes{font-size:8.5pt}}
 </style>
 </head>
@@ -18,53 +18,58 @@ html{scroll-behavior:auto}body{background:#fff;font-size:10.2pt;line-height:1.54
 <div class="document">
 <header class="cover" id="inicio">
 <div class="brand"><span class="brand-mark" aria-hidden="true">L</span>LABGUARD</div>
-<p class="eyebrow">Laboratório escolar · Guia da interface 2.0</p>
+<p class="eyebrow">Laboratório escolar · Guia da interface 2.0.1</p>
 <h1>Manual do<br>usuário</h1>
 <p class="subtitle">Comece pela rede existente. Consulte dispositivos, conecte um controlador compatível e acompanhe sites e ações em quatro telas.</p>
-<div class="cover-meta"><span>Versão 2.0.0</span><span>Observação como padrão</span><span>6 de novembro de 2026</span></div>
+<div class="cover-meta"><span>Versão 2.0.1</span><span>Observação como padrão</span><span>6 de novembro de 2026</span></div>
 </header>
 <div class="reading-note"><a href="Manual_LabGuard_2.pdf"><strong>Baixar manual em PDF</strong></a> · <strong>Como usar:</strong> escolha um capítulo no sumário. Este arquivo funciona sem conexão à internet; os links externos precisam de acesso à rede. Para imprimir ou salvar em PDF, use <strong>Ctrl+P</strong> e papel A4.</div>
 <nav id="TOC" role="doc-toc" aria-label="Sumário">
 <h2>Sumário</h2>
 <ul>
-<li><a href="#1-primeiro-uso-em-cinco-passos"
-id="toc-1-primeiro-uso-em-cinco-passos">1. Primeiro uso em cinco
+<li><a href="#primeiro-uso-em-cinco-passos"
+id="toc-primeiro-uso-em-cinco-passos">1. Primeiro uso em cinco
 passos</a></li>
-<li><a href="#2-escolher-o-modo-certo"
-id="toc-2-escolher-o-modo-certo">2. Escolher o modo certo</a></li>
-<li><a href="#3-conhecer-as-quatro-telas"
-id="toc-3-conhecer-as-quatro-telas">3. Conhecer as quatro telas</a></li>
-<li><a href="#4-conectar-um-mikrotik-existente"
-id="toc-4-conectar-um-mikrotik-existente">4. Conectar um MikroTik
+<li><a href="#escolher-o-modo-certo" id="toc-escolher-o-modo-certo">2.
+Escolher o modo certo</a></li>
+<li><a href="#conhecer-as-quatro-telas"
+id="toc-conhecer-as-quatro-telas">3. Conhecer as quatro telas</a></li>
+<li><a href="#conectar-um-mikrotik-existente"
+id="toc-conectar-um-mikrotik-existente">4. Conectar um MikroTik
 existente</a></li>
-<li><a href="#5-habilitar-controle-corretamente"
-id="toc-5-habilitar-controle-corretamente">5. Habilitar controle
+<li><a href="#habilitar-controle-corretamente"
+id="toc-habilitar-controle-corretamente">5. Habilitar controle
 corretamente</a></li>
-<li><a href="#6-dispositivos-consultar-e-controlar"
-id="toc-6-dispositivos-consultar-e-controlar">6. Dispositivos: consultar
-e controlar</a></li>
-<li><a href="#7-sites-jogos-e-serviços-de-ia"
-id="toc-7-sites-jogos-e-serviços-de-ia">7. Sites, jogos e serviços de
+<li><a href="#dispositivos-consultar-e-controlar"
+id="toc-dispositivos-consultar-e-controlar">6. Dispositivos: consultar e
+controlar</a></li>
+<li><a href="#sites-jogos-e-serviços-de-ia"
+id="toc-sites-jogos-e-serviços-de-ia">7. Sites, jogos e serviços de
 IA</a></li>
-<li><a href="#8-atividade-interpretar-os-registros"
-id="toc-8-atividade-interpretar-os-registros">8. Atividade: interpretar
-os registros</a></li>
-<li><a href="#9-programas-e-avisos-nas-estações"
-id="toc-9-programas-e-avisos-nas-estações">9. Programas e avisos nas
+<li><a href="#atividade-interpretar-os-registros"
+id="toc-atividade-interpretar-os-registros">8. Atividade: interpretar os
+registros</a></li>
+<li><a href="#programas-e-avisos-nas-estações"
+id="toc-programas-e-avisos-nas-estações">9. Programas e avisos nas
 estações</a></li>
-<li><a href="#10-mapa-relatórios-e-outros-equipamentos"
-id="toc-10-mapa-relatórios-e-outros-equipamentos">10. Mapa, relatórios e
+<li><a href="#mapa-relatórios-e-outros-equipamentos"
+id="toc-mapa-relatórios-e-outros-equipamentos">10. Mapa, relatórios e
 outros equipamentos</a></li>
-<li><a href="#11-servidor-administrativo-e-legado"
-id="toc-11-servidor-administrativo-e-legado">11. Servidor administrativo
-e legado</a></li>
-<li><a href="#12-diagnóstico-e-teste-de-aceitação"
-id="toc-12-diagnóstico-e-teste-de-aceitação">12. Diagnóstico e teste de
-aceitação</a></li>
+<li><a href="#servidor-administrativo-e-legado"
+id="toc-servidor-administrativo-e-legado">11. Servidor administrativo e
+legado</a></li>
+<li><a href="#erro-de-identificacao" id="toc-erro-de-identificacao">12.
+Erro de identificação: passo a passo</a></li>
+<li><a href="#modelo-desconhecido-e-falha-na-api"
+id="toc-modelo-desconhecido-e-falha-na-api">13. Modelo desconhecido e
+falha na API</a></li>
+<li><a href="#teste-de-aceitação-e-suporte"
+id="toc-teste-de-aceitação-e-suporte">14. Teste de aceitação e
+suporte</a></li>
 </ul>
 </nav>
 <main id="conteudo">
-<h2 id="1-primeiro-uso-em-cinco-passos">1. Primeiro uso em cinco
+<h2 id="primeiro-uso-em-cinco-passos">1. Primeiro uso em cinco
 passos</h2>
 <p>O LabGuard começa em <strong>Observação</strong>, com informações
 reais que o sistema local consegue consultar. Esse primeiro contato não
@@ -96,8 +101,13 @@ altera a rede.</p>
 de teste. Aplique regras somente depois de confirmar que a conexão
 corresponde ao equipamento certo e que a capacidade desejada está
 disponível.</p>
-<h2 id="2-escolher-o-modo-certo">2. Escolher o modo certo</h2>
+<h2 id="escolher-o-modo-certo">2. Escolher o modo certo</h2>
 <table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th>Modo</th>
@@ -148,8 +158,12 @@ firewall seja administrável pelo programa. Perfis de switches Cisco e
 TP-Link podem oferecer portas e MACs, com alcance diferente de um filtro
 de sites. Confira o modelo e as capacidades em <strong>Outros
 equipamentos</strong>.</p>
-<h2 id="3-conhecer-as-quatro-telas">3. Conhecer as quatro telas</h2>
+<h2 id="conhecer-as-quatro-telas">3. Conhecer as quatro telas</h2>
 <table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th>Tela</th>
@@ -193,7 +207,7 @@ o equipamento não comprova autorização para escrever no firewall.</p>
 <p>Ao trocar de modo, atualize antes de agir. Uma falha real deve ser
 apresentada como falha; demonstração não substitui o estado do
 laboratório.</p>
-<h2 id="4-conectar-um-mikrotik-existente">4. Conectar um MikroTik
+<h2 id="conectar-um-mikrotik-existente">4. Conectar um MikroTik
 existente</h2>
 <p>A integração usa a API REST HTTPS do <strong>RouterOS 7</strong>. Ela
 administra o roteador compatível que já está no caminho da rede, sem
@@ -223,7 +237,7 @@ aplicar regras.</p>
 <p>Cadastre os endereços administrativos como protegidos. Não coloque
 senha no endereço, no nome do equipamento ou em relatórios. No painel,
 ela pertence à sessão.</p>
-<h2 id="5-habilitar-controle-corretamente">5. Habilitar controle
+<h2 id="habilitar-controle-corretamente">5. Habilitar controle
 corretamente</h2>
 <p>Marcar <strong>Autorizar alterações neste roteador</strong> expressa
 a intenção do operador. O programa ainda verifica se a ação é compatível
@@ -233,6 +247,10 @@ ou posterior</strong>, DNS remoto já preparado e DHCP anunciando somente
 o DNS do próprio roteador. Ele não configura esses requisitos
 automaticamente.</p>
 <table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th>Requisito</th>
@@ -286,8 +304,8 @@ muda automaticamente o DNS usado pelos clientes.</p>
 <p>O filtro age em novas resoluções. Cache, DNS sobre HTTPS e VPNs
 exigem políticas adicionais. O corte de internet também depende da
 ausência de saída alternativa por outra rede.</p>
-<h2 id="6-dispositivos-consultar-e-controlar">6. Dispositivos: consultar
-e controlar</h2>
+<h2 id="dispositivos-consultar-e-controlar">6. Dispositivos: consultar e
+controlar</h2>
 <p>Abra <strong>Dispositivos</strong> e selecione a máquina pela
 combinação de nome disponível, IP, MAC e evidência apresentada. Confirme
 o alvo físico quando houver dúvida.</p>
@@ -319,7 +337,7 @@ receber bloqueio pelo painel.</p>
 <p>Desativar uma porta de switch em <strong>Outros equipamentos</strong>
 é outra operação: pode desconectar várias máquinas quando há switch ou
 ponto de acesso conectado àquela porta.</p>
-<h2 id="7-sites-jogos-e-serviços-de-ia">7. Sites, jogos e serviços de
+<h2 id="sites-jogos-e-serviços-de-ia">7. Sites, jogos e serviços de
 IA</h2>
 <p>Use domínios como <code>exemplo.com</code>, sem protocolo, caminho,
 porta ou curinga. Confira o alcance por subdomínios apresentado pelo
@@ -362,13 +380,17 @@ método.</p>
 confira a resposta depois de limpar o cache local. Retire a regra e
 confirme a liberação. A tela de cadastro não comprova aplicação no
 firewall.</p>
-<h2 id="8-atividade-interpretar-os-registros">8. Atividade: interpretar
-os registros</h2>
+<h2 id="atividade-interpretar-os-registros">8. Atividade: interpretar os
+registros</h2>
 <p><strong>Atividade</strong> separa <strong>Consultas DNS</strong>,
 <strong>Ações</strong> e <strong>Conexões</strong>. Cada fonte fornece
 dados diferentes. Uma tela vazia ou indisponível não deve ser
 interpretada como histórico completo.</p>
 <table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th>Informação</th>
@@ -413,7 +435,7 @@ pré-carregamento e tarefas automáticas também geram consultas. Confirme
 o contexto antes de agir.</p>
 <p>Ao exportar, mantenha o arquivo sob acesso dos responsáveis e adote a
 retenção definida pelo colégio. Exporte apenas a amostra necessária.</p>
-<h2 id="9-programas-e-avisos-nas-estações">9. Programas e avisos nas
+<h2 id="programas-e-avisos-nas-estações">9. Programas e avisos nas
 estações</h2>
 <p><strong>Programas e avisos</strong>, em Dispositivos, usa
 administração autenticada do próprio computador. Esse recurso é
@@ -456,7 +478,7 @@ repetir.</p>
 <p>Consulte <a href="ADMINISTRACAO_REMOTA.md">Administração remota</a>
 para catálogo e permissões. As operações limitadas não exigem liberar
 execução arbitrária ou um shell root.</p>
-<h2 id="10-mapa-relatórios-e-outros-equipamentos">10. Mapa, relatórios e
+<h2 id="mapa-relatórios-e-outros-equipamentos">10. Mapa, relatórios e
 outros equipamentos</h2>
 <h3 id="mapa-e-relatórios">Mapa e relatórios</h3>
 <p>O atalho usa a amostra da fonte conectada. O desenho é lógico:
@@ -482,9 +504,9 @@ documentação do equipamento.</p>
 use administração das estações quando já preparada. Credenciais ou
 procedimentos de outro modelo não substituem uma integração
 suportada.</p>
-<h2 id="11-servidor-administrativo-e-legado">11. Servidor administrativo
-e legado</h2>
-<h3 id="servidor-20">Servidor 2.0</h3>
+<h2 id="servidor-administrativo-e-legado">11. Servidor administrativo e
+legado</h2>
+<h3 id="servidor-2.0">Servidor 2.0</h3>
 <p>O servidor roda sem Tk e oferece painel web local em
 <code>http://127.0.0.1:8765/</code>. O padrão é observação/controlador,
 sem exigir gateway Linux no caminho do tráfego.</p>
@@ -516,9 +538,152 @@ preparada.</p>
 à consulta por API. O <a href="MANUAL_DO_USUARIO.md">manual 1.4</a> e o
 <a href="Manual_LabGuard_1.4.pdf">PDF 1.4</a> permanecem como referência
 desse caminho.</p>
-<h2 id="12-diagnóstico-e-teste-de-aceitação">12. Diagnóstico e teste de
-aceitação</h2>
+<h2 id="erro-de-identificacao">12. Erro de identificação: passo a
+passo</h2>
+<h3 id="abrir-o-assistente">Abrir o assistente</h3>
+<ol type="1">
+<li>Em <strong>Início</strong>, clique <strong>Não identificou? Ver
+passo a passo</strong>. Após uma falha, há também um botão de ajuda
+junto ao erro.</li>
+<li>No assistente <strong>Ajuda para identificar a rede</strong>,
+confira o caso sugerido ou escolha outro. Uma sugestão não confirma a
+causa.</li>
+<li>Use <strong>Voltar / Avançar</strong> para ler as etapas. Os
+comandos são executados manualmente; a ajuda não os executa.</li>
+<li>Em Observação ou MikroTik direto, clique <strong>Atualizar
+consulta</strong>. A leitura usa a conexão atual; não troca credenciais,
+perfil, firewall, DNS ou rotas. Para corrigir IP, certificado ou conta,
+volte a Início e reconecte.</li>
+</ol>
+<p>No gateway SSH legado, o botão fica desabilitado: uma consulta
+avançada pode reconciliar políticas existentes. Siga o fluxo do legado
+ou escolha Observação em Início; a ajuda não troca o modo
+automaticamente.</p>
+<h3 id="conferir-ip-e-rota">Conferir IP e rota</h3>
+<p>Abra um terminal na conta habitual. As consultas normais não exigem
+administrador ou <code>sudo</code>.</p>
 <table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Windows</th>
+<th>Linux</th>
+<th>Confira</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>ipconfig /all</code></td>
+<td><code>ip -4 addr</code></td>
+<td>Interface conectada e IPv4 do laboratório</td>
+</tr>
+<tr class="even">
+<td><code>route print -4</code></td>
+<td><code>ip -4 route</code></td>
+<td>Rota padrão, gateway e interface de saída</td>
+</tr>
+<tr class="odd">
+<td><code>arp -a</code></td>
+<td><code>ip -4 neigh</code></td>
+<td>IPs/MACs já conhecidos no cache local</td>
+</tr>
+</tbody>
+</table>
+<p>Se faltar <code>ip</code> no Linux portátil ou pelo código-fonte,
+peça à TI a instalação de <strong>iproute2</strong> pelo gerenciador da
+distribuição. O pacote Debian declara essa dependência.</p>
+<p>Confira o cabo ou SSID e compare a interface com o planejamento da
+TI. VPNs e várias conexões podem criar mais de uma rota. Uma rede só
+local pode não ter gateway padrão. Não altere DHCP ou rotas por
+tentativa: uma estação com IP fixo pode não aparecer nas concessões
+DHCP.</p>
+<h3 id="poucas-máquinas-ou-mac-vazio">Poucas máquinas ou MAC vazio</h3>
+<p>A Observação lê um <strong>cache parcial</strong>, não faz varredura
+completa. Cache vazio pode ser normal; entrada antiga ou
+<code>STALE</code> não comprova presença. O MAC do próprio computador
+fica vazio por desenho da coleta e isso não é falha.</p>
+<p>VLANs, roteadores, NAT, pontos de acesso e isolamento Wi-Fi podem
+ocultar vizinhos e seus MACs. A coleta automática cobre IPv4 privado
+<code>10.x</code>, <code>172.16-31.x</code> e <code>192.168.x</code>;
+redes somente IPv6 ou outros endereços podem ficar fora da lista.
+Continue em Observação sem exigir um MikroTik.</p>
+<h2 id="modelo-desconhecido-e-falha-na-api">13. Modelo desconhecido e
+falha na API</h2>
+<h3 id="confirmar-o-equipamento">Confirmar o equipamento</h3>
+<ol type="1">
+<li>Encontre o gateway na rota e confirme com a TI qual equipamento
+exerce esse papel. Ele pode ser diferente do ponto de acesso.</li>
+<li>Leia fabricante e modelo na etiqueta ou no inventário autorizado. No
+painel local já usado pela escola, confira também o firmware.</li>
+<li>Vivo ou Embratel são operadoras, não uma API universal. Não deduza o
+modelo pelo MAC e não selecione MikroTik por tentativa.</li>
+<li>Sem perfil compatível confirmado, mantenha <strong>Observar esta
+rede</strong>. A consulta local funciona sem credenciais
+administrativas.</li>
+</ol>
+<h3 id="resolver-a-conexão-administrativa">Resolver a conexão
+administrativa</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Caso</th>
+<th>Passo a passo</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>HTTPS ou certificado</td>
+<td>Confira IP literal, porta e data/hora. No MikroTik direto, o
+certificado precisa de SAN de tipo IP correspondente e cadeia confiável.
+Use a CA institucional correta e reconecte em consulta. Nomes DNS não
+são aceitos nesse adaptador</td>
+</tr>
+<tr class="even">
+<td>HTTP 401 ou 403</td>
+<td>Confira conta e equipamento. Peça à TI que verifique permissões REST
+e restrições de origem. 401/403 podem envolver autenticação, autorização
+ou política; não conclua automaticamente que a senha está errada</td>
+</tr>
+<tr class="odd">
+<td>API indisponível</td>
+<td>Confirme perfil, modelo e firmware. MikroTik direto exige RouterOS 7
+com REST HTTPS já preparado; um painel web acessível não comprova uma
+API compatível. Domínios exigem 7.18 ou posterior e os requisitos do
+capítulo 5</td>
+</tr>
+<tr class="even">
+<td>Tempo esgotado</td>
+<td>Confira conexão, IP e porta autorizados. Aguarde a consulta atual.
+Peça à TI que confira disponibilidade e restrições de gestão; depois
+tente uma leitura. Não repita uma alteração de resultado incerto antes
+de conferir o estado</td>
+</tr>
+</tbody>
+</table>
+<p>Não desative TLS, validação de certificado ou firewall para
+prosseguir. O assistente não habilita serviços de gestão nem libera
+capacidades de bloqueio.</p>
+<p>Para suporte, informe versão, sistema, modo, categoria da falha,
+etapa realizada e modelo/firmware confirmados. Revise IPs e capturas
+antes de compartilhar. <strong>Nunca inclua senha, token, chave privada
+ou saída bruta com credenciais.</strong></p>
+<p>O <a href="DIAGNOSTICO_DA_REDE.md">guia completo de diagnóstico</a>
+detalha os comandos e cada caso do assistente.</p>
+<h2 id="teste-de-aceitação-e-suporte">14. Teste de aceitação e
+suporte</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th>Situação</th>
@@ -527,27 +692,23 @@ aceitação</h2>
 </thead>
 <tbody>
 <tr class="odd">
-<td>Poucas máquinas em Observação</td>
-<td>Confira rota, VLAN e vizinhos; não espere descoberta física
-completa</td>
+<td>Identificação incompleta ou API com falha</td>
+<td>Use o assistente dos capítulos 12 e 13; a hipótese não confirma a
+causa</td>
 </tr>
 <tr class="even">
 <td>Bloqueio indisponível</td>
 <td>Leia modo, capacidade, permissões e requisitos</td>
 </tr>
 <tr class="odd">
-<td>Falha HTTPS</td>
-<td>Confira endereço, porta, certificado, CA e serviço</td>
-</tr>
-<tr class="even">
 <td>Conecta mas não corta</td>
 <td>Confira autorização, WAN, FastTrack, IPv6 e saída alternativa</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Site ainda abre</td>
 <td>Verifique DNS do cliente, cache, DoH/VPN e domínio</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Aviso não aparece</td>
 <td>Confira WinRM/SSH, sessão e permissões</td>
 </tr>
@@ -582,9 +743,9 @@ href="https://learn.microsoft.com/en-us/windows/win32/winrm/installation-and-con
 configuração do WinRM</a>.</li>
 </ul>
 <p>Para suporte, informe versão, sistema, modo, modelo/firmware e
-mensagem apresentada. Não inclua senhas, tokens ou chaves privadas.</p>
+categoria da falha. Não inclua senhas, tokens ou chaves privadas.</p>
 </main>
-<footer class="doc-footer"><span>LabGuard 2.0.0 · Manual do usuário · Consulte a validação da versão antes da implantação.</span><a href="#inicio">Voltar ao início ↑</a></footer>
+<footer class="doc-footer"><span>LabGuard 2.0.1 · Manual do usuário · Consulte a validação da versão antes da implantação.</span><a href="#inicio">Voltar ao início ↑</a></footer>
 </div>
 </body>
 </html>
