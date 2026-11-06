@@ -1,6 +1,12 @@
 # Validação da versão 2.0.1
 
-Preparada em 6 de novembro de 2026. O assistente de identificação, os guias e o empacotamento Linux foram atualizados; os novos pacotes nativos aguardam o fluxo Windows/Linux. A validação e os links do lançamento serão registrados aqui após a compilação.
+Publicada em 6 de novembro de 2026. O [fluxo completo Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/42296126982) passou no commit `8735368630f207dd2ecb16e112eafb3e20a38318`. A [versão 2.0.1](https://github.com/perabru/LabGuard/releases/tag/v2.0.1) inclui os seis pacotes desktop/servidor, autotestes e somas SHA-256.
+
+Foram aprovados **294 testes** localmente e no Linux CI e **250 testes compatíveis com Windows**. Instalação, abertura da janela e serviços SCM/systemd também passaram nas plataformas nativas. O autoteste do desktop congelado confirmou o módulo de ajuda com seis passos no cenário sem gateway, sem abrir Tk ou consultar a rede.
+
+O manual de **15 páginas e 14 capítulos** foi renderizado e revisado. O [Pages](https://github.com/perabru/LabGuard/actions/runs/42296126823) publicou o site e a seção de identificação; o link, a âncora e a apresentação foram conferidos em navegador. A prévia local do navegador apontou para outro projeto e não foi usada como evidência.
+
+O instalador Windows anexado foi conferido pelo hash do artefato, CRC do arquivo ZIP, SHA-256 interno, estrutura PE e autotestes 2.0.1. SHA-256 do EXE: `917a2a57ff6cb64da4b8fd7ab34057786de54e08a08510b2b6f0b129bae140de`.
 
 ## Alteração desta versão
 
