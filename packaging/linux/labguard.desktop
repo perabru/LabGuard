@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LabGuard
+Comment=Administração do laboratório escolar
+Exec=labguard
+Icon=labguard
+Terminal=false
+Categories=Education;Network;System;
+StartupNotify=true

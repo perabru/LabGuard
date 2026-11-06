@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>LabGuard Server | Administração do laboratório</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="LabGuard Server, início"><span class="brand-mark" aria-hidden="true">L</span><span>LabGuard <small>SERVER</small></span></a>
+    <span class="local-badge">Administração local</span>
+  </header>
+  <main>
+    <section id="login" class="login-wrap" aria-labelledby="login-title">
+      <div class="login-copy"><span class="eyebrow">ACESSO ADMINISTRATIVO</span><h1>Seu laboratório.<br>Uma visão clara.</h1><p>Conecte o painel ao serviço local para consultar a rede e executar as ações permitidas ao seu perfil.</p><div class="access-note"><span aria-hidden="true">✓</span><p>Acesso por token, perfis separados e comandos de rede limitados ao gateway configurado.</p></div></div>
+      <section class="login-card" aria-label="Autenticação por token"><span class="tag">LabGuard Server</span><h2>Entrar no painel</h2><p>Use o token de consulta ou de administração gerado na instalação do servidor.</p><label for="token">Token de acesso</label><input id="token" type="password" maxlength="512" autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="Cole o token autorizado"><button id="login-button" class="button primary" type="button">Acessar painel <span aria-hidden="true">→</span></button><p class="privacy-note">O token fica apenas nesta aba e é descartado ao sair ou após 10 minutos sem interação. Ele não é salvo no navegador.</p><p id="login-error" class="message error" role="alert" hidden></p></section>
+    </section>
+
+    <section id="workspace" hidden aria-labelledby="dashboard-title">
+      <div class="page-heading"><div><span class="eyebrow">CENTRAL DO LABORATÓRIO</span><h1 id="dashboard-title">Visão operacional</h1><p id="gateway-label">Aguardando dados do gateway.</p></div><div class="header-actions"><span id="role" class="role-badge">Consulta</span><button id="refresh" class="button secondary" type="button">Atualizar</button><button id="logout" class="button quiet" type="button">Sair</button></div></div>
+      <nav class="workspace-nav" aria-label="Áreas do painel"><a href="#banco-sites">Banco de sites</a><a href="#machines-panel">Máquinas</a><a href="#domains-panel">Bloqueios no gateway</a><a href="#audit-panel">Auditoria</a></nav>
+      <div id="mode-banner" class="mode-banner" role="status"></div>
+      <div class="freshness"><span id="fresh-dot" class="status-dot"></span><span id="updated">Ainda sem atualização.</span><span id="request-status" aria-live="polite"></span></div>
+      <p id="action-error" class="message error" role="alert" hidden></p>
+      <div class="metrics" aria-label="Indicadores da amostra recente">
+        <article class="metric"><span class="metric-icon blue" aria-hidden="true">PC</span><span class="metric-name">Máquinas observadas</span><strong id="metric-devices">—</strong><small>DHCP e vizinhos da rede</small></article>
+        <article class="metric"><span class="metric-icon purple" aria-hidden="true">IP</span><span class="metric-name">Internet suspensa</span><strong id="metric-blocked">—</strong><small>Regras por máquina</small></article>
+        <article class="metric"><span class="metric-icon blue" aria-hidden="true">DNS</span><span class="metric-name">Consultas DNS</span><strong id="metric-queries">—</strong><small>Na amostra disponível</small></article>
+        <article class="metric"><span class="metric-icon yellow" aria-hidden="true">!</span><span class="metric-name">Bloqueios DNS</span><strong id="metric-dns-blocked">—</strong><small>Confirmados na amostra</small></article>
+      </div>
+      <section class="health-card" aria-labelledby="health-title"><div><span class="eyebrow">SERVIÇOS DO GATEWAY</span><h2 id="health-title">Estado da rede</h2></div><div id="health" class="health-list"></div></section>
+      <p id="warnings" class="warnings" hidden></p>
+      <section id="banco-sites" class="panel banlist-panel" aria-labelledby="banlist-title">
+        <div class="panel-heading"><div><span class="eyebrow">CADASTRO GERENCIADO</span><h2 id="banlist-title">Banco de sites</h2><p>Organize os registros locais. As alterações só chegam à rede ao aplicar a lista.</p></div><button id="db-sync" class="button primary" type="button" disabled>Aplicar lista no gateway</button></div>
+        <p id="db-summary" class="db-summary">Aguardando consulta ao banco.</p>
+        <p id="db-message" class="message" role="status" hidden></p>
+        <form id="db-filter" class="db-filter"><label class="sr-only" for="db-search">Buscar domínio ou observação</label><input id="db-search" type="search" maxlength="253" placeholder="Buscar no banco"><label class="sr-only" for="db-filter-category">Filtrar categoria</label><select id="db-filter-category"><option value="">Todas as categorias</option><option>Jogos</option><option>IA</option><option>Adultos</option><option>Outros</option></select><label class="sr-only" for="db-filter-enabled">Filtrar estado</label><select id="db-filter-enabled"><option value="">Todos os estados</option><option value="true">Ativos</option><option value="false">Inativos</option></select><button id="db-search-button" class="button quiet" type="submit">Consultar</button><button id="db-export" class="button quiet" type="button">Exportar CSV</button></form>
+        <div class="db-layout"><form id="db-form" class="db-editor"><h3 id="db-form-title">Novo registro</h3><label for="db-domain">Domínio</label><input id="db-domain" maxlength="253" placeholder="exemplo.com" spellcheck="false" autocapitalize="none" required><label for="db-category">Categoria</label><select id="db-category"><option>Jogos</option><option>IA</option><option>Adultos</option><option>Outros</option></select><label class="check-label" for="db-enabled"><input id="db-enabled" type="checkbox" checked> Registro ativo</label><label for="db-notes">Observação</label><textarea id="db-notes" rows="3" maxlength="1000" placeholder="Motivo ou referência para a equipe"></textarea><div class="db-editor-actions"><button id="db-save" class="button secondary" type="submit" disabled>Salvar no banco</button><button id="db-cancel" class="button quiet" type="button">Limpar</button></div><p class="small-note">Salvar não altera o firewall. Registros inativos não entram na próxima aplicação.</p></form>
+        <div class="table-scroll db-table"><table><thead><tr><th>Domínio / observação</th><th>Categoria</th><th>Estado</th><th>Ações</th></tr></thead><tbody id="db-sites"></tbody></table></div></div>
+        <details class="db-import"><summary>Importar uma lista de domínios</summary><p class="small-note">Até 100 domínios, um por linha, com no máximo 8 KB. A importação cadastra no banco; não aplica regras à rede.</p><label class="sr-only" for="db-import-text">Lista de domínios para importar</label><textarea id="db-import-text" rows="4" maxlength="8192" placeholder="exemplo.com&#10;outro.exemplo.com"></textarea><div class="db-import-actions"><label for="db-import-category">Categoria</label><select id="db-import-category"><option>Jogos</option><option>IA</option><option>Adultos</option><option selected>Outros</option></select><button id="db-import-button" class="button secondary" type="button" disabled>Importar para o banco</button></div></details>
+      </section>
+      <div class="content-grid">
+        <section id="machines-panel" class="panel machines-panel" aria-labelledby="machines-title"><div class="panel-heading"><div><h2 id="machines-title">Máquinas</h2><p>Uma máquina observada pode estar desligada.</p></div><span id="device-count" class="count-badge">0</span></div><div class="table-scroll"><table><thead><tr><th>Máquina</th><th>IP / MAC</th><th>Evidência</th><th>Internet</th><th>Ação</th></tr></thead><tbody id="devices"></tbody></table></div></section>
+        <section class="panel policy-panel" aria-labelledby="policy-title"><div class="panel-heading"><div><h2 id="policy-title">Serviços de IA</h2><p>Política global por domínios cadastrados.</p></div><span id="ai-state" class="state-badge">—</span></div><p id="ai-description">Aguardando catálogo.</p><button id="ai-toggle" class="button primary" type="button" disabled>Ativar bloqueio de IA</button><p class="small-note">Não identifica toda IA integrada a outros sites nem modelos executados localmente. VPNs e DNS seguro exigem controles complementares.</p><details><summary>Ver domínios do perfil</summary><ul id="ai-domains" class="domain-list"></ul></details></section>
+        <section id="domains-panel" class="panel domains-panel" aria-labelledby="domains-title"><div class="panel-heading"><div><h2 id="domains-title">Bloqueios no gateway</h2><p>Estado aplicado, separado do cadastro local.</p></div><span id="domain-count" class="count-badge">0</span></div><form id="domain-form" class="domain-form" autocomplete="off"><label class="sr-only" for="new-domain">Novo domínio</label><input id="new-domain" type="text" maxlength="253" placeholder="exemplo.com" spellcheck="false" autocapitalize="none"><button id="add-domain" class="button secondary" type="submit" disabled>Adicionar direto</button></form><div class="table-scroll domain-table"><table><thead><tr><th>Domínio</th><th>Origem</th><th>Ação</th></tr></thead><tbody id="domains"></tbody></table></div><p class="small-note">A aplicação de uma lista reinicia brevemente o DNS/DHCP do gateway. Caches e conexões abertas podem continuar.</p></section>
+        <section id="audit-panel" class="panel audit-panel" aria-labelledby="audit-title"><div class="panel-heading"><div><h2 id="audit-title">Atividade administrativa</h2><p>Registros recentes disponibilizados pelo gateway.</p></div></div><ol id="audit" class="audit-list"></ol></section>
+        <section class="panel dns-panel" aria-labelledby="dns-title"><div class="panel-heading"><div><h2 id="dns-title">Consultas recentes</h2><p>Domínios solicitados, inclusive por serviços em segundo plano.</p></div><span class="sample-badge">Amostra recente</span></div><div class="table-scroll"><table><thead><tr><th>Horário</th><th>IP solicitante</th><th>Domínio</th><th>Resultado</th></tr></thead><tbody id="events"></tbody></table></div></section>
+      </div>
+      <footer class="workspace-footer"><span>LabGuard Server</span><p>Consultas DNS não comprovam visitas nem mostram conteúdo HTTPS. O controle real depende do gateway configurado.</p></footer>
+    </section>
+  </main>
+</body>
+</html>

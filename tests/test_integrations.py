@@ -149,21 +149,29 @@ class SwitchTests(unittest.TestCase):
 
     def test_ssh_uses_strict_known_host_check_and_shell_false(self):
         session = self.session()
-        with patch("labguard.integrations.core.subprocess.run", return_value=subprocess.CompletedProcess([], 0, "OK", "")) as run:
+        with patch("labguard.integrations.core.run_bounded", return_value=subprocess.CompletedProcess([], 0, "OK", "")) as run:
             session._run(["show interfaces status", "exit"])
         self.assertIn("StrictHostKeyChecking=yes", run.call_args.args[0])
         self.assertIn("-tt", run.call_args.args[0])
         self.assertNotIn("shell", run.call_args.kwargs)
 
+    def test_closing_ssh_session_revokes_authorized_ports(self):
+        session = self.session()
+        session.close()
+        self.assertFalse(session.allowed)
+        self.assertEqual(session.key_path, "")
+        with self.assertRaisesRegex(IntegrationError, "encerrada"):
+            session.snapshot()
+
     def test_cli_error_is_not_reported_as_success(self):
         session = self.session()
-        with patch("labguard.integrations.core.subprocess.run", return_value=subprocess.CompletedProcess([], 0, "% Invalid input detected", "")):
+        with patch("labguard.integrations.core.run_bounded", return_value=subprocess.CompletedProcess([], 0, "% Invalid input detected", "")):
             with self.assertRaisesRegex(IntegrationError, "rejeitou"):
                 session._run(["show interfaces status", "exit"])
 
     def test_paged_mac_output_cannot_authorize_a_cut(self):
         session = self.session()
-        with patch("labguard.integrations.core.subprocess.run", return_value=subprocess.CompletedProcess([], 0, "10 0011.2233.4455 DYNAMIC Gi1/0/1\n--More--", "")):
+        with patch("labguard.integrations.core.run_bounded", return_value=subprocess.CompletedProcess([], 0, "10 0011.2233.4455 DYNAMIC Gi1/0/1\n--More--", "")):
             with self.assertRaisesRegex(IntegrationError, "paginou"):
                 session._run(["show mac address-table", "exit"])
 
@@ -180,6 +188,21 @@ class SwitchTests(unittest.TestCase):
 
 
 class RouterOSTests(unittest.TestCase):
+    def test_close_forgets_basic_auth_and_rejects_network_calls(self):
+        profile = copy.deepcopy(next(p for p in BUILTINS if p["family"] == "routeros_rest"))
+        session = RouterOSSession(profile, "192.168.88.1", 443, "monitor", "example-secret", "")
+        session.close()
+        self.assertEqual(session.auth, "")
+        self.assertIsNone(session.opener)
+        with self.assertRaisesRegex(IntegrationError, "encerrada"):
+            session._get("interface")
+
+    def test_rest_connection_does_not_inherit_environment_proxy(self):
+        profile = copy.deepcopy(next(p for p in BUILTINS if p["family"] == "routeros_rest"))
+        with patch("labguard.integrations.core.request.build_opener") as builder:
+            RouterOSSession(profile, "192.168.88.1", 443, "monitor", "example-secret", "")
+        self.assertEqual(builder.call_args.args[0].proxies, {})
+
     def test_readonly_inventory_uses_documented_rest_menus(self):
         profile = copy.deepcopy(next(p for p in BUILTINS if p["family"] == "routeros_rest"))
         session = RouterOSSession(profile, "192.168.88.1", 443, "monitor", "test-secret", "")

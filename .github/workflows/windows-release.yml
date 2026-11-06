@@ -1,33 +1,34 @@
-name: Gerar instalador Windows
+name: Compilar aplicações e servidores
 
 on:
   push:
     branches: [main]
     paths:
       - "main.py"
+      - "server_main.py"
       - "labguard/**"
       - "gateway/**"
+      - "server/**"
       - "tests/**"
       - "docs/**"
+      - "!docs/VALIDACAO.md"
       - "packaging/**"
-      - "scripts/build_windows.ps1"
+      - "scripts/**"
       - "requirements-build.txt"
       - ".github/workflows/windows-release.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-
 concurrency:
-  group: windows-release-${{ github.ref }}
+  group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
-
 env:
-  LABGUARD_VERSION: "1.3.0"
+  LABGUARD_VERSION: "1.4.0"
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -41,12 +42,12 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Validar configuração do gateway
         run: python gateway/agent.py --config gateway/config.example.json --validate-config
+      - name: Validar recursos do servidor
+        run: python server_main.py --self-test --output /tmp/server-self-test.json
 
-  build:
+  windows:
     needs: test
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -57,10 +58,10 @@ jobs:
           cache-dependency-path: requirements-build.txt
       - name: Instalar ferramentas de empacotamento
         run: python -m pip install -r requirements-build.txt
-      - name: Testar a interface e integrações no Windows
+      - name: Testar componentes compatíveis com Windows
         shell: pwsh
         run: |
-          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py")
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py")
           foreach ($pattern in $patterns) {
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
@@ -74,10 +75,10 @@ jobs:
             choco install innosetup --yes --no-progress
             if ($LASTEXITCODE -ne 0) { throw "Não foi possível instalar o Inno Setup." }
           }
-      - name: Gerar executável, instalador e pacote portátil
+      - name: Gerar painel e servidor Windows
         shell: pwsh
         run: ./scripts/build_windows.ps1 -Version $env:LABGUARD_VERSION
-      - name: Testar a instalação e recursos empacotados
+      - name: Testar instalador e abertura do painel
         shell: pwsh
         run: |
           $installDir = Join-Path $env:RUNNER_TEMP "LabGuardInstalled"
@@ -85,48 +86,133 @@ jobs:
           $install = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=`"$installDir`"") -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Instalação falhou: $($install.ExitCode)" }
           $exe = Join-Path $installDir "LabGuard.exe"
-          if (-not (Test-Path $exe)) { throw "Executável não foi instalado." }
           $report = Join-Path $env:RUNNER_TEMP "LabGuard-self-test.json"
           $check = Start-Process -FilePath $exe -ArgumentList @("--self-test", "--output", "`"$report`"") -Wait -PassThru
-          if ($check.ExitCode -ne 0 -or -not (Test-Path $report)) { throw "O executável instalado não concluiu o autoteste." }
+          if ($check.ExitCode -ne 0 -or -not (Test-Path $report)) { throw "Autoteste do painel não concluiu." }
           $result = Get-Content $report -Raw | ConvertFrom-Json
           if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4) { throw "Recursos empacotados incompletos." }
           $app = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 4
           $app.Refresh()
-          if ($app.HasExited) { throw "A interface encerrou inesperadamente." }
+          if ($app.HasExited -or $app.MainWindowHandle -eq 0) { throw "A janela do painel não abriu." }
           $app.CloseMainWindow() | Out-Null
           if (-not $app.WaitForExit(10000)) { $app.Kill() }
           Copy-Item $report "dist/release/windows-self-test.json"
-          $hashes = Get-ChildItem "dist/release" -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" } | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant())  $($_.Name)" }
-          $hashes | Set-Content "dist/release/SHA256SUMS.txt" -Encoding ascii
-      - name: Preservar os pacotes verificados
+      - name: Testar servidor Windows como serviço nativo
+        shell: pwsh
+        run: |
+          $server = (Resolve-Path "dist/LabGuardServer/LabGuardServer.exe").Path
+          $report = Join-Path $env:RUNNER_TEMP "LabGuard-server-self-test.json"
+          & $server --self-test --output $report
+          if ($LASTEXITCODE -ne 0) { throw "Autoteste do servidor falhou." }
+          $result = Get-Content $report -Raw | ConvertFrom-Json
+          if (-not $result.ok) { throw "Recursos do servidor incompletos." }
+          try {
+            ./server/install-server.ps1 -Executable $server -Directory (Join-Path $env:RUNNER_TEMP "LabGuardServerConfig") -InstallDirectory (Join-Path $env:RUNNER_TEMP "LabGuardServerInstalled") -Demo -Start
+            $healthy = $false
+            for ($n = 0; $n -lt 30; $n++) {
+              try { $r = Invoke-WebRequest -Uri "http://127.0.0.1:8765/healthz" -TimeoutSec 2; if ($r.StatusCode -eq 200) { $healthy = $true; break } } catch {}
+              Start-Sleep -Seconds 1
+            }
+            if (-not $healthy) { throw "O serviço Windows não respondeu à verificação local." }
+            if ((Get-Service LabGuardServer).Status -ne "Running") { throw "O serviço SCM não permaneceu ativo." }
+          } finally {
+            Stop-Service LabGuardServer -ErrorAction SilentlyContinue
+            sc.exe delete LabGuardServer | Out-Null
+          }
+          Copy-Item $report "dist/release/windows-server-self-test.json"
+      - name: Preservar pacotes Windows verificados
         uses: actions/upload-artifact@v4
         with:
           name: LabGuard-Windows-${{ env.LABGUARD_VERSION }}
           path: dist/release/*
           if-no-files-found: error
           retention-days: 30
-      - name: Publicar os downloads
-        shell: pwsh
+
+  linux:
+    needs: test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+      - name: Instalar dependências de compilação e teste gráfico
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk xvfb x11-utils openssh-client libx11-6 libxext6 libxrender1 libxft2 libfontconfig1 libfreetype6 libxcb1
+          python -m pip install -r requirements-build.txt
+      - name: Gerar pacotes Linux desktop e servidor
+        run: bash scripts/build_linux.sh "$LABGUARD_VERSION"
+      - name: Testar instalação Debian e janela real
+        run: |
+          sudo dpkg -i dist/release/LabGuard-Linux-amd64.deb
+          labguard --self-test --output /tmp/linux-desktop-self-test.json
+          xvfb-run -a python packaging/linux/gui_smoke.py /opt/labguard/LabGuard
+          cp /tmp/linux-desktop-self-test.json dist/release/linux-self-test.json
+      - name: Testar servidor Linux com systemd
+        run: |
+          dist/LabGuardServer/LabGuardServer --self-test --output /tmp/linux-server-self-test.json
+          trap 'sudo systemctl stop labguard-server.service || true' EXIT
+          sudo bash server/install-server.sh --executable "$PWD/dist/LabGuardServer/LabGuardServer" --demo --start
+          python - <<'PY'
+          import time, urllib.request
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:8765/healthz", timeout=2) as response:
+                      if response.status == 200:
+                          break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("O serviço systemd não respondeu à verificação local.")
+          PY
+          sudo systemctl is-active --quiet labguard-server.service
+          cp /tmp/linux-server-self-test.json dist/release/linux-server-self-test.json
+      - name: Preservar pacotes Linux verificados
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Linux-${{ env.LABGUARD_VERSION }}
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [windows, linux]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: LabGuard-*-${{ env.LABGUARD_VERSION }}
+          path: release
+          merge-multiple: true
+      - name: Gerar somas e publicar versão completa
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          $tag = "v$env:LABGUARD_VERSION"
-          gh release view $tag --repo $env:GH_REPO --json tagName 2>$null | Out-Null
-          if ($LASTEXITCODE -ne 0) {
-            @"
-          LabGuard $env:LABGUARD_VERSION
+          cd release
+          rm -f SHA256SUMS.txt
+          sha256sum * > SHA256SUMS.txt
+          tag="v$LABGUARD_VERSION"
+          if gh release view "$tag" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo 'A versão já existe. Atualize o número antes de uma nova publicação.' >&2
+            exit 1
+          fi
+          cat > /tmp/release-notes.txt <<'EOF'
+          LabGuard 1.4.0: dashboard profissional, banco gerenciável de sites banidos, administração remota sem cliente e pacotes desktop/servidor para Windows e Linux.
 
-          Interface em roxo, azul e amarelo, perfil de bloqueio de IA e central de integrações de rede.
-          O instalador e os recursos empacotados passaram nos testes automáticos do Windows.
+          O banco SQLite possui categorias, revisões, histórico, importação e exportação. Alterações são aplicadas explicitamente em lotes, preservando regras externas.
 
-          O filtro de domínios e o corte por máquina dependem do gateway configurado. As capacidades das integrações diretas variam por modelo. Consulte os guias antes de usar em rede real.
-          "@ | Set-Content release-notes.txt -Encoding utf8
-            gh release create $tag --repo $env:GH_REPO --target $env:GITHUB_SHA --title "LabGuard $env:LABGUARD_VERSION" --notes-file release-notes.txt --latest
-            if ($LASTEXITCODE -ne 0) { throw "Não foi possível criar a versão." }
-          }
-          $files = Get-ChildItem "dist/release" -File | Select-Object -ExpandProperty FullName
-          gh release upload $tag @files --repo $env:GH_REPO --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Não foi possível publicar os arquivos." }
+          A consulta de programas e os avisos exigem WinRM/HTTPS ou SSH previamente habilitado. Remoção restrita a pacotes compatíveis com confirmação, sem executar desinstaladores arbitrários ou apagar mundos do Minecraft.
+
+          Os pacotes passaram nos testes de abertura, instalação e recursos empacotados nas plataformas correspondentes. O servidor foi testado como serviço nativo no Windows e com systemd no Linux, em demonstração isolada.
+
+          Os serviços administrativos escutam apenas no endereço local por padrão. O filtro de domínios e o corte por máquina continuam dependendo do gateway configurado. Nenhum tráfego de uma escola real foi usado nos testes.
+          EOF
+          gh release create "$tag" ./* --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard $LABGUARD_VERSION" --notes-file /tmp/release-notes.txt --latest

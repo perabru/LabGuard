@@ -76,7 +76,15 @@
     if (!response.ok) throw new Error("Release unavailable");
     return response.json();
   }).then(release => {
-    const setup = Array.isArray(release.assets) ? release.assets.find(asset => asset.name === "LabGuard-Setup.exe") : null;
+    const assets = Array.isArray(release.assets) ? release.assets : [];
+    document.querySelectorAll("[data-release-asset]").forEach(link => {
+      const asset = assets.find(item => item.name === link.dataset.releaseAsset);
+      if (asset && typeof asset.browser_download_url === "string" && asset.browser_download_url.startsWith("https://github.com/perabru/LabGuard/releases/download/")) {
+        link.href = asset.browser_download_url;
+        link.textContent = link.dataset.downloadLabel;
+      }
+    });
+    const setup = assets.find(asset => asset.name === "LabGuard-Setup.exe") || null;
     if (setup && typeof setup.browser_download_url === "string" && setup.browser_download_url.startsWith("https://github.com/perabru/LabGuard/releases/download/")) {
       document.querySelectorAll(".download-link").forEach(link => {
         link.href = setup.browser_download_url;

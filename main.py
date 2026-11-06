@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import tempfile
 
 
 def self_test(output: str | None = None) -> int:
@@ -13,6 +14,16 @@ def self_test(output: str | None = None) -> int:
         from labguard import __version__
         from labguard.demo import DemoTransport
         from labguard.integrations import IntegrationManager
+        from labguard.banlist import BanlistDatabase
+        from labguard.remote import PROCESS_CATALOGUE
+        with tempfile.TemporaryDirectory(prefix="labguard-selftest-") as temporary:
+            database = BanlistDatabase(Path(temporary) / "data" / "banlist.sqlite3")
+            database.upsert("selftest.example", "Jogos")
+            if database.summary()["enabled"] != 1:
+                raise RuntimeError("Banco de sites indisponível.")
+            database.close()
+        if getattr(sys, "frozen", False):
+            from winrm.protocol import Protocol  # noqa: F401 - dependency load, no connection
         snapshot = DemoTransport().request("snapshot")
         # Diretório não criado: não lê perfis privados do operador neste teste.
         profiles = IntegrationManager(profile_dir=Path(__file__).parent / "__selftest_no_profiles__").list_profiles()
@@ -20,7 +31,8 @@ def self_test(output: str | None = None) -> int:
         if not policy["services"] or not profiles or snapshot["mode"] != "demo":
             raise RuntimeError("Recursos internos do pacote incompletos.")
         payload = {"ok": True, "version": __version__, "catalog_services": len(policy["services"]),
-                   "catalog_domains": policy["domain_count"], "integration_profiles": len(profiles)}
+                   "catalog_domains": policy["domain_count"], "integration_profiles": len(profiles),
+                   "banlist_database": "sqlite3", "remote_process_signatures": len(PROCESS_CATALOGUE)}
         code = 0
     except Exception as error:
         payload, code = {"ok": False, "error": str(error)}, 1

@@ -98,7 +98,7 @@ PY
 chown root:root /var/lib/labguard-operator/.ssh /var/lib/labguard-operator/.ssh/authorized_keys
 chmod 0755 /var/lib/labguard-operator/.ssh
 chmod 0644 /var/lib/labguard-operator/.ssh/authorized_keys
-printf '%s\n' 'labguard ALL=(root) NOPASSWD: /usr/local/sbin/labguard-agent' > /etc/sudoers.d/labguard
+printf '%s\n' 'labguard ALL=(root) NOPASSWD: /usr/local/sbin/labguard-agent ""' > /etc/sudoers.d/labguard
 chmod 0440 /etc/sudoers.d/labguard
 visudo -c -f /etc/sudoers.d/labguard
 

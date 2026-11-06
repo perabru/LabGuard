@@ -1,6 +1,8 @@
 import copy
 import importlib.util
 import json
+import os
+import stat
 import re
 from pathlib import Path
 import subprocess
@@ -147,7 +149,10 @@ class GatewayTests(unittest.TestCase):
         with self.assertRaisesRegex(g.AgentError, "anterior foi restaurada"):
             self.request("add_domain", domain="games.example", category="Jogos")
         self.assertEqual(self.config.dnsmasq_config.read_text(), original)
-        self.assertEqual(self.agent.load_state(), previous)
+        restored = self.agent.load_state()
+        self.assertEqual({key: value for key, value in restored.items() if key != "audit"},
+                         {key: value for key, value in previous.items() if key != "audit"})
+        self.assertTrue(restored["audit"][-1]["outcome"].startswith("Não concluído:"))
         self.assertEqual(sum(args == ["systemctl", "restart", "labguard-dnsmasq"] for args, _ in self.runner.calls), 2)
 
     def test_failed_firewall_apply_restores_previous_state(self):
@@ -156,7 +161,10 @@ class GatewayTests(unittest.TestCase):
         self.runner.fail_apply = True
         with self.assertRaisesRegex(g.AgentError, "anterior foi restaurada"):
             self.request("set_device_block", ip="192.168.50.101", blocked=True)
-        self.assertEqual(self.agent.load_state(), previous)
+        restored = self.agent.load_state()
+        self.assertEqual({key: value for key, value in restored.items() if key != "audit"},
+                         {key: value for key, value in previous.items() if key != "audit"})
+        self.assertTrue(restored["audit"][-1]["outcome"].startswith("Não concluído:"))
         nft_writes = [kwargs["input"] for args, kwargs in self.runner.calls if args == ["nft", "-f", "-"]]
         self.assertIn("192.168.50.101", nft_writes[0])
         self.assertNotIn("192.168.50.101", nft_writes[-1])
@@ -293,7 +301,10 @@ class GatewayTests(unittest.TestCase):
         self.runner.fail_restarts = 1
         with self.assertRaisesRegex(g.AgentError, "anterior foi restaurada"):
             self.request("set_ai_block", enabled=True)
-        self.assertEqual(self.agent.load_state(), previous)
+        restored = self.agent.load_state()
+        self.assertEqual({key: value for key, value in restored.items() if key != "audit"},
+                         {key: value for key, value in previous.items() if key != "audit"})
+        self.assertTrue(restored["audit"][-1]["outcome"].startswith("Não concluído:"))
         self.assertEqual(self.config.dnsmasq_config.read_text(), original)
 
     def test_ai_state_migrates_old_files_and_rejects_non_boolean_flag(self):
@@ -337,6 +348,96 @@ class GatewayTests(unittest.TestCase):
         self.catalog_path.write_bytes(b" " * (g.MAX_AI_CATALOG_BYTES + 1))
         with self.assertRaisesRegex(g.AgentError, "tamanho"):
             g.load_ai_catalog()
+
+
+    def test_denied_mutation_is_audited_without_raw_parameters(self):
+        secret = "do-not-log-this-password"
+        with self.assertRaises(g.AgentError):
+            self.request("set_device_block", ip="192.168.50.10", blocked=True, password=secret)
+        state = self.agent.load_state()
+        self.assertIn("Não concluído", state["audit"][-1]["outcome"])
+        self.assertNotIn(secret, json.dumps(state))
+        self.assertEqual(state["blocked"], {})
+        with self.assertRaises(g.AgentError):
+            self.agent.handle({"version": True, "action": []})
+
+    def test_applied_policy_diagnostics_failure_does_not_imply_rollback(self):
+        with patch.object(self.agent, "snapshot", side_effect=g.AgentError("Leitura indisponível")):
+            result = self.request("add_domain", domain="games.example")
+        self.assertEqual(self.agent.load_state()["domains"][0]["domain"], "games.example")
+        self.assertEqual(result["audit"][0]["outcome"], "Aplicado")
+        self.assertTrue(any("aplicada e salva" in warning for warning in result["warnings"]))
+        self.assertFalse(any(result["health"].values()))
+        self.assertEqual(result["events"], [])
+
+    def test_root_lock_has_timeout_and_refuses_symlink(self):
+        self.config.state_dir.mkdir()
+        lock_path = self.config.state_dir / "agent.lock"
+        outside = Path(self.temp.name) / "outside"
+        outside.write_text("untouched")
+        lock_path.symlink_to(outside)
+        with self.assertRaises(OSError):
+            with self.agent.lock(timeout=0):
+                self.fail("symlink lock must not be entered")
+        self.assertEqual(outside.read_text(), "untouched")
+        lock_path.unlink()
+        with patch.object(g.fcntl, "flock", side_effect=BlockingIOError):
+            with self.assertRaisesRegex(g.AgentError, "ocupado"):
+                with self.agent.lock(timeout=0):
+                    self.fail("busy lock must not be entered")
+
+    def test_request_reader_bounds_time_size_and_accepts_line_without_eof(self):
+        read_fd, write_fd = os.pipe()
+        self.addCleanup(os.close, read_fd)
+        self.addCleanup(os.close, write_fd)
+        stream = os.fdopen(os.dup(read_fd), "rb", buffering=0)
+        self.addCleanup(stream.close)
+        with self.assertRaisesRegex(g.AgentError, "Tempo esgotado"):
+            g.read_request(stream, timeout=0)
+        os.write(write_fd, b'{"version":1,"action":"snapshot","params":{}}\n')
+        self.assertEqual(json.loads(g.read_request(stream, timeout=.1))["action"], "snapshot")
+        with patch.object(g, "MAX_REQUEST_BYTES", 8):
+            os.write(write_fd, b"123456789")
+            with self.assertRaisesRegex(g.AgentError, "8 KiB"):
+                g.read_request(stream, timeout=.1)
+
+    def test_privileged_paths_reject_writable_unowned_symlink_and_exposed_private(self):
+        path = Path(self.temp.name) / "trusted.json"
+        root_file = type("Info", (), {"st_uid": 0, "st_mode": stat.S_IFREG | 0o600})()
+        root_dir = type("Info", (), {"st_uid": 0, "st_mode": stat.S_IFDIR | 0o755})()
+        def lookup(current):
+            return root_file if current == path else root_dir
+        with patch.object(Path, "lstat", autospec=True, side_effect=lookup):
+            g.verify_root_path(path, private=True)
+        for uid, mode in [(1000, stat.S_IFREG | 0o600), (0, stat.S_IFREG | 0o622),
+                          (0, stat.S_IFLNK | 0o777), (0, stat.S_IFREG | 0o644)]:
+            bad = type("Info", (), {"st_uid": uid, "st_mode": mode})()
+            with self.subTest(uid=uid, mode=mode), patch.object(Path, "lstat", return_value=bad):
+                with self.assertRaises(g.AgentError):
+                    g.verify_root_path(path, private=True)
+
+    def test_privileged_data_read_refuses_symlink_and_fifo(self):
+        original = Path(self.temp.name) / "sensitive"
+        original.write_text("private-data")
+        link = Path(self.temp.name) / "lease-link"
+        link.symlink_to(original)
+        with self.assertRaises(OSError):
+            g.read_binary_file(link, 1024, "Dados")
+        fifo = Path(self.temp.name) / "fifo"
+        os.mkfifo(fifo)
+        with self.assertRaisesRegex(g.AgentError, "arquivo regular"):
+            g.read_binary_file(fifo, 1024, "Dados")
+
+    def test_state_and_configuration_files_are_size_bounded(self):
+        path = Path(self.temp.name) / "oversized.json"
+        path.write_bytes(b" " * 33)
+        with self.assertRaisesRegex(g.AgentError, "tamanho"):
+            g.read_json_file(path, 32, "Estado")
+        state = g.default_state()
+        state["version"] = True
+        self.agent.save_state(state)
+        with self.assertRaises(g.AgentError):
+            self.agent.load_state()
 
 
 if __name__ == "__main__":

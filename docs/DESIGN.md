@@ -13,6 +13,14 @@ A interface usa roxo como identidade principal, azul para ações de controle e 
 
 Os botões têm cantos arredondados, profundidade discreta, estados de foco/hover e acionamento por teclado. Os cartões organizam contadores, atalhos e formulários, preservando os recursos de administração. O modo demonstração permanece destacado em amarelo.
 
+## Painel operacional da versão 1.4
+
+O dashboard prioriza a leitura da operação: quatro indicadores compactos, confirmação dos serviços do gateway, domínios mais solicitados, atividade por máquina, solicitações DNS recentes e últimas ações administrativas. Os rankings são calculados exclusivamente a partir da amostra recebida; não representam visitas, todo o histórico de navegação nem contagens de pessoas.
+
+O horário da leitura e o modo da sessão ficam visíveis. Uma consulta recente ao gateway é necessária para alterar a rede: leituras com mais de vinte segundos, erros de conexão e serviços necessários indisponíveis desabilitam as ações correspondentes. O painel mantém os dados anteriores para consulta, mas sinaliza quando eles não estão confirmados. A proteção é repetida nos métodos de ação; não depende apenas da aparência dos botões.
+
+Os cartões de domínios e máquinas permitem abrir o histórico DNS filtrado com clique duplo. Tabelas e a área do painel possuem rolagem, preservando o acesso ao conteúdo em telas de 1024 × 700.
+
 ## Referências já usadas nos projetos do usuário
 
 - [Botão de cssbuttons-io](https://uiverse.io/cssbuttons-io/nice-walrus-6).

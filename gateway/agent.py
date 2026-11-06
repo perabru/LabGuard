@@ -17,18 +17,27 @@ import json
 import os
 from pathlib import Path
 import re
+import select
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 DEFAULT_CONFIG = "/etc/labguard/config.json"
 TABLE = "labguard"
 SERVICE = "labguard-dnsmasq"
 MAX_DOMAINS = 10000
 MAX_LOG_BYTES = 2_000_000
 MAX_EVENTS = 500
+MAX_REQUEST_BYTES = 8192
+REQUEST_TIMEOUT = 10
+LOCK_TIMEOUT = 8
+MAX_CONFIG_BYTES = 65536
+MAX_STATE_BYTES = 8 * 1024 * 1024
+MAX_LEASE_BYTES = 2 * 1024 * 1024
 AI_CATALOG = Path(__file__).with_name("ai_services.json")
 MAX_AI_CATALOG_BYTES = 256_000
 IFACE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.:-]{0,14}\Z")
@@ -41,6 +50,108 @@ class AgentError(Exception):
 
 def now():
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+
+def read_request(stream, timeout=REQUEST_TIMEOUT):
+    """One bounded JSON line/EOF. SSH clients cannot hold a root reader forever."""
+    descriptor = stream.fileno()
+    deadline = time.monotonic() + timeout
+    chunks, size = [], 0
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not select.select([descriptor], [], [], remaining)[0]:
+            raise AgentError("Tempo esgotado para receber a solicitação. Reconecte o painel.")
+        chunk = os.read(descriptor, min(4096, MAX_REQUEST_BYTES + 1 - size))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        size += len(chunk)
+        if size > MAX_REQUEST_BYTES:
+            raise AgentError("Requisição excede 8 KiB.")
+        if b"\n" in chunk:
+            # json.loads rejects a second JSON object already in this chunk.
+            break
+    raw = b"".join(chunks)
+    if not raw.strip():
+        raise AgentError("A solicitação está vazia.")
+    return raw
+
+
+@contextlib.contextmanager
+def open_regular_file(path):
+    """Data written by dnsmasq must not turn a privileged read into a FIFO/link."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise AgentError("A leitura requer um arquivo regular, sem links nem dispositivos.")
+        with os.fdopen(fd, "rb") as stream:
+            fd = -1
+            yield stream
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def read_binary_file(path, maximum, label):
+    with open_regular_file(path) as stream:
+        raw = stream.read(maximum + 1)
+    if len(raw) > maximum:
+        raise AgentError(f"{label} excede o tamanho permitido.")
+    return raw
+
+
+def read_json_file(path, maximum, label):
+    raw = read_binary_file(path, maximum, label)
+    return json.loads(raw.decode("utf-8"))
+
+
+def verify_root_path(path, *, directory=False, private=False):
+    """Reject replaceable privileged inputs and any symlink in their ancestors."""
+    path = Path(path).absolute()
+    for current in [path, *path.parents]:
+        info = current.lstat()
+        if stat.S_ISLNK(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise AgentError(f"Permissões inseguras em {current}. Reinstale o gateway com o administrador.")
+        if current == path:
+            wanted = stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)
+            if not wanted:
+                raise AgentError(f"Caminho de instalação inválido: {current}.")
+            if private and info.st_mode & 0o077:
+                raise AgentError(f"Arquivo administrativo exposto: {current}. Ajuste para permissão 0600.")
+
+
+def verify_privileged_installation(config, config_path):
+    for path in (Path(__file__).absolute(), AI_CATALOG):
+        verify_root_path(path)
+    verify_root_path(config_path, private=True)
+    for path in (config.state_dir, config.log_dir, config.dnsmasq_config.parent):
+        verify_root_path(path, directory=True)
+    for path in (config.state_file, config.dnsmasq_config):
+        if path.exists() or path.is_symlink():
+            verify_root_path(path, private=path == config.state_file)
+
+
+def audit_context(request):
+    """Only known operation names and validated targets; never log raw parameters."""
+    actions = {"add_domain": "Bloquear domínio", "remove_domain": "Remover domínio",
+               "set_device_block": "Alterar internet", "set_ai_block": "Alterar bloqueio de IA"}
+    if not isinstance(request, dict):
+        return "Solicitação recusada", "Protocolo"
+    request_action = request.get("action")
+    action = actions.get(request_action, "Solicitação recusada") if isinstance(request_action, str) else "Solicitação recusada"
+    params = request.get("params", {})
+    if not isinstance(params, dict):
+        return action, "Parâmetros rejeitados"
+    try:
+        if request.get("action") in ("add_domain", "remove_domain"):
+            return action, domain_name(params.get("domain"))
+        if request.get("action") == "set_device_block":
+            return action, str(ipv4(params.get("ip"), "IP"))
+        if request.get("action") == "set_ai_block":
+            return action, "Perfil de inteligência artificial"
+    except AgentError:
+        pass
+    return action, "Entrada rejeitada"
 
 
 def domain_name(value):
@@ -137,7 +248,7 @@ def load_ai_catalog(path=None):
     """Only local, root-owned installation data; never a remote blocklist."""
     path = Path(path) if path is not None else AI_CATALOG
     try:
-        with path.open("rb") as stream:
+        with open_regular_file(path) as stream:
             raw = stream.read(MAX_AI_CATALOG_BYTES + 1)
         if len(raw) > MAX_AI_CATALOG_BYTES:
             raise AgentError("O catálogo de IA excede o tamanho permitido.")
@@ -287,7 +398,7 @@ def render_nft(config, state, table_exists=False, extra_ips=None):
 
 def read_tail(path, limit=MAX_LOG_BYTES):
     try:
-        with Path(path).open("rb") as stream:
+        with open_regular_file(path) as stream:
             stream.seek(0, os.SEEK_END)
             size = stream.tell()
             stream.seek(max(0, size - limit))
@@ -419,26 +530,39 @@ class Agent:
         return result
 
     @contextlib.contextmanager
-    def lock(self):
+    def lock(self, timeout=LOCK_TIMEOUT):
         self.config.state_dir.mkdir(parents=True, exist_ok=True)
-        with (self.config.state_dir / "agent.lock").open("a") as stream:
-            os.chmod(stream.name, 0o600)
-            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
-            yield
+        lock_path = self.config.state_dir / "agent.lock"
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "a") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            deadline = time.monotonic() + timeout
+            while True:
+                try:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise AgentError("O gateway está ocupado. Aguarde a operação atual e atualize o painel.")
+                    time.sleep(0.05)
+            try:
+                yield
+            finally:
+                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
     def load_state(self):
         try:
-            value = json.loads(self.config.state_file.read_text(encoding="utf-8"))
+            value = read_json_file(self.config.state_file, MAX_STATE_BYTES, "O estado salvo")
         except FileNotFoundError:
             return default_state()
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise AgentError("O estado salvo não pôde ser lido. Restaure um backup; nenhuma regra foi alterada.") from exc
-        if not isinstance(value, dict) or value.get("version") != 1:
+        if not isinstance(value, dict) or type(value.get("version")) is not int or value.get("version") != 1:
             raise AgentError("Formato de estado incompatível.")
         value.setdefault("ai_block_enabled", False)
         if type(value["ai_block_enabled"]) is not bool:
             raise AgentError("Estado de bloqueio de IA inválido.")
-        if not isinstance(value.get("domains"), list) or len(value["domains"]) > MAX_DOMAINS or not isinstance(value.get("blocked"), dict) or not isinstance(value.get("audit"), list):
+        if not isinstance(value.get("domains"), list) or len(value["domains"]) > MAX_DOMAINS or not isinstance(value.get("blocked"), dict) or not isinstance(value.get("audit"), list) or len(value["audit"]) > 1000 or len(value["blocked"]) > MAX_DOMAINS:
             raise AgentError("Estado salvo inválido.")
         for row in value["domains"]:
             if not isinstance(row, dict) or not isinstance(row.get("category"), str) or not 1 <= len(row["category"]) <= 60 or any(ord(c) < 32 for c in row["category"]):
@@ -484,7 +608,8 @@ class Agent:
     def devices(self, state):
         warnings = []
         try:
-            devices = parse_leases(self.config.lease_file.read_text(encoding="utf-8"), self.config)
+            text = read_binary_file(self.config.lease_file, MAX_LEASE_BYTES, "O arquivo de concessões DHCP").decode("utf-8")
+            devices = parse_leases(text, self.config)
         except FileNotFoundError:
             devices = {}
             warnings.append("Ainda não há concessões DHCP do LabGuard.")
@@ -598,7 +723,27 @@ class Agent:
             self.save_state(state)
 
     def handle(self, request):
-        if not isinstance(request, dict) or request.get("version") != 1:
+        try:
+            return self._handle_request(request)
+        except AgentError as error:
+            # A read-only refresh does not add noise. Denials/failures of
+            # administrative operations remain visible without logging input.
+            if not isinstance(request, dict) or request.get("action") != "snapshot":
+                try:
+                    with self.lock():
+                        state = self.load_state()
+                        action, target = audit_context(request)
+                        state["audit"].append({"time": now(), "action": action, "target": target,
+                                               "outcome": "Não concluído: " + " ".join(str(error).split())[:240]})
+                        state["audit"] = state["audit"][-1000:]
+                        self.save_state(state)
+                except (AgentError, OSError, ValueError):
+                    # Do not replace a corrupt state just to record an event.
+                    pass
+            raise
+
+    def _handle_request(self, request):
+        if not isinstance(request, dict) or type(request.get("version")) is not int or request.get("version") != 1:
             raise AgentError("Protocolo incompatível: use version=1.")
         action, params = request.get("action"), request.get("params", {})
         if action not in ("snapshot", "add_domain", "remove_domain", "set_device_block", "set_ai_block") or not isinstance(params, dict):
@@ -698,7 +843,27 @@ class Agent:
                 else:
                     detail += "; a configuração anterior foi restaurada."
                 raise AgentError(detail) from exc
-            return self.snapshot(state)
+            try:
+                return self.snapshot(state)
+            except (AgentError, OSError) as error:
+                # Configuration already committed. Do not imply that retrying
+                # is required, nor roll back only because diagnostics failed.
+                return self.degraded_snapshot(state, catalog, error)
+
+    def degraded_snapshot(self, state, catalog, error):
+        return {"mode": "gateway", "version": VERSION, "timestamp": now(),
+                "gateway": {"hostname": socket.gethostname(), "lab_cidr": str(self.config.network),
+                            "lan_interface": self.config.lan_interface, "wan_interface": self.config.wan_interface,
+                            "ipv6_policy": "Política configurada; verificação indisponível"},
+                "health": {"firewall": False, "dns": False, "forwarding": False},
+                "devices": [], "domains": effective_domains(state, catalog), "events": [], "connections": [],
+                "audit": list(reversed(state["audit"][-250:])),
+                "policies": {"ai_block": {"enabled": state.get("ai_block_enabled", False), "services": catalog["services"],
+                                          "domains": catalog["domains"], "domain_count": len(catalog["domains"]),
+                                          "updated_at": catalog["updated_at"]}},
+                "metrics": {"queries_window": 0, "blocked_events_window": 0, "observed_devices": 0, "blocked_devices": 0},
+                "warnings": ["A alteração foi aplicada e salva, mas a verificação do gateway falhou. Atualize o painel antes de outra ação.",
+                             "Diagnóstico indisponível: " + " ".join(str(error).split())[:240]]}
 
 
 def main(argv=None):
@@ -710,13 +875,14 @@ def main(argv=None):
     mode.add_argument("--reconcile", action="store_true", help="Sincronizar os IPs bloqueados com os MACs observados; uso do timer root")
     args = parser.parse_args(argv)
     try:
-        config = Config(json.loads(Path(args.config).read_text(encoding="utf-8")))
+        config = Config(read_json_file(args.config, MAX_CONFIG_BYTES, "A configuração"))
         if args.validate_config:
             load_ai_catalog()
             print(json.dumps({"ok": True, "lab_cidr": str(config.network)}, ensure_ascii=False))
             return 0
         if os.geteuid() != 0:
             raise AgentError("Execute o agente pelo comando sudo restrito instalado no gateway.")
+        verify_privileged_installation(config, args.config)
         agent = Agent(config)
         if args.apply:
             agent.apply_startup()
@@ -726,9 +892,7 @@ def main(argv=None):
             changed = agent.reconcile()
             print(json.dumps({"ok": True, "changed": changed}, ensure_ascii=False))
             return 0
-        raw = sys.stdin.buffer.read(65537)
-        if len(raw) > 65536:
-            raise AgentError("Requisição excede 64 KiB.")
+        raw = read_request(sys.stdin.buffer)
         request = json.loads(raw.decode("utf-8"))
         data = agent.handle(request)
         print(json.dumps({"ok": True, "data": data}, ensure_ascii=False))

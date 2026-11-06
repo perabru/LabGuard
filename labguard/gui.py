@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+from collections import Counter
+from time import monotonic
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +27,24 @@ def csv_safe(value):
     return "'" + text if text.lstrip().startswith(("=", "+", "-", "@")) else text
 
 
+def dashboard_summary(snapshot):
+    """Resume apenas a amostra recebida; não cria séries nem visitas fictícias."""
+    events = [row for row in snapshot.get("events", []) if isinstance(row, dict)]
+    devices = [row for row in snapshot.get("devices", []) if isinstance(row, dict)]
+    names = {row.get("ip"): row.get("name") or "Sem nome" for row in devices}
+    domains = Counter(str(row.get("domain", "")).lower().rstrip(".") for row in events if row.get("domain"))
+    clients = Counter(str(row.get("client_ip", "")) for row in events if row.get("client_ip"))
+    return {
+        "domains": sorted(domains.items(), key=lambda row: (-row[1], row[0]))[:5],
+        "clients": [(ip, names.get(ip, "Sem nome"), count) for ip, count in sorted(clients.items(), key=lambda row: (-row[1], row[0]))[:5]],
+        "events": events[:5],
+        "audit": [row for row in snapshot.get("audit", []) if isinstance(row, dict)][:4],
+        "queries": len(events),
+        "blocked_queries": sum(row.get("status") == "Bloqueio DNS confirmado" for row in events),
+        "protected": sum(bool(row.get("protected")) for row in devices),
+    }
+
+
 class App(tk.Tk):
     def __init__(self, transport=None):
         super().__init__()
@@ -33,6 +54,8 @@ class App(tk.Tk):
         self.configure(bg=BG)
         self.transport = transport or DemoTransport()
         self.snapshot = {}
+        self._snapshot_stale = True
+        self._last_snapshot_monotonic = 0.0
         self._generation = 0
         self._busy = False
         self._closed = False
@@ -76,6 +99,8 @@ class App(tk.Tk):
         style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT,
                         borderwidth=0, rowheight=39, font=(self.font_family, 10),
                         lightcolor=BORDER, darkcolor=BORDER)
+        style.configure("Overview.Treeview", rowheight=29, font=(self.font_family, 9))
+        style.configure("Overview.Treeview.Heading", font=(self.font_family, 8, "bold"), padding=(8, 9))
         style.configure("Treeview.Heading", background="#EDE7FA", foreground="#5C467D",
                         font=(self.font_family, 9, "bold"), padding=(12, 13), relief="flat")
         style.map("Treeview", background=[("selected", "#DED0FA")],
@@ -118,9 +143,11 @@ class App(tk.Tk):
         ActionButton(sidebar, text="Roteadores e switches", style="Yellow.TButton",
                      font=(self.font_family, 9, "bold"), command=self._open_integrations).pack(
                          fill="x", padx=15, pady=0)
-        tk.Label(sidebar, text="Mais foco na aprendizagem.\nMais clareza para administrar.\n\nLabGuard 1.3", bg=SIDEBAR, fg="#BCA7D9",
+        ActionButton(sidebar, text="Banco de sites", style="Nav.TButton", height=39,
+                     command=self._open_banlist).pack(fill="x", padx=15, pady=(5, 0))
+        tk.Label(sidebar, text="LabGuard 1.4 · Administração", bg=SIDEBAR, fg="#BCA7D9",
                  justify="left", anchor="w", font=(self.font_family, 8)).pack(
-                     side="bottom", padx=24, pady=23, fill="x")
+                     side="bottom", padx=24, pady=14, fill="x")
 
         main = tk.Frame(self, bg=BG)
         main.grid(row=0, column=1, sticky="nsew", padx=26, pady=23)
@@ -166,6 +193,35 @@ class App(tk.Tk):
     def _open_integrations(self):
         from .integration_gui import IntegrationWindow
         IntegrationWindow(self)
+
+    def _open_banlist(self):
+        from .banlist_gui import BanlistWindow
+        from .banlist import BanlistError
+        transport = self.transport
+        identity = "|".join((self.snapshot.get("mode", "demo"),
+                             str(getattr(transport, "host", "")), str(getattr(transport, "port", ""))))
+        filename = hashlib.sha256(identity.encode()).hexdigest()[:24] + ".sqlite3"
+        path = Path.home() / ".labguard" / "banlists" / filename
+        try:
+            BanlistWindow(self, transport, path,
+                can_sync_callback=lambda: self.transport is transport and self._mutation_allowed(("dns",)))
+        except (BanlistError, OSError) as error:
+            messagebox.showerror("Banco de sites", str(error), parent=self)
+
+    def _open_remote(self):
+        from .remote_gui import RemoteWindow
+        device = self._selected_device()
+        if not device:
+            messagebox.showinfo("Selecione uma máquina", "Selecione uma linha na tabela de máquinas.", parent=self)
+            return
+        if self.snapshot.get("mode") == "demo":
+            messagebox.showinfo("Demonstração", "Os IPs desta demonstração são fictícios. Conecte o gateway real para selecionar um computador do laboratório.", parent=self)
+            return
+        if not self._mutation_allowed():
+            return
+        RemoteWindow(self, device["ip"], protected=bool(device.get("protected")),
+                     events_callback=lambda: self.snapshot.get("events", []),
+                     domains_callback=lambda: self.snapshot.get("domains", []))
 
     def show_page(self, name):
         self._page = name
@@ -225,62 +281,202 @@ class App(tk.Tk):
 
     def _build_overview(self, parent):
         parent.grid_columnconfigure(0, weight=1)
-        hero = RoundCard(parent, color=PURPLE, border=PURPLE, padding=22, radius=22)
-        hero.grid(row=0, column=0, sticky="ew", pady=(0, 17))
-        hero.body.grid_columnconfigure(0, weight=1)
-        tk.Label(hero.body, text="SEU ESPAÇO PARA ENSINAR", bg=PURPLE, fg="#DCCEFF",
-                 font=(self.font_family, 8, "bold"), anchor="w").grid(row=0, column=0, sticky="ew")
-        tk.Label(hero.body, text="Laboratório sob controle.", bg=PURPLE, fg="white",
-                 font=(self.font_family, 21, "bold"), anchor="w").grid(row=1, column=0, sticky="w", pady=(6, 7))
-        self._responsive_wrap(tk.Label(hero.body, text="Máquinas, sites e serviços de IA em um painel simples.",
-            bg=PURPLE, fg="#E9DFFF", justify="left", anchor="w", wraplength=510)).grid(row=2, column=0, sticky="ew")
-        ActionButton(hero.body, text="Conectar gateway", style="Yellow.TButton",
-                     command=lambda: self.show_page("connection")).grid(row=1, column=1, rowspan=2, padx=(18, 0))
+        self.overview_caption = tk.StringVar(value="Aguardando a primeira leitura do laboratório.")
+        heading = tk.Frame(parent, bg=BG)
+        heading.grid(row=0, column=0, sticky="ew", pady=(0, 14))
+        heading.grid_columnconfigure(0, weight=1)
+        tk.Label(heading, text="PAINEL OPERACIONAL", bg=BG, fg=PURPLE,
+                 font=(self.font_family, 8, "bold"), anchor="w").grid(row=0, column=0, sticky="w")
+        self._responsive_wrap(tk.Label(heading, textvariable=self.overview_caption,
+            bg=BG, fg=MUTED, font=(self.font_family, 9), anchor="w", justify="left")).grid(
+                row=1, column=0, sticky="ew", pady=(4, 0))
+        ActionButton(heading, text="Conectar gateway", style="Purple.TButton", height=39,
+                     command=lambda: self.show_page("connection")).grid(row=0, column=1, rowspan=2, padx=(12, 0))
+
         cards = tk.Frame(parent, bg=BG)
-        cards.grid(row=1, column=0, sticky="ew", pady=(0, 17))
+        cards.grid(row=1, column=0, sticky="ew", pady=(0, 14))
         self.metric_labels = {}
-        metrics = [("observed_devices", "Máquinas observadas", BLUE, "computer", "#E7F0FF"),
-                   ("blocked_devices", "Internet suspensa", RED, "shield", "#FDEBF0"),
-                   ("queries_window", "Consultas DNS", PURPLE, "activity", "#EFE8FD"),
-                   ("blocked_events_window", "Bloqueios DNS", "#9A6B00", "dns", "#FFF3C7")]
-        for col, (key, title, color, kind, tint) in enumerate(metrics):
+        self.metric_details = {}
+        metrics = [("observed_devices", "Máquinas observadas", BLUE, "computer", "#E7F0FF", "DHCP e vizinhos de rede"),
+                   ("blocked_devices", "Internet suspensa", RED, "shield", "#FDEBF0", "Política por máquina"),
+                   ("queries_window", "Consultas DNS", PURPLE, "activity", "#EFE8FD", "Amostra recente"),
+                   ("blocked_events_window", "Bloqueios DNS", "#936500", "dns", "#FFF3C7", "Respostas confirmadas")]
+        for col, (key, title, color, kind, tint, detail) in enumerate(metrics):
             cards.grid_columnconfigure(col, weight=1, uniform="metrics")
-            card = RoundCard(cards, padding=15)
+            card = RoundCard(cards, padding=15, radius=16)
             card.grid(row=0, column=col, sticky="nsew", padx=(0, 10 if col < 3 else 0))
-            IconBadge(card.body, kind=kind, color=color, tint=tint, size=33).pack(anchor="w")
+            top = tk.Frame(card.body, bg=PANEL)
+            top.pack(fill="x")
+            self._responsive_wrap(tk.Label(top, text=title, bg=PANEL, fg=MUTED,
+                font=(self.font_family, 8, "bold"), anchor="w", justify="left", wraplength=120)).pack(side="left", fill="x", expand=True)
+            IconBadge(top, kind=kind, color=color, tint=tint, size=29).pack(side="right", padx=(4, 0))
             value = tk.Label(card.body, text="-", bg=PANEL, fg=TEXT,
-                             font=(self.font_family, 27, "bold"), anchor="w")
-            value.pack(fill="x", pady=(8, 0))
-            self._responsive_wrap(tk.Label(card.body, text=title, bg=PANEL, fg=MUTED,
-                 font=(self.font_family, 8), anchor="w", justify="left", wraplength=150)).pack(fill="x", pady=(2, 0))
+                             font=(self.font_family, 25, "bold"), anchor="w")
+            value.pack(fill="x", pady=(4, 0))
+            caption = tk.Label(card.body, text=detail, bg=PANEL, fg=MUTED,
+                               font=(self.font_family, 8), anchor="w", justify="left", wraplength=155)
+            self._responsive_wrap(caption).pack(fill="x", pady=(2, 0))
             self.metric_labels[key] = value
-        title_bar = tk.Frame(parent, bg=BG)
-        title_bar.grid(row=2, column=0, sticky="ew", pady=(0, 11))
-        tk.Label(title_bar, text="O que você quer fazer?", bg=BG, fg=TEXT,
-                 font=(self.font_family, 14, "bold"), anchor="w").pack(side="left")
-        quick = tk.Frame(parent, bg=BG)
-        quick.grid(row=3, column=0, sticky="ew", pady=(0, 17))
-        actions = [("Máquinas", "Veja os computadores e controle sua internet.", "computer", BLUE, "#E7F0FF", "Ver máquinas", "Accent.TButton", lambda: self.show_page("devices")),
-                   ("Sites e IA", "Edite a lista de jogos e ative o perfil de IA.", "ai", PURPLE, "#EFE8FD", "Gerenciar sites", "Purple.TButton", lambda: self.show_page("domains")),
-                   ("Equipamentos", "Conecte roteadores e switches compatíveis.", "network", "#9A6B00", "#FFF3C7", "Ver integrações", "Yellow.TButton", self._open_integrations)]
-        for col, (title, text, kind, color, tint, label, style, command) in enumerate(actions):
-            quick.grid_columnconfigure(col, weight=1, uniform="quick")
-            card = RoundCard(quick, padding=18)
-            card.grid(row=0, column=col, sticky="nsew", padx=(0, 12 if col < 2 else 0))
-            IconBadge(card.body, kind=kind, color=color, tint=tint).pack(anchor="w")
-            tk.Label(card.body, text=title, bg=PANEL, fg=TEXT,
-                     font=(self.font_family, 12, "bold"), anchor="w").pack(fill="x", pady=(12, 5))
-            self._responsive_wrap(tk.Label(card.body, text=text, bg=PANEL, fg=MUTED,
-                justify="left", anchor="w", wraplength=220, font=(self.font_family, 9))).pack(fill="x", pady=(0, 13))
-            ActionButton(card.body, text=label, style=style, command=command).pack(fill="x")
-        connection = RoundCard(parent, padding=18)
-        connection.grid(row=4, column=0, sticky="ew", pady=(0, 14))
-        tk.Label(connection.body, text="Estado do gateway", bg=PANEL, fg=TEXT,
-                 font=(self.font_family, 12, "bold"), anchor="w").pack(fill="x", pady=(0, 9))
-        self.gateway_summary = tk.StringVar(value="Gateway: aguardando dados…")
-        self._responsive_wrap(tk.Label(connection.body, textvariable=self.gateway_summary,
-            bg=PANEL, fg=MUTED, justify="left", anchor="w", font=(self.font_family, 9), wraplength=850)).pack(fill="x")
-        self._hint(parent, "Leitura com contexto: máquinas são observadas por DHCP/vizinhos; consultas DNS não comprovam visitas nem revelam conteúdo HTTPS. O controle real exige configuração da rede.", row=5)
+            self.metric_details[key] = caption
+
+        service = RoundCard(parent, padding=16, radius=16)
+        service.grid(row=2, column=0, sticky="ew", pady=(0, 14))
+        service.body.grid_columnconfigure(0, weight=1)
+        service_top = tk.Frame(service.body, bg=PANEL)
+        service_top.grid(row=0, column=0, sticky="ew")
+        tk.Label(service_top, text="Estado da operação", bg=PANEL, fg=TEXT,
+                 font=(self.font_family, 11, "bold"), anchor="w").pack(side="left")
+        self.overview_state = tk.Label(service_top, text="Aguardando dados", bg=CARD, fg=MUTED,
+                 padx=10, pady=4, font=(self.font_family, 8, "bold"))
+        self.overview_state.pack(side="right")
+        self.gateway_summary = tk.StringVar(value="Gateway não conectado.")
+        self._responsive_wrap(tk.Label(service.body, textvariable=self.gateway_summary,
+            bg=PANEL, fg=MUTED, justify="left", anchor="w", font=(self.font_family, 8))).grid(
+                row=1, column=0, sticky="ew", pady=(5, 11))
+        health_row = tk.Frame(service.body, bg=PANEL)
+        health_row.grid(row=2, column=0, sticky="ew")
+        self.health_labels = {}
+        for col, (key, title) in enumerate((("firewall", "Firewall"), ("dns", "DNS / DHCP"),
+                                          ("forwarding", "Encaminhamento"), ("ai", "Perfil de IA"))):
+            health_row.grid_columnconfigure(col, weight=1, uniform="health")
+            cell = tk.Frame(health_row, bg="#F8F7FC", padx=11, pady=8)
+            cell.grid(row=0, column=col, sticky="nsew", padx=(0, 8 if col < 3 else 0))
+            tk.Label(cell, text=title, bg="#F8F7FC", fg=MUTED,
+                     font=(self.font_family, 8), anchor="w").pack(fill="x")
+            label = tk.Label(cell, text="Sem leitura", bg="#F8F7FC", fg=MUTED,
+                             font=(self.font_family, 9, "bold"), anchor="w")
+            label.pack(fill="x", pady=(3, 0))
+            self.health_labels[key] = label
+
+        sample = tk.Frame(parent, bg=BG)
+        sample.grid(row=3, column=0, sticky="ew", pady=(0, 14))
+        for col in (0, 1):
+            sample.grid_columnconfigure(col, weight=1, uniform="sample")
+        domain_card = RoundCard(sample, padding=16, radius=16)
+        domain_card.grid(row=0, column=0, sticky="nsew", padx=(0, 7))
+        client_card = RoundCard(sample, padding=16, radius=16)
+        client_card.grid(row=0, column=1, sticky="nsew", padx=(7, 0))
+        self._overview_heading(domain_card.body, "Domínios mais solicitados", "Contagem na amostra recente; não equivale a visitas.")
+        self.top_domains_table = self._overview_table(domain_card.body,
+            [("domain", "Domínio", 210), ("count", "Consultas", 75)], height=5)
+        self.top_domains_table.bind("<Double-1>", self._overview_domain)
+        self._overview_heading(client_card.body, "Atividade por máquina", "Ordenação pelas consultas DNS da mesma amostra.")
+        self.top_clients_table = self._overview_table(client_card.body,
+            [("name", "Máquina", 105), ("ip", "IP", 135), ("count", "Consultas", 75)], height=5)
+        self.top_clients_table.bind("<Double-1>", self._overview_client)
+
+        recent = RoundCard(parent, padding=16, radius=16)
+        recent.grid(row=4, column=0, sticky="ew", pady=(0, 14))
+        self._overview_heading(recent.body, "Solicitações recentes", "Últimos registros disponíveis no gateway.")
+        self.overview_events_table = self._overview_table(recent.body,
+            [("time", "Horário", 90), ("ip", "IP solicitante", 135), ("domain", "Domínio", 260),
+             ("status", "Resultado observado", 195)], height=4)
+
+        bottom = tk.Frame(parent, bg=BG)
+        bottom.grid(row=5, column=0, sticky="ew", pady=(0, 14))
+        bottom.grid_columnconfigure(0, weight=3)
+        bottom.grid_columnconfigure(1, weight=2)
+        audit = RoundCard(bottom, padding=16, radius=16)
+        audit.grid(row=0, column=0, sticky="nsew", padx=(0, 7))
+        alerts = RoundCard(bottom, padding=16, radius=16)
+        alerts.grid(row=0, column=1, sticky="nsew", padx=(7, 0))
+        self._overview_heading(audit.body, "Últimas ações", "Auditoria administrativa recebida do gateway.")
+        self.overview_audit_table = self._overview_table(audit.body,
+            [("time", "Horário", 80), ("action", "Ação", 170), ("target", "Alvo", 180)], height=4)
+        self._overview_heading(alerts.body, "Pontos de atenção", "Avisos de operação e contexto da leitura.")
+        self.overview_warnings = tk.StringVar(value="Aguardando dados.")
+        self._responsive_wrap(tk.Label(alerts.body, textvariable=self.overview_warnings,
+            bg=PANEL, fg=MUTED, anchor="nw", justify="left", font=(self.font_family, 9))).pack(fill="both", expand=True)
+
+        actions = tk.Frame(parent, bg=BG)
+        actions.grid(row=6, column=0, sticky="ew", pady=(0, 10))
+        for label, command, style in (("Máquinas", lambda: self.show_page("devices"), "Accent.TButton"),
+                                      ("Sites e IA", lambda: self.show_page("domains"), "Purple.TButton"),
+                                      ("Histórico DNS", lambda: self.show_page("dns"), "TButton"),
+                                      ("Equipamentos", self._open_integrations, "Yellow.TButton")):
+            ActionButton(actions, text=label, command=command, style=style, height=40).pack(side="left", padx=(0, 8))
+
+    def _overview_heading(self, parent, title, subtitle):
+        tk.Label(parent, text=title, bg=PANEL, fg=TEXT, font=(self.font_family, 11, "bold"), anchor="w").pack(fill="x")
+        self._responsive_wrap(tk.Label(parent, text=subtitle, bg=PANEL, fg=MUTED,
+            font=(self.font_family, 8), anchor="w", justify="left")).pack(fill="x", pady=(4, 10))
+
+    def _overview_table(self, parent, columns, height=5):
+        frame = tk.Frame(parent, bg=PANEL)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(0, weight=1)
+        tree = ttk.Treeview(frame, columns=[c[0] for c in columns], show="headings", height=height,
+                            selectmode="browse", style="Overview.Treeview")
+        for key, title, width in columns:
+            tree.heading(key, text=title, anchor="w")
+            tree.column(key, width=width, minwidth=55 if key == "count" else 75, anchor="w", stretch=key != "count")
+        tree.grid(row=0, column=0, sticky="nsew")
+        scroll = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
+        scroll.grid(row=1, column=0, sticky="ew")
+        tree.configure(xscrollcommand=scroll.set)
+        tree.tag_configure("blocked", foreground=RED)
+        tree.tag_configure("muted", foreground=MUTED)
+        return tree
+
+    def _render_overview(self):
+        data = self.snapshot
+        summary = dashboard_summary(data)
+        demo = data.get("mode") == "demo"
+        stamp = self._time(data.get("timestamp", ""))
+        self.overview_caption.set(f"{'Cenário de demonstração' if demo else 'Última leitura do gateway'} | {stamp} | {summary['queries']} consultas na amostra")
+        gateway = data.get("gateway", {})
+        self.gateway_summary.set(f"{gateway.get('hostname', 'Gateway')} | {gateway.get('lab_cidr', '-')} | LAN {gateway.get('lan_interface', '-')} > WAN {gateway.get('wan_interface', '-')}")
+        health = data.get("health", {})
+        healthy = all(health.get(key) is True for key in ("firewall", "dns", "forwarding"))
+        stale = self.__dict__.get("_snapshot_stale", False)
+        title, fg, bg = ("Demonstração", "#77560D", "#FFF2C4") if demo else (
+            ("Leitura desatualizada", "#77560D", "#FFF2C4") if stale else
+            (("Serviços operacionais", GREEN, "#DDF3E9") if healthy else ("Verifique os serviços", RED, "#FCE9EF")))
+        self.overview_state.configure(text=title, fg=fg, bg=bg)
+        for key in ("firewall", "dns", "forwarding"):
+            active = health.get(key) is True
+            text = "Ativo" if active else "Indisponível"
+            if stale and not demo:
+                text = "Sem confirmação"
+            self.health_labels[key].configure(text=text, fg=MUTED if stale and not demo else (GREEN if active else RED))
+        policy = data.get("policies", {}).get("ai_block", {})
+        enabled = policy.get("enabled") is True
+        self.health_labels["ai"].configure(text="Ativado" if enabled else "Desativado", fg=PURPLE if enabled else MUTED)
+        self.metric_details["observed_devices"].configure(text=f"{summary['protected']} endereço(s) protegido(s)")
+        self.metric_details["queries_window"].configure(text="Amostra recente disponível")
+        self._fill_tree(self.top_domains_table, [(domain, (domain, count), ()) for domain, count in summary["domains"]])
+        self._fill_tree(self.top_clients_table, [(ip, (name, ip, count), ()) for ip, name, count in summary["clients"]])
+        self._fill_tree(self.overview_events_table, [(i, (self._time(e.get("time", "")).split(" ")[-1], e.get("client_ip", ""),
+            e.get("domain", ""), e.get("status", "Consulta")), ("blocked",) if e.get("status") == "Bloqueio DNS confirmado" else ())
+            for i, e in enumerate(summary["events"])])
+        self._fill_tree(self.overview_audit_table, [(i, (self._time(e.get("time", "")).split(" ")[-1], e.get("action", ""), e.get("target", "")), ())
+            for i, e in enumerate(summary["audit"])])
+        warnings = [str(x) for x in data.get("warnings", [])]
+        if demo:
+            warnings = ["Dados fictícios. Os controles desta sessão não alteram a rede."]
+        elif stale:
+            warnings.insert(0, "Atualize a leitura antes de aplicar alterações na rede.")
+        self.overview_warnings.set("\n\n".join(warnings[:3]) if warnings else "Nenhum aviso informado pelo gateway nesta leitura.")
+        if not summary["domains"]:
+            self._fill_tree(self.top_domains_table, [("empty", ("Sem consultas nesta amostra", "-"), ("muted",))])
+        if not summary["clients"]:
+            self._fill_tree(self.top_clients_table, [("empty", ("Sem atividade na amostra", "", "-"), ("muted",))])
+
+    def _overview_domain(self, _event=None):
+        selection = self.top_domains_table.selection()
+        if selection and selection[0] != "empty":
+            self.dns_ip.set("Todas")
+            self.dns_search.set(selection[0])
+            self._render_dns()
+            self.show_page("dns")
+
+    def _overview_client(self, _event=None):
+        selection = self.top_clients_table.selection()
+        if selection and selection[0] != "empty":
+            self.dns_ip.set(selection[0])
+            self.dns_search.set("")
+            self._render_dns()
+            self.show_page("dns")
 
     def _build_devices(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -294,6 +490,9 @@ class App(tk.Tk):
         self.block_button.pack(side="left", padx=8)
         self.unblock_button = ActionButton(bar, text="Restaurar internet", command=lambda: self._set_block(False))
         self.unblock_button.pack(side="left")
+        programs = ttk.Frame(parent)
+        programs.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        ActionButton(programs, text="Programas e avisos", style="Purple.TButton", command=self._open_remote).pack(side="left")
         self.devices_table = self._table(parent, [("name", "Máquina"), ("ip", "IP"),
             ("mac", "MAC"), ("state", "Evidência de presença"), ("access", "Internet"),
             ("queries", "Consultas"), ("protected", "Protegida")], 2,
@@ -301,7 +500,7 @@ class App(tk.Tk):
         self.devices_table.bind("<<TreeviewSelect>>", self._device_selection)
         self.device_note = tk.StringVar(value="Nenhuma máquina selecionada.")
         self._responsive_wrap(ttk.Label(parent, textvariable=self.device_note, style="Muted.TLabel", wraplength=850)).grid(
-            row=3, column=0, sticky="ew", pady=(12, 0))
+            row=4, column=0, sticky="ew", pady=(12, 0))
         self._device_selection()
 
     def _build_dns(self, parent):
@@ -359,11 +558,14 @@ class App(tk.Tk):
         ttk.Entry(bar, textvariable=self.domain_input, width=32).pack(side="left")
         ttk.Combobox(bar, textvariable=self.category_input, values=["Jogos", "Inteligência artificial", "Redes sociais", "Outros"],
                      width=16).pack(side="left", padx=8)
-        ActionButton(bar, text="Adicionar domínio", style="Accent.TButton", command=self._add_domain).pack(side="left")
+        self.domain_add_button = ActionButton(bar, text="Adicionar domínio", style="Accent.TButton", command=self._add_domain)
+        self.domain_add_button.pack(side="left")
         actions = ttk.Frame(parent)
         actions.grid(row=3, column=0, sticky="ew", pady=(0, 12))
-        ActionButton(actions, text="Importar lista .txt", command=self._import_domains).pack(side="left")
-        ActionButton(actions, text="Remover selecionado", command=self._remove_domain).pack(side="left", padx=8)
+        self.domain_import_button = ActionButton(actions, text="Importar lista .txt", command=self._import_domains)
+        self.domain_import_button.pack(side="left")
+        self.domain_remove_button = ActionButton(actions, text="Remover selecionado", command=self._remove_domain)
+        self.domain_remove_button.pack(side="left", padx=8)
         self.domains_table = self._table(parent, [("domain", "Domínio bloqueado"),
             ("category", "Categoria"), ("source", "Origem"), ("created", "Adicionado em")], 4,
             {"domain": 280, "category": 180, "source": 140, "created": 180})
@@ -449,6 +651,7 @@ class App(tk.Tk):
             self.status.set("Aguarde a operação em andamento antes de iniciar outra ação.")
             return False
         self._busy = True
+        self._refresh_mutation_controls()
         generation = self._generation
         self.status.set(label + "…")
         self.refresh_button.configure(state="disabled")
@@ -479,6 +682,10 @@ class App(tk.Tk):
                 else:
                     mode = "demonstração" if self.snapshot.get("mode", "demo") == "demo" else "gateway"
                     if mode == "gateway":
+                        self._snapshot_stale = True
+                        self._refresh_mutation_controls()
+                        if "overview_caption" in self.__dict__:
+                            self._render_overview()
                         self.mode_banner.configure(
                             text="GATEWAY SEM ATUALIZAÇÃO | conexão não confirmada | dados anteriores",
                             bg="#FFF2C4", fg="#77560D")
@@ -496,6 +703,7 @@ class App(tk.Tk):
     def _auto_refresh(self):
         if self._closed:
             return
+        self._refresh_mutation_controls()
         if not self._busy:
             self.refresh()
         self.after(5000, self._auto_refresh)
@@ -518,6 +726,9 @@ class App(tk.Tk):
                 messagebox.showerror("Resposta inválida", "O destino SSH não retornou um gateway real.", parent=self)
                 self.status.set("Conexão não ativada; modo anterior mantido.")
                 return
+            close_previous = getattr(self.transport, "close", None)
+            if callable(close_previous):
+                close_previous()
             self.transport = transport
             self._apply_snapshot(snapshot)
             self.show_page("overview")
@@ -529,6 +740,9 @@ class App(tk.Tk):
             self.status.set("Aguarde a operação atual para trocar de modo.")
             return
         self._generation += 1
+        close_previous = getattr(self.transport, "close", None)
+        if callable(close_previous):
+            close_previous()
         self.transport = DemoTransport()
         self.snapshot = {}
         self.mode_banner.configure(text="DEMONSTRAÇÃO | dados fictícios | nenhum bloqueio real", bg="#FFF2C4", fg="#77560D")
@@ -551,13 +765,20 @@ class App(tk.Tk):
 
     def _apply_snapshot(self, data):
         if not isinstance(data, dict) or data.get("mode") not in ("demo", "gateway"):
+            self._snapshot_stale = True
+            self._refresh_mutation_controls()
             self.status.set("O gateway retornou uma resposta inválida. Dados anteriores mantidos.")
             return
         self.snapshot = data
+        self._snapshot_stale = False
+        self._last_snapshot_monotonic = monotonic()
         demo = data["mode"] == "demo"
+        ready = all(data.get("health", {}).get(key) is True for key in ("firewall", "dns", "forwarding"))
         self.mode_banner.configure(
-            text="DEMONSTRAÇÃO | dados fictícios | nenhum bloqueio real" if demo else "GATEWAY CONECTADO | controle real da rede configurada",
-            bg="#FFF2C4" if demo else "#DDF3E9", fg="#77560D" if demo else GREEN)
+            text="DEMONSTRAÇÃO | dados fictícios | nenhum bloqueio real" if demo else (
+                "GATEWAY CONECTADO | serviços confirmados nesta leitura" if ready else
+                "GATEWAY CONECTADO | verifique os serviços indisponíveis antes de alterar a rede"),
+            bg="#FFF2C4" if demo or not ready else "#DDF3E9", fg="#77560D" if demo or not ready else GREEN)
         for key, label in self.metric_labels.items():
             label.configure(text=str(data.get("metrics", {}).get(key, 0)))
         gateway = data.get("gateway", {})
@@ -574,6 +795,7 @@ class App(tk.Tk):
             "Sim" if d.get("protected") else "Não"),
             ("protected",) if d.get("protected") else (("blocked",) if d.get("blocked") else ()))
             for d in data.get("devices", [])])
+        self._render_overview()
         self._device_selection()
         ips = sorted({d["ip"] for d in data.get("devices", [])} |
                      {e.get("client_ip", "") for e in data.get("events", [])} - {""})
@@ -594,6 +816,7 @@ class App(tk.Tk):
             a.get("target", ""), a.get("outcome", "")), ()) for i, a in enumerate(data.get("audit", []))])
         warnings = data.get("warnings", [])
         stamp = self._time(data.get("timestamp", ""))
+        self._refresh_mutation_controls()
         self.status.set(f"Atualizado: {stamp}  |  Atualização automática a cada 5 s" +
                         ("  |  " + " | ".join(map(str, warnings)) if warnings else ""))
 
@@ -613,8 +836,9 @@ class App(tk.Tk):
     def _device_selection(self, _event=None):
         device = self._selected_device()
         protected = not device or device.get("protected")
-        self.block_button.configure(state="disabled" if protected or device.get("blocked") else "normal")
-        self.unblock_button.configure(state="disabled" if protected or not device.get("blocked") else "normal")
+        permitted = self._mutation_allowed(("firewall", "forwarding"), notify=False)
+        self.block_button.configure(state="disabled" if not permitted or protected or device.get("blocked") else "normal")
+        self.unblock_button.configure(state="disabled" if not permitted or protected or not device.get("blocked") else "normal")
         self.device_note.set("Nenhuma máquina selecionada." if not device else
             f"{device.get('name') or 'Sem nome'} | {device['ip']} | Última evidência: {self._time(device.get('last_seen', ''))}" +
             (" | Equipamento protegido" if device.get("protected") else ""))
@@ -641,12 +865,51 @@ class App(tk.Tk):
             for i, e in enumerate(self._shown_events)])
         self.dns_count.set(f"{len(self._shown_events)} registros exibidos | amostra recente, não histórico completo de navegação")
 
+    def _mutation_allowed(self, required_health=(), notify=True):
+        """Recusa alterações com leitura antiga ou serviço necessário sem confirmação."""
+        data = self.snapshot
+        reason = None
+        if self.__dict__.get("_busy", False):
+            reason = "Aguarde a operação em andamento antes de alterar a rede."
+        elif self.__dict__.get("_session_locked", False):
+            reason = "A sessão administrativa está bloqueada. Reconecte antes de alterar a rede."
+        elif data.get("mode") == "demo":
+            return True
+        elif data.get("mode") != "gateway":
+            reason = "Conecte e atualize o gateway antes de aplicar alterações."
+        elif self.__dict__.get("_snapshot_stale", True) or monotonic() - self.__dict__.get("_last_snapshot_monotonic", 0.0) > 20:
+            reason = "A leitura do gateway está desatualizada. Atualize e confirme a conexão antes de aplicar alterações."
+        else:
+            missing = [name for name in required_health if data.get("health", {}).get(name) is not True]
+            if missing:
+                names = {"firewall": "firewall", "dns": "DNS/DHCP", "forwarding": "encaminhamento"}
+                reason = "Serviço sem confirmação: " + ", ".join(names.get(name, name) for name in missing) + ". Verifique o gateway antes de alterar a rede."
+        if reason and notify:
+            self.status.set(reason)
+        return reason is None
+
+    def _refresh_mutation_controls(self):
+        allowed = self._mutation_allowed(("dns",), notify=False)
+        for name in ("domain_add_button", "domain_import_button", "domain_remove_button"):
+            widget = self.__dict__.get(name)
+            if widget is not None:
+                widget.configure(state="normal" if allowed else "disabled")
+        if "ai_toggle_button" in self.__dict__:
+            policy = self._ai_policy()
+            self.ai_toggle_button.configure(state="normal" if allowed and policy is not None else "disabled")
+        if all(key in self.__dict__ for key in ("devices_table", "block_button", "unblock_button")):
+            self._device_selection()
+
     def _live_confirmation(self, title, text):
+        if not self._mutation_allowed():
+            return False
         if self.snapshot.get("mode") == "demo":
             return True
         return messagebox.askyesno(title, text, parent=self, icon="warning", default="no")
 
     def _set_block(self, blocked):
+        if not self._mutation_allowed(("firewall", "forwarding")):
+            return
         device = self._selected_device()
         if not device or device.get("protected"):
             return
@@ -658,6 +921,8 @@ class App(tk.Tk):
                       label=f"{verb} internet de {device['ip']}", alert=True)
 
     def _add_domain(self):
+        if not self._mutation_allowed(("dns",)):
+            return
         domain = self.domain_input.get().strip()
         category = self.category_input.get().strip() or "Outros"
         if not domain:
@@ -697,6 +962,8 @@ class App(tk.Tk):
         self.ai_catalog_button.configure(state="normal")
 
     def _toggle_ai_block(self):
+        if not self._mutation_allowed(("dns",)):
+            return
         if self._busy:
             self.status.set("Aguarde a operação em andamento antes de alterar o perfil de IA.")
             return
@@ -749,6 +1016,8 @@ class App(tk.Tk):
             row=2, column=0, columnspan=2, sticky="e", padx=18, pady=14)
 
     def _remove_domain(self):
+        if not self._mutation_allowed(("dns",)):
+            return
         selection = self.domains_table.selection()
         if not selection:
             messagebox.showinfo("Selecione um domínio", "Selecione o domínio que deseja remover da lista.", parent=self)
@@ -769,6 +1038,8 @@ class App(tk.Tk):
         self._run_job(lambda: transport.request("remove_domain", domain=domain), label="Removendo domínio", alert=True)
 
     def _import_domains(self):
+        if not self._mutation_allowed(("dns",)):
+            return
         if self._busy:
             self.status.set("Aguarde a operação atual antes de importar.")
             return
@@ -827,6 +1098,13 @@ class App(tk.Tk):
     def close(self):
         self._closed = True
         self._generation += 1
+        close_transport = getattr(self.transport, "close", None)
+        if callable(close_transport):
+            close_transport()
+        for window in self.winfo_children():
+            close_window = getattr(window, "close", None)
+            if isinstance(window, tk.Toplevel) and callable(close_window):
+                close_window()
         self._executor.shutdown(wait=False, cancel_futures=True)
         self.destroy()
 

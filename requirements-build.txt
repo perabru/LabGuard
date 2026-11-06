@@ -1,3 +1,6 @@
 # Somente para gerar o aplicativo Windows; não é exigido para usar o instalador.
 pyinstaller==6.22.3
 Pillow>=10.4,<14
+
+# Incluído no desktop para administração Windows sem agente residente.
+pywinrm>=0.5,<0.6

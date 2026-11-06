@@ -1,0 +1,25 @@
+[Unit]
+Description=LabGuard Server - administracao local autenticada
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=labguard-server
+Group=labguard-server
+WorkingDirectory=/opt/labguard-server
+ExecStart=/opt/labguard-server/LabGuardServer run --directory /etc/labguard-server
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/etc/labguard-server/logs /etc/labguard-server/data
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

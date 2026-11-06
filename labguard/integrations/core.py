@@ -16,7 +16,7 @@ import tempfile
 from urllib import error, parse, request
 import zipfile
 
-from ..transport import validate_host
+from ..transport import validate_host, ssh_command_base, run_bounded, OutputLimitExceeded
 
 
 class IntegrationError(RuntimeError):
@@ -208,10 +208,10 @@ class IntegrationManager:
             raise IntegrationError("Baixar exige SHA-256 esperado de uma fonte confiável.")
         opener = request.build_opener(_HTTPSOnlyRedirect(), request.HTTPSHandler(context=ssl.create_default_context()))
         try:
-            with opener.open(request.Request(url, headers={"User-Agent": "LabGuard/1.2"}), timeout=20) as response:
+            with opener.open(request.Request(url, headers={"User-Agent": "LabGuard/1.4"}), timeout=20) as response:
                 data = response.read(MAX_DOWNLOAD_BYTES + 1)
         except (OSError, error.URLError, ValueError) as exc:
-            raise IntegrationError(f"Não foi possível baixar o perfil: {exc}") from exc
+            raise IntegrationError("Não foi possível baixar o perfil. Confira a URL HTTPS, o certificado e a conexão; nenhum arquivo foi instalado.") from exc
         return self._install_bytes(data, sha256)
 
 
@@ -301,6 +301,7 @@ def attach_macs(rows, text, family):
 class SSHSession:
     def __init__(self, profile, host, port, user, key_path, known_hosts, allowed_access_ports):
         self.profile = profile
+        self._closed = False
         self.host = validate_host(host)
         self.port = _port(port)
         if not isinstance(user, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,63}", user):
@@ -317,11 +318,9 @@ class SSHSession:
         self.allowed = {canonical_port(value, profile["family"]) for value in values if value.strip()} if profile["capabilities"]["port_control"] else set()
 
     def _command(self, pty=False):
-        command = [self.ssh, "-tt" if pty else "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=2", "-o", "LogLevel=ERROR", "-p", str(self.port)]
-        if self.key_path:
-            command += ["-o", "IdentitiesOnly=yes", "-i", self.key_path]
-        if self.known_hosts:
-            command += ["-o", "UserKnownHostsFile=" + self.known_hosts]
+        if self._closed:
+            raise IntegrationError("A sessão foi encerrada. Conecte novamente ao equipamento.")
+        command = ssh_command_base(self.ssh, self.port, pty=pty, key_path=self.key_path, known_hosts=self.known_hosts)
         return command + [f"{self.user}@{self.host}"]
 
     def _run(self, commands, *, remote_command=None):
@@ -331,17 +330,20 @@ class SSHSession:
             payload = None
         else:
             payload = "\n".join(commands) + "\n"
-        options = {"creationflags": subprocess.CREATE_NO_WINDOW} if hasattr(subprocess, "CREATE_NO_WINDOW") else {}
         try:
-            result = subprocess.run(args, input=payload, capture_output=True, text=True,
-                                    encoding="utf-8", errors="replace", timeout=30, check=False, **options)
+            result = run_bounded(args, input=payload, timeout=30, max_output_bytes=MAX_OUTPUT_BYTES)
+        except OutputLimitExceeded as exc:
+            raise IntegrationError("Saída SSH maior que o limite; a conexão foi interrompida. Confira o estado do equipamento antes de repetir uma alteração.") from exc
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise IntegrationError("Falha ou tempo esgotado no SSH. Confira o estado do equipamento antes de repetir uma alteração.") from exc
         output = result.stdout or ""
         if len(output.encode("utf-8")) > MAX_OUTPUT_BYTES:
             raise IntegrationError("Saída SSH maior que o limite.")
         if result.returncode:
-            raise IntegrationError("SSH recusou a conexão: " + (result.stderr or "sem detalhe")[-700:].strip())
+            detail = result.stderr or ""
+            if "Host key verification failed" in detail or "REMOTE HOST IDENTIFICATION HAS CHANGED" in detail:
+                raise IntegrationError("Identidade SSH não reconhecida ou alterada. Confira a impressão digital e o known_hosts por um canal administrativo confiável.")
+            raise IntegrationError("SSH recusou a conexão. Confira usuário, chave, identidade conhecida e permissões; nenhuma credencial é mostrada neste aviso.")
         if CLI_FAILURE.search(output):
             raise IntegrationError("O equipamento rejeitou um comando. Confira modelo, firmware, modo privilegiado e sintaxe do perfil.")
         if re.search(r"--+\s*More\s*--+|Press (?:any key|SPACE)|More:\s*<", output, re.I):
@@ -415,6 +417,11 @@ class SSHSession:
             after["warnings"].append(after["operation"]["message"])
         return after
 
+    def close(self):
+        self._closed = True
+        self.allowed.clear()
+        self.key_path = self.known_hosts = self.user = self.host = ""
+
 
 def _port(value):
     try:
@@ -427,6 +434,8 @@ def _port(value):
 
 
 def _file(value):
+    if not isinstance(value, str) or any(ord(c) < 32 for c in value):
+        raise IntegrationError("Caminho de arquivo inválido.")
     path = Path(value).expanduser().resolve()
     if not path.is_file():
         raise IntegrationError("Arquivo de chave, known_hosts ou CA não encontrado.")
@@ -441,6 +450,7 @@ class _NoRedirect(request.HTTPRedirectHandler):
 class RouterOSSession:
     def __init__(self, profile, host, port, user, password, ca_file):
         self.profile = profile
+        self._closed = False
         host = validate_host(host)
         # Manager default SSH port is convenient; HTTPS caller should choose443 explicitly.
         port = _port(port)
@@ -454,9 +464,13 @@ class RouterOSSession:
         self.base = f"https://{authority}:{port}/rest/"
         self.auth = "Basic " + base64.b64encode((user + ":" + password).encode()).decode("ascii")
         context = ssl.create_default_context(cafile=_file(ca_file) if ca_file else None)
-        self.opener = request.build_opener(_NoRedirect(), request.HTTPSHandler(context=context))
+        # O acesso ao equipamento é direto: não encaminha Authorization por
+        # um proxy herdado do ambiente de outro aplicativo.
+        self.opener = request.build_opener(request.ProxyHandler({}), _NoRedirect(), request.HTTPSHandler(context=context))
 
     def _get(self, path):
+        if self._closed:
+            raise IntegrationError("A sessão foi encerrada. Conecte novamente ao equipamento.")
         try:
             req = request.Request(self.base + path, headers={"Authorization": self.auth, "Accept": "application/json"})
             with self.opener.open(req, timeout=15) as response:
@@ -464,8 +478,8 @@ class RouterOSSession:
             if len(data) > MAX_OUTPUT_BYTES:
                 raise IntegrationError("Resposta REST excedeu o limite.")
             rows = json.loads(data)
-            if not isinstance(rows, list):
-                raise IntegrationError("O RouterOS não retornou uma lista de registros.")
+            if not isinstance(rows, list) or len(rows) > 4096 or any(not isinstance(row, dict) for row in rows):
+                raise IntegrationError("O RouterOS não retornou uma lista válida com até 4096 registros.")
             return rows
         except (OSError, error.URLError, ValueError) as exc:
             raise IntegrationError("Falha na consulta HTTPS RouterOS. Confira certificado/CA, serviço www-ssl e permissões REST/API; nenhuma configuração foi alterada.") from exc
@@ -488,3 +502,8 @@ class RouterOSSession:
 
     def set_port_enabled(self, port, enabled):
         raise IntegrationError("O adaptador RouterOS desta versão é somente consulta.")
+
+    def close(self):
+        self._closed = True
+        self.auth = ""
+        self.opener = None

@@ -3,7 +3,8 @@ import queue
 import unittest
 from unittest.mock import Mock, patch
 
-from labguard.gui import App, csv_safe
+from time import monotonic
+from labguard.gui import App, csv_safe, dashboard_summary
 from labguard.transport import TransportError
 
 
@@ -17,7 +18,9 @@ class GuiBoundaryTests(unittest.TestCase):
     def ai_app(enabled=False):
         app = App.__new__(App)
         app._busy = False
-        app.snapshot = {"mode": "gateway", "domains": [], "policies": {"ai_block": {
+        app._snapshot_stale = False
+        app._last_snapshot_monotonic = monotonic()
+        app.snapshot = {"mode": "gateway", "health": {"firewall": True, "dns": True, "forwarding": True}, "domains": [], "policies": {"ai_block": {
             "enabled": enabled, "domains": ["chatgpt.com", "claude.ai"],
             "services": [{"name": "ChatGPT", "domains": ["chatgpt.com"]}]}}}
         app.transport = Mock()
@@ -25,6 +28,48 @@ class GuiBoundaryTests(unittest.TestCase):
         app._live_confirmation = Mock(return_value=True)
         app._run_job = Mock(return_value=True)
         return app
+
+
+    def test_stale_live_snapshot_refuses_mutations_before_confirmation(self):
+        app = self.ai_app()
+        app._snapshot_stale = True
+        app._toggle_ai_block()
+        app._live_confirmation.assert_not_called()
+        app._run_job.assert_not_called()
+        self.assertIn("desatualizada", app.status.set.call_args.args[0])
+
+    def test_old_live_snapshot_and_missing_required_service_are_refused(self):
+        app = self.ai_app()
+        app._last_snapshot_monotonic = monotonic() - 21
+        self.assertFalse(app._mutation_allowed(("dns",)))
+        app._last_snapshot_monotonic = monotonic()
+        app.snapshot["health"]["dns"] = False
+        self.assertFalse(app._mutation_allowed(("dns",)))
+        self.assertTrue(app._mutation_allowed(("firewall", "forwarding")))
+        app.snapshot["health"]["forwarding"] = False
+        self.assertFalse(app._mutation_allowed(("firewall", "forwarding")))
+
+    def test_demo_controls_do_not_require_real_gateway_health(self):
+        app = self.ai_app()
+        app.snapshot = {"mode": "demo"}
+        app._snapshot_stale = True
+        self.assertTrue(app._mutation_allowed(("firewall", "forwarding")))
+        app._session_locked = True
+        self.assertFalse(app._mutation_allowed())
+
+    def test_dashboard_rankings_are_derived_only_from_dns_sample(self):
+        snapshot = {"devices": [{"ip": "192.168.50.2", "name": "LAB-02", "protected": True, "dns_queries": 999}],
+            "events": [{"domain": "B.EXAMPLE.", "client_ip": "192.168.50.2", "status": "Consulta"},
+                       {"domain": "a.example", "client_ip": "192.168.50.3", "status": "Bloqueio DNS confirmado"},
+                       {"domain": "b.example", "client_ip": "192.168.50.2", "status": "Consulta"}],
+            "audit": [{"action": "Bloquear domínio", "target": "a.example"}]}
+        result = dashboard_summary(snapshot)
+        self.assertEqual(result["domains"], [("b.example", 2), ("a.example", 1)])
+        self.assertEqual(result["clients"][0], ("192.168.50.2", "LAB-02", 2))
+        self.assertEqual(result["queries"], 3)
+        self.assertEqual(result["blocked_queries"], 1)
+        self.assertEqual(result["protected"], 1)
+        self.assertEqual(dashboard_summary({})["domains"], [])
 
     def test_csv_network_values_cannot_become_formulas(self):
         for value in ("=1+1", "+SUM(A1)", "-1+2", "@SUM(A1)", "\t =cmd", "\n=cmd"):

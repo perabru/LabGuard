@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import queue
 import shutil
+from time import monotonic
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -19,6 +20,8 @@ AMBER = "#8A610D"
 PURPLE = "#6C42D9"
 BLUE = "#3478F6"
 DEEP = "#29184F"
+SESSION_IDLE_SECONDS = 600
+INVENTORY_VALID_SECONDS = 60
 
 
 def inventory_rows(snapshot):
@@ -57,15 +60,23 @@ class IntegrationWindow(tk.Toplevel):
         self.session = None
         self.snapshot = {}
         self._row_data = {}
+        self._detail_windows = []
         self._profiles = {}
         self._busy = False
         self._closed = False
+        self._generation = 0
+        self._stale = True
+        self._last_snapshot = 0.0
+        self._last_activity = monotonic()
         self._results = queue.Queue()
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="labguard-integracao")
         self.protocol("WM_DELETE_WINDOW", self.close)
         self._build()
         self._reload_profiles()
+        self.bind("<KeyPress>", self._record_activity, add="+")
+        self.bind("<ButtonPress>", self._record_activity, add="+")
         self.after(80, self._drain)
+        self.after(5000, self._check_idle)
 
     def _label(self, parent, text, **kwargs):
         color = kwargs.pop("fg", MUTED)
@@ -165,9 +176,14 @@ class IntegrationWindow(tk.Toplevel):
         self.raw_button = ActionButton(buttons, text="Ver saída de consulta", command=self._show_raw, state="disabled")
         self.raw_button.pack(side="right")
         self.active_summary = tk.StringVar(value="Nenhum equipamento conectado. As consultas não alteram a configuração.")
-        summary = self._label(parent, "")
+        summary_bar = tk.Frame(parent, bg=BG)
+        summary_bar.grid(row=3, column=0, sticky="ew", pady=(0, 9))
+        summary_bar.grid_columnconfigure(0, weight=1)
+        summary = self._label(summary_bar, "")
         summary.configure(textvariable=self.active_summary, fg=PURPLE)
-        summary.grid(row=3, column=0, sticky="ew", pady=(0, 9))
+        summary.grid(row=0, column=0, sticky="ew", padx=(0, 12))
+        self.disconnect_button = ActionButton(summary_bar, text="Desconectar", command=self._disconnect, state="disabled")
+        self.disconnect_button.grid(row=0, column=1)
         table_frame = ttk.Frame(parent)
         table_frame.grid(row=4, column=0, sticky="nsew")
         table_frame.grid_columnconfigure(0, weight=1)
@@ -184,6 +200,10 @@ class IntegrationWindow(tk.Toplevel):
         self.table.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
         self.table.bind("<<TreeviewSelect>>", self._selection)
         self._label(parent, "Desativar uma porta interrompe toda a rede nela, inclusive recursos locais. Autorize somente portas de computadores; exclua uplinks, trunks e gerenciamento.").grid(row=5, column=0, sticky="ew", pady=(10, 0))
+        self.session_notice = tk.StringVar(value="Sessão protegida: desconexão após 10 minutos sem interação. Consultas antigas não autorizam cortes.")
+        notice = self._label(parent, "")
+        notice.configure(textvariable=self.session_notice)
+        notice.grid(row=6, column=0, sticky="ew", pady=(7, 0))
 
     def _build_profiles(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -235,6 +255,8 @@ class IntegrationWindow(tk.Toplevel):
         self._profile_selected()
 
     def _profile_selected(self, _event=None):
+        if self.session and not self._busy:
+            self._disconnect("Perfil alterado. Conecte novamente para confirmar o equipamento de destino.")
         profile = self._profiles.get(self.profile_var.get(), {})
         transport = profile.get("transport", "ssh")
         self.port_var.set("443" if "https" in transport.lower() else "22")
@@ -247,14 +269,23 @@ class IntegrationWindow(tk.Toplevel):
         if self._busy or self._closed:
             return False
         self._busy = True
+        self._last_activity = monotonic()
+        generation = self._generation
+        self.profile_combo.configure(state="disabled")
         self.status.set(label + "…")
-        for button in (self.connect_button, self.refresh_button, self.off_button, self.on_button):
+        for button in (self.connect_button, self.refresh_button, self.off_button, self.on_button, self.disconnect_button):
             button.configure(state="disabled")
         def work():
             try:
-                self._results.put((True, function(), callback))
+                result = function()
+                if self._closed or generation != self._generation:
+                    if isinstance(result, tuple) and result and callable(getattr(result[0], "close", None)):
+                        result[0].close()
+                else:
+                    self._results.put((generation, True, result, callback))
             except Exception as exc:
-                self._results.put((False, str(exc), callback))
+                if not self._closed and generation == self._generation:
+                    self._results.put((generation, False, str(exc), callback))
         self._executor.submit(work)
         return True
 
@@ -263,13 +294,20 @@ class IntegrationWindow(tk.Toplevel):
             return
         try:
             while True:
-                ok, result, callback = self._results.get_nowait()
+                generation, ok, result, callback = self._results.get_nowait()
+                if generation != self._generation:
+                    if ok and isinstance(result, tuple) and result and callable(getattr(result[0], "close", None)):
+                        result[0].close()
+                    continue
                 self._busy = False
+                self.profile_combo.configure(state="readonly")
                 self.connect_button.configure(state="normal")
                 self.refresh_button.configure(state="normal" if self.session else "disabled")
                 if ok:
                     callback(result)
                 else:
+                    self._stale = True
+                    self.active_summary.set("CONEXÃO NÃO CONFIRMADA | Dados anteriores somente para consulta. Atualize o inventário antes de controlar portas.")
                     self.status.set("Operação não concluída: " + result)
                     messagebox.showerror("Integração", result, parent=self)
                 self._selection()
@@ -278,6 +316,8 @@ class IntegrationWindow(tk.Toplevel):
         self.after(80, self._drain)
 
     def _connect(self):
+        if self._busy:
+            return
         profile = self._profiles.get(self.profile_var.get())
         if not profile:
             return
@@ -286,9 +326,16 @@ class IntegrationWindow(tk.Toplevel):
                         known_hosts=self.known_hosts_var.get().strip(),
                         allowed_access_ports=self.allowed_var.get().strip(),
                         password=self.password_var.get(), ca_file=self.ca_var.get().strip())
+        self._disconnect()
+        self.password_var.set("")
         def connect():
             session = self.manager.connect(profile["id"], **settings)
-            return session, session.snapshot()
+            try:
+                return session, session.snapshot()
+            except Exception:
+                if callable(getattr(session, "close", None)):
+                    session.close()
+                raise
         def connected(value):
             self.session, snapshot = value
             self._show(snapshot)
@@ -300,6 +347,8 @@ class IntegrationWindow(tk.Toplevel):
             self._run(session.snapshot, self._show, "Atualizando inventário")
 
     def _show(self, snapshot):
+        self._stale = False
+        self._last_snapshot = monotonic()
         self.snapshot = snapshot
         self._row_data = {}
         children = self.table.get_children()
@@ -308,7 +357,9 @@ class IntegrationWindow(tk.Toplevel):
         for iid, kind, record, values in inventory_rows(snapshot):
             self.table.insert("", "end", iid=iid, values=values)
             self._row_data[iid] = (kind, record)
-        self.active_summary.set(f"{snapshot.get('vendor', '')} | {snapshot.get('adapter', '')} | Recursos: {capability_text(snapshot.get('capabilities', {}))}")
+        target = getattr(self.session, "host", "")
+        target_text = f" | Equipamento: {target}" if isinstance(target, str) and target else ""
+        self.active_summary.set(f"{snapshot.get('vendor', '')} | {snapshot.get('adapter', '')}{target_text} | Recursos: {capability_text(snapshot.get('capabilities', {}))}")
         warnings = " | ".join(map(str, snapshot.get("warnings", [])))
         operation = snapshot.get("operation", {})
         message = operation.get("message", "Inventário atualizado. Nenhuma ação de configuração nesta consulta.")
@@ -326,6 +377,7 @@ class IntegrationWindow(tk.Toplevel):
             import json
             output = json.dumps(output, ensure_ascii=False, indent=2)
         dialog = tk.Toplevel(self)
+        self._detail_windows.append(dialog)
         dialog.title("LabGuard | Saída das consultas de inventário")
         dialog.geometry("900x550")
         dialog.configure(bg=BG)
@@ -339,11 +391,12 @@ class IntegrationWindow(tk.Toplevel):
     def _selection(self, _event=None):
         selection = self.table.selection()
         kind, port = self._row_data.get(selection[0], (None, {})) if selection else (None, {})
-        allowed = (not self._busy and kind == "port" and self.snapshot.get("capabilities", {}).get("port_control")
+        allowed = (not self._busy and self._inventory_fresh() and kind == "port" and self.snapshot.get("capabilities", {}).get("port_control")
                    and port.get("controllable", port.get("eligible", True)))
         state = "normal" if allowed else "disabled"
         self.off_button.configure(state=state)
         self.on_button.configure(state=state)
+        self.disconnect_button.configure(state="normal" if self.session and not self._busy else "disabled")
 
     def _set_port(self, enabled):
         if self._busy or not self.session:
@@ -352,11 +405,15 @@ class IntegrationWindow(tk.Toplevel):
         kind, port = self._row_data.get(selection[0], (None, {})) if selection else (None, {})
         if kind != "port" or not self.snapshot.get("capabilities", {}).get("port_control") or not port.get("controllable", port.get("eligible", True)):
             return
-        name = str(port.get("name", ""))
-        verb = "Ativar" if enabled else "Desativar"
-        if not messagebox.askyesno(f"{verb} porta", f"{verb} a porta {name}?\n\nDesativar corta toda a conectividade dos equipamentos nessa porta, incluindo a rede local. Não use em uplinks, trunks ou gerenciamento.\n\nA ação só é aceita para as portas autorizadas na conexão atual.", parent=self, icon="warning", default="no"):
+        if not self._inventory_fresh():
+            self.status.set("Atualize o inventário: a consulta está antiga ou a conexão não foi confirmada.")
             return
+        name = str(port.get("name", ""))
         session = self.session
+        target = getattr(session, "host", "equipamento conectado")
+        verb = "Ativar" if enabled else "Desativar"
+        if not messagebox.askyesno(f"{verb} porta", f"{verb} a porta {name} em {target}?\n\nDesativar corta toda a conectividade dos equipamentos nessa porta, incluindo a rede local. Não use em uplinks, trunks ou gerenciamento.\n\nA ação só é aceita para as portas autorizadas na conexão atual.", parent=self, icon="warning", default="no"):
+            return
         self._run(lambda: session.set_port_enabled(name, enabled), self._show, f"Alterando porta {name}")
 
     def _install_profile(self):
@@ -385,9 +442,62 @@ class IntegrationWindow(tk.Toplevel):
         if path.is_file():
             webbrowser.open(path.as_uri())
 
+    def _record_activity(self, _event=None):
+        self._last_activity = monotonic()
+
+    def _inventory_fresh(self):
+        return bool(self.session and not self._stale and monotonic() - self._last_snapshot <= INVENTORY_VALID_SECONDS)
+
+    def _check_idle(self):
+        if self._closed:
+            return
+        if self.session:
+            remaining = SESSION_IDLE_SECONDS - (monotonic() - self._last_activity)
+            if remaining <= 0 and not self._busy:
+                self._disconnect("Sessão encerrada por inatividade. Conecte novamente ao equipamento.")
+            else:
+                minutes = max(0, int(remaining + 59) // 60)
+                self.session_notice.set(f"Sessão administrativa: desconexão em até {minutes} min sem interação. Atualize consultas com mais de 60 s antes de controlar portas.")
+                self._selection()
+        self.after(5000, self._check_idle)
+
+    def _disconnect(self, reason="Sessão desconectada. Conecte novamente para consultar ou controlar o equipamento."):
+        self._generation += 1
+        session, self.session = self.session, None
+        if session and callable(getattr(session, "close", None)):
+            session.close()
+        self.password_var.set("")
+        self._stale = True
+        self._last_snapshot = 0.0
+        self.snapshot = {}
+        self._row_data = {}
+        for dialog in self._detail_windows:
+            try:
+                dialog.destroy()
+            except tk.TclError:
+                pass
+        self._detail_windows = []
+        children = self.table.get_children()
+        if children:
+            self.table.delete(*children)
+        self.raw_button.configure(state="disabled")
+        self.refresh_button.configure(state="disabled")
+        self.off_button.configure(state="disabled")
+        self.on_button.configure(state="disabled")
+        self.disconnect_button.configure(state="disabled")
+        self.active_summary.set("Nenhum equipamento conectado.")
+        self.session_notice.set("Sessão encerrada. Credenciais da conexão não são salvas em disco.")
+        self.status.set(reason)
+
     def close(self):
         self._closed = True
-        self.password_var.set("")
-        self.session = None
+        self._disconnect()
+        while not self._results.empty():
+            try:
+                _, ok, result, _ = self._results.get_nowait()
+                if ok and isinstance(result, tuple) and result and callable(getattr(result[0], "close", None)):
+                    result[0].close()
+            except queue.Empty:
+                break
         self._executor.shutdown(wait=False, cancel_futures=True)
         self.destroy()

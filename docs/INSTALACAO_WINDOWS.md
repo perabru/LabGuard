@@ -8,7 +8,7 @@
 
 O instalador inclui o Python e os componentes gráficos necessários. Não é preciso instalar Python para executar o painel. A conexão SSH com gateway e equipamentos compatíveis usa o **Cliente OpenSSH do Windows**, que pode ser habilitado em Configurações → Recursos opcionais.
 
-O pacote é para Windows 10/11 x64. Não há assinatura de código comercial nesta versão; confira a origem do download e o SHA-256 publicado. Não desative o antivírus ou as políticas do colégio para executar um arquivo.
+O painel é para Windows 10/11 x64, incluindo instalações de Windows Server com Desktop Experience compatível. Para execução em servidor sem interface gráfica, use o pacote próprio abaixo. Não há assinatura de código comercial nesta versão; confira a origem do download e o SHA-256 publicado. Não desative o antivírus ou as políticas do colégio para executar um arquivo.
 
 ## Conectar à rede do laboratório
 
@@ -24,6 +24,21 @@ O arquivo `LabGuard-Portable.zip` contém a pasta `LabGuard`. Extraia a pasta in
 
 Use Configurações → Aplicativos → LabGuard → Desinstalar. Isso remove o painel e os atalhos instalados, sem remover regras do gateway nem configurações de equipamentos externos. Perfis personalizados na pasta do usuário não são apagados automaticamente.
 
+## Servidor Windows sem interface gráfica
+
+O arquivo `LabGuard-Server-Windows.zip` contém `LabGuardServer.exe`, o runtime e os scripts de instalação de serviço. Ele oferece administração por um painel web local e pode iniciar automaticamente com o Windows, usando uma conta de serviço restrita.
+
+Extraia todo o pacote. Em PowerShell elevado, na pasta `LabGuardServer`:
+
+```powershell
+./LabGuardServer.exe --self-test --output "$env:TEMP/labguard-server-check.json"
+./server/install-server.ps1
+```
+
+A instalação não inicia a operação real antes de configurar o gateway. Os tokens de administração devem ser guardados somente pelos responsáveis. O servidor escuta em `127.0.0.1` por padrão e não instala automaticamente regras de firewall/DNS no Windows. Leia [o guia de servidores](SERVIDORES.md) para configurar credenciais, iniciar, parar e remover o serviço.
+
+O pacote é compilado em Windows x64. A validação automatizada executa a instalação como serviço nativo do SCM em um Windows descartável, em modo de demonstração, sem atuar na rede de um colégio. As versões específicas de Windows Server usadas pelo colégio precisam de validação local; o CI não é uma certificação de todas as edições.
+
 ## Como o executável é gerado
 
 O repositório inclui um fluxo de compilação no GitHub Actions. Ele executa os testes em Linux e Windows, empacota com PyInstaller, cria o instalador com Inno Setup e verifica a instalação em um ambiente Windows descartável. Só depois publica os arquivos na versão correspondente.
@@ -32,10 +47,10 @@ Para compilar manualmente em um Windows x64 com Python 3.12 e Inno Setup instala
 
 ```powershell
 python -m pip install -r requirements-build.txt
-./scripts/build_windows.ps1 -Version 1.3.0
+./scripts/build_windows.ps1 -Version 1.4.0
 ```
 
-Os resultados ficam em `dist/release/`: instalador, ZIP portátil e somas SHA-256. O empacotamento precisa ser feito em Windows; o PyInstaller não transforma uma compilação Linux em um aplicativo Windows.
+Os resultados ficam em `dist/release/`: instalador, ZIP portátil do painel e ZIP de servidor. O fluxo publica as somas SHA-256 após os testes das duas plataformas. O empacotamento precisa ser feito em Windows; o PyInstaller não transforma uma compilação Linux em um aplicativo Windows.
 
 ## Referências de empacotamento
 

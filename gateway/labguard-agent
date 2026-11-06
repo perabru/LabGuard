@@ -2,4 +2,5 @@
 # Fixed privileged entrypoint: caller cannot add arguments or environment options.
 set -eu
 [ "$#" -eq 0 ] || { echo 'Argumentos não permitidos.' >&2; exit 64; }
+umask 077
 exec /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/python3 -I /opt/labguard/agent.py --config /etc/labguard/config.json
