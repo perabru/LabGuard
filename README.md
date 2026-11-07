@@ -59,7 +59,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A versão **2.1.0** está em validação dos pacotes nativos. Inclui leitura local mais resiliente, resumo de evidências e orientação para completar a identificação. A publicação depende dos testes Windows/Linux; acompanhe a [página de versões](https://github.com/perabru/LabGuard/releases) e a [validação](docs/VALIDACAO.md).
+A [versão 2.1.0 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.1.0), com identificação resiliente e interface simplificada. Foram aprovados 344 testes no Linux, 300 no Windows, coleta CIM/ARP real no Windows PowerShell 5.1 e instalação, abertura e serviços nativos. Confira a [validação](docs/VALIDACAO.md) e os hashes do lançamento.
 
 ## Documentação e legado
 

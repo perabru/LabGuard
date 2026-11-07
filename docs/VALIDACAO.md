@@ -1,6 +1,12 @@
 # Validação da versão 2.1.0
 
-Preparada em 7 de novembro de 2026. A identificação local, o resumo de evidências e a interface foram revisados. Os pacotes desta versão dependem da compilação e dos testes nativos; a execução verificada será registrada aqui após a publicação.
+Publicada em 7 de novembro de 2026. O [fluxo completo Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/42384743010) passou para o commit `8f6141d5c0388dfe13fbdcd40447d7ce49824843`. A [versão 2.1.0](https://github.com/perabru/LabGuard/releases/tag/v2.1.0) contém seis pacotes desktop/servidor, autotestes e somas SHA-256.
+
+Passaram **344 testes** localmente e no Linux CI e **300 testes compatíveis com Windows**. O Windows PowerShell 5.1 validou os coletores no parser e executou CIM/ARP locais reais com falha do método primário forçada; nenhuma capacidade de alteração foi exposta. Instalação, abertura gráfica e serviços SCM/systemd passaram nos sistemas nativos.
+
+O [Pages](https://github.com/perabru/LabGuard/actions/runs/42384743008) publicou site/manual 2.1.0. O manual mantém 15 páginas e 14 capítulos, com renderização e revisão visual. A interface foi conferida em 1240×820 e 1000×700, incluindo conflitos, registros duplicados e falha mantendo dados antigos.
+
+O instalador Windows foi verificado por hash do artefato, CRC do ZIP, SHA-256 interno, estrutura PE e autotestes. SHA-256 do EXE: `fed1e22bbaec63dec05a6a5ce052c41f29b4975ffcc51d73fb4ee395879358aa`. Nenhum equipamento do colégio foi acessado; os testes não comprovam descoberta universal ou homologação no hardware escolar.
 
 O inventário continua parcial: contagens de endereços não são uma medida de todas as máquinas físicas nem de pessoas. Leituras recentes confirmam a coleta, não a presença atual de cada cliente. A nova interface deve identificar fontes, dados antigos, lacunas e conflitos, mantendo os controles dependentes de permissões e capacidades reais.
 
