@@ -1,16 +1,16 @@
-# LabGuard 2.1.0 - Manual do usuário
+# LabGuard 2.2.0 - Manual do usuário
 
 Começar na rede existente, conectar um controlador e conferir cada resultado.
 
-Edição 2.1.0 | 7 de novembro de 2026
+Edição 2.2.0 | 7 de novembro de 2026
 
-Este manual acompanha a interface 2.1.0, com identificação orientada pelas fontes disponíveis e ajuda de diagnóstico. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote 1.4 não contém automaticamente as funções descritas aqui.
+Este manual acompanha a interface 2.2.0, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
 
 ## 1. Primeiro uso em cinco passos
 
-O LabGuard começa em **Observação**, com informações reais que o sistema local consegue consultar. Esse primeiro contato não pede senha do roteador e não altera o caminho da rede.
+Na primeira abertura, o LabGuard começa em **Observação**, com informações reais que o sistema local consegue consultar. Esse primeiro contato não pede senha do roteador e não altera o caminho da rede.
 
-1. Baixe o pacote correto na [página de versões](https://github.com/perabru/LabGuard/releases), conferindo versão e arquivo de verificação da mesma publicação.
+1. Instale o pacote 2.2.0 na [página de versões](https://github.com/perabru/LabGuard/releases), conferindo versão e arquivo de verificação da mesma publicação. A primeira migração da 2.1 ou anterior é manual para obter o atualizador; depois, siga o capítulo 15.
 2. Abra o programa. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`. No Windows, use também o inicializador do projeto. No Debian/Ubuntu, o Tk está no pacote `python3-tk`.
 3. Na tela **Início**, mantenha **Observação** e use **Identificar minha rede**. Não precisa instalar gateway Linux nem trocar cabos para consultar os dados locais.
 4. Abra **Dispositivos** e confira os endereços disponíveis. A lista reúne evidências do sistema; não garante descobrir todas as máquinas ligadas ao switch.
@@ -93,7 +93,7 @@ O certificado deve incluir o IP utilizado em um campo SAN de tipo IP e encadear 
 
 Na seção avançada, a lista de interfaces WAN começa em `WAN`; ela deve corresponder à lista real do roteador. Informe a rede do laboratório quando a identificação por DHCP for insuficiente ou houver múltiplas redes. Resolva ambiguidades antes de aplicar regras.
 
-Cadastre os endereços administrativos como protegidos. Não coloque senha no endereço, no nome do equipamento ou em relatórios. No painel, ela pertence à sessão.
+Cadastre os endereços administrativos como protegidos. Não coloque senha no endereço, no nome do equipamento ou em relatórios. No desktop, a senha pertence à sessão, salvo a opção explícita de guardá-la no cofre do Windows. Ela não é salva no JSON de preferências.
 
 ## 5. Habilitar controle corretamente
 
@@ -243,7 +243,7 @@ Para modem Vivo sem API compatível documentada, mantenha Observação e use adm
 
 O servidor roda sem Tk e oferece painel web local em `http://127.0.0.1:8765/`. O padrão é observação/controlador, sem exigir gateway Linux no caminho do tráfego.
 
-A CLI mantém `init` e `run` com diretório de configuração. O arquivo de configuração seleciona `controller.kind`: `observation` para consulta local ou `routeros` para API compatível. A senha fica somente no arquivo privado de segredos, no campo `controller_password`; não deve ser inserida no JSON público de configuração.
+A CLI mantém `init` e `run` com diretório de configuração. O arquivo de configuração seleciona `controller.kind`: `observation` para consulta local ou `routeros` para API compatível. No servidor, a senha fica somente no arquivo privado de segredos, no campo `controller_password`; não deve ser inserida no JSON público de configuração. Esse é um fluxo separado das preferências do desktop e de seu cofre opcional.
 
 Pelo código-fonte, inicialize e execute em um diretório privado:
 
@@ -336,6 +336,7 @@ O [guia completo de diagnóstico](DIAGNOSTICO_DA_REDE.md) detalha os comandos e 
 3. Aplique e retire um domínio de teste; bloqueie e desbloqueie um IP quando o controlador permitir. Confira separadamente qualquer regra por MAC.
 4. Teste a proteção administrativa e confira que um requisito ausente mantém a ação indisponível.
 5. Atualize, teste após reinício e registre o resultado real. Teste simulado ou compilação não substitui homologação no equipamento.
+6. Se usar acesso lembrado, reabra o aplicativo e confirme a sessão somente de consulta e nenhuma aplicação automática de listas.
 
 ### Referências e suporte
 
@@ -345,3 +346,30 @@ O [guia completo de diagnóstico](DIAGNOSTICO_DA_REDE.md) detalha os comandos e 
 - [Microsoft: configuração do WinRM](https://learn.microsoft.com/en-us/windows/win32/winrm/installation-and-configuration-for-windows-remote-management).
 
 Para suporte, informe versão, sistema, modo, modelo/firmware e categoria da falha. Não inclua senhas, tokens ou chaves privadas.
+
+## 15. Atualizações e início automático {#atualizacoes-e-inicio}
+
+### Atualizar sem interromper a aula
+
+A primeira instalação da 2.2 é manual: versões anteriores não tinham o motor de atualização. Depois, no **Windows instalado por usuário**, novas versões podem ser preparadas e aplicadas sem repetir a instalação manual.
+
+1. Abra **Detalhes e recursos → Atualizações do programa**.
+2. Mantenha a opção **Atualizações automáticas** habilitada. Use **Verificar atualização** para solicitar uma consulta.
+3. Continue usando o programa enquanto ele verifica e prepara o pacote em segundo plano.
+4. Quando a atualização estiver preparada, feche o programa normalmente. A aplicação ocorre nesse encerramento, na mesma pasta e para o mesmo usuário. O processo não fecha outros programas nem reinicia o Windows. O LabGuard permanece fechado; a próxima abertura usa a nova versão.
+
+Operação ou download em curso adia a aplicação. Falhas de consulta, download ou validação preservam a instalação atual. Se o instalador falhar durante a aplicação, peça conferência à TI.
+
+**Outros pacotes:** Windows portátil, Linux, `.deb` e servidor mantêm atualização manual ou administrada pela TI, sem elevação automática. Fonte, desenvolvimento e Demonstração não instalam automaticamente.
+
+O pacote oficial é conferido por HTTPS, manifesto, tamanho e SHA256. Isso verifica integridade; não é assinatura independente do autor.
+
+### Lembrar um acesso ao roteador
+
+1. Peça à TI que prepare o MikroTik, a conta e o certificado do capítulo 4. Abra **Acesso ao equipamento** e preencha a conexão.
+2. Escolha **Lembrar este acesso**. No Windows, marque **Salvar senha no cofre do Windows** se desejar persistir a credencial e **Conectar ao abrir (somente consulta)** para tentar a conexão no início.
+3. Conecte manualmente. As escolhas são salvas somente depois de uma conexão bem-sucedida.
+
+Na próxima abertura, a Observação começa primeiro; a opção salva tenta conectar uma vez em consulta. Se falhar, a Observação continua disponível. A senha fica no cofre do Windows, nunca no JSON de preferências. Sem cofre, conecte manualmente; não há armazenamento alternativo em texto simples.
+
+**Autorizar alterações neste roteador** vale somente para a sessão. Nenhuma lista de sites é aplicada ao abrir. Use **Esquecer acesso salvo** para remover perfil e credencial do cofre e confira o resultado; a conexão atual continua ativa. O servidor tem configuração própria, conforme o capítulo 11.

@@ -12,6 +12,7 @@ import queue
 import re
 import tempfile
 from time import monotonic
+from threading import Thread
 import tkinter as tk
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
@@ -207,7 +208,7 @@ def create_transport(kind="observation", **settings):
 
 
 class App(tk.Tk):
-    def __init__(self, transport=None):
+    def __init__(self, transport=None, *, updates_enabled=True):
         super().__init__()
         self.title("LabGuard | Sua rede, mais simples")
         self.geometry("1240x820")
@@ -228,13 +229,251 @@ class App(tk.Tk):
         self._map_windows = []
         self._last_error = ""
         self._diagnostics_window = None
+        self._updates_enabled = updates_enabled is True
+        self._demo_requested = bool(transport is not None and (getattr(transport, "kind", "") == "demo" or getattr(transport, "mode", "") == "demo"))
+        self._startup_observation_pending = transport is None
+        self._startup_attempted = False
+        self._auto_connect_in_progress = False
+        self._restore_id = None
+        self._load_local_options()
         self._banks = PolicyBankSelection(Path.home()/".labguard"/"banlists")
         self._style()
         self._build()
         self.protocol("WM_DELETE_WINDOW", self.close)
         self._drain_id = self.after(70, self._drain)
-        self._initial_id = self.after(100, self.refresh if transport is not None else self._observe)
+        self._initial_id = self.after(100, self.refresh if transport is not None else lambda:self._observe(_startup=True))
         self._tick_id = self.after(5000, self._tick)
+        self._updates_id = self.after(1500, self._automatic_update_check)
+
+    def _load_local_options(self):
+        self._preferences = {"schema": 1, "auto_updates": True, "auto_connect": False, "saved_router": None}
+        self._preference_store = self._credential_store = None
+        self._vault_available = False
+        self._startup_message = "Ao abrir, a observação da rede começa automaticamente."
+        try:
+            from .preferences import PreferenceStore
+            self._preference_store = PreferenceStore()
+            self._preferences = self._preference_store.load()
+        except Exception:
+            # Um arquivo ilegível pode conter uma escolha anterior de opt-out.
+            # A primeira execução normal continua com o padrão do PreferenceStore.
+            self._preferences["auto_updates"] = False
+            self._startup_message = "Preferências não confirmadas. A observação da rede permanece disponível."
+        try:
+            from .credential_store import CredentialStore
+            self._credential_store = CredentialStore()
+            self._vault_available = self._credential_store.available() is True
+        except Exception:pass
+        self._update_manager = None
+        self._update_installation = {"supported": False, "auto_apply": False}
+        self._update_message = "Atualizações indisponíveis nesta execução."
+        self._update_results = queue.Queue()
+        self._update_generation = 0; self._update_busy = False
+        self._update_thread = None; self._prepared_update = None
+        self._update_start_pending = True
+        self._new_update_manager()
+
+    def _new_update_manager(self):
+        try:
+            from . import __version__
+            from .updater import UpdateManager
+            self._update_manager = UpdateManager(__version__)
+            self._update_installation = self._update_manager.installation_status()
+            self._update_message = self._update_installation.get("message", "Atualizações indisponíveis nesta edição.")
+        except Exception:
+            self._update_manager = None
+            self._update_installation = {"supported": False, "auto_apply": False}
+            self._update_message = "A verificação de atualizações não está disponível. O aplicativo pode continuar em uso."
+
+    def _updates_allowed(self, *, manual=False):
+        if (not self.__dict__.get("_updates_enabled", False) or self.__dict__.get("_demo_requested", False)
+                or self.snapshot.get("mode") == "demo" or self.__dict__.get("_update_manager") is None):return False
+        status = self._update_installation
+        return status.get("supported") is True and (manual or
+            status.get("auto_apply") is True and self._preferences.get("auto_updates") is True)
+
+    def _render_background_options(self):
+        if "update_status" not in self.__dict__:return
+        demo = self.__dict__.get("_demo_requested", False) or self.snapshot.get("mode") == "demo"
+        message = self._update_message
+        if demo:message = "Demonstração: nenhuma verificação remota, download ou instalação será iniciada."
+        elif not self._updates_enabled:message = "Atualizações desativadas nesta execução. O programa pode continuar em uso."
+        elif not self._preferences.get("auto_updates") and self._update_installation.get("auto_apply"):
+            message = "Atualizações automáticas desligadas. " + message
+        self.update_status.set(message)
+        self.startup_status.set(self._startup_message)
+        self.update_checkbox.configure(state="normal" if self._updates_enabled and not demo and self._preference_store is not None else "disabled")
+        self.update_button.configure(state="normal" if self._updates_allowed(manual=True) and not self._update_busy else "disabled")
+
+    def _stop_update_manager(self):
+        if "_update_generation" not in self.__dict__:return
+        self._update_generation += 1; self._prepared_update = None; self._update_busy = False
+        manager, self._update_manager = self._update_manager, None
+        if manager is not None:
+            try:manager.close()
+            except Exception:pass
+        self._render_background_options()
+
+    def _save_update_preference(self):
+        if self._preference_store is None or self._demo_requested or self.snapshot.get("mode") == "demo":return
+        choice = self.auto_updates_var.get() is True
+        try:self._preferences = self._preference_store.save(dict(self._preferences, auto_updates=choice))
+        except Exception:
+            self.auto_updates_var.set(self._preferences.get("auto_updates") is True)
+            self._update_message = "A opção não pôde ser salva. Confira as permissões locais; nenhuma instalação será iniciada nesta tentativa."
+            self._stop_update_manager(); return
+        if not choice:self._stop_update_manager()
+        else:
+            self._update_start_pending = True
+            if self._update_manager is None:self._new_update_manager()
+        self._render_background_options()
+        if choice:self._automatic_update_check()
+
+    def _automatic_update_check(self):
+        if self._closed or not self._update_start_pending or not self._updates_allowed():return False
+        if self._check_for_updates(manual=False):self._update_start_pending = False; return True
+        return False
+
+    def _check_for_updates(self, *, manual=True):
+        if self._closed or not self._updates_enabled or self._demo_requested or self.snapshot.get("mode") == "demo":return False
+        if self._update_manager is None:self._new_update_manager()
+        if not self._updates_allowed(manual=manual):self._render_background_options(); return False
+        if self._update_busy or self._update_thread is not None and self._update_thread.is_alive():return False
+        manager, generation = self._update_manager, self._update_generation
+        self._update_busy = True; self._update_message = "Verificando a versão em segundo plano. A rede do laboratório continua disponível."
+        self._render_background_options()
+        def work():
+            try:
+                result = manager.check_update()
+                if (isinstance(result, dict) and result.get("state") == "available" and
+                        generation == self._update_generation and not self._closed and self._updates_allowed()):
+                    self._update_results.put((generation, "progress", {}))
+                    result = manager.stage_update(result)
+                if generation == self._update_generation and not self._closed:self._update_results.put((generation, "done", result))
+            except Exception:
+                if generation == self._update_generation and not self._closed:self._update_results.put((generation, "error", {}))
+        # A leitura de atualização nunca segura a saída do processo nem usa o worker do roteador.
+        self._update_thread = Thread(target=work, name="labguard-atualizacao", daemon=True)
+        self._update_thread.start(); return True
+
+    def _drain_update_results(self):
+        if "_update_results" not in self.__dict__ or self._closed:return
+        try:
+            while True:
+                generation, state, value = self._update_results.get_nowait()
+                if generation != self._update_generation:continue
+                if state == "progress":self._update_message = "Nova versão encontrada. Baixando e conferindo o pacote em segundo plano."
+                else:
+                    self._update_busy = False
+                    if state == "error":self._update_message = "Atualização não confirmada. Você pode continuar usando o programa e verificar novamente depois."
+                    elif isinstance(value, dict) and value.get("state") == "prepared" and value.get("can_apply") is True and value.get("auto_apply") is True and isinstance(value.get("prepared_id"), str) and self._updates_allowed():
+                        self._prepared_update = value
+                        self._update_message = "Atualização conferida e pronta. Será aplicada ao encerrar, sem interromper o uso atual."
+                    elif isinstance(value, dict) and value.get("state") == "current":self._update_message = "O programa está na versão disponível."
+                    elif isinstance(value, dict) and value.get("state") == "available":self._update_message = "Nova versão disponível. Esta consulta não instalou nem executou um pacote."
+                    else:self._update_message = "A atualização automática não está disponível nesta edição. O programa pode continuar em uso."
+                self._render_background_options()
+        except queue.Empty:pass
+
+    def _schedule_update_on_close(self):
+        if (not self.__dict__.get("_prepared_update") or self._busy or self._update_busy or not self._updates_allowed()):return False
+        if any((getattr(child, "_busy", False) or getattr(child, "_syncing", False)) for child in self.winfo_children() if isinstance(child, tk.Toplevel)):return False
+        try:return self._update_manager.schedule_apply(self._prepared_update, os.getpid(), consent=True) is True
+        except Exception:return False
+
+    def _set_startup_message(self, message):
+        self._startup_message = message
+        if "startup_status" in self.__dict__:self.startup_status.set(message)
+
+    def _disable_saved_autoconnect(self):
+        self._cancel_saved_startup()
+        if not self.__dict__.get("_preferences", {}).get("auto_connect") or self._preference_store is None:return
+        try:
+            self._preferences = self._preference_store.save(dict(self._preferences, auto_connect=False))
+            self._set_startup_message("Conexão automática desativada. O perfil continua salvo sem autorização de alterar regras.")
+        except Exception:self._set_startup_message("Não foi possível salvar a opção. Confira as permissões locais antes de encerrar.")
+
+    def _remember_choice_changed(self):
+        if not self.remember_profile_var.get():self.auto_connect_var.set(False); self._disable_saved_autoconnect()
+
+    def _auto_connect_choice_changed(self):
+        if not self.auto_connect_var.get():self._disable_saved_autoconnect()
+
+    def _forget_saved_access(self):
+        if self._preference_store is None or self._demo_requested or self.snapshot.get("mode") == "demo":return False
+        self._cancel_saved_startup()
+        old = self._preferences.get("saved_router")
+        vault_ok = True
+        if old and self._credential_store is not None:
+            try:self._credential_store.delete(old)
+            except Exception:vault_ok = False
+        try:self._preferences = self._preference_store.save(dict(self._preferences, auto_connect=False, saved_router=None))
+        except Exception:
+            self._set_startup_message("A remoção do acesso salvo não foi confirmada. Confira as permissões locais."); return False
+        self._startup_observation_pending = False
+        self.remember_profile_var.set(False); self.auto_connect_var.set(False); self.store_password_var.set(False)
+        self._set_startup_message("Acesso salvo removido. A conexão atual não foi alterada." if vault_ok else
+            "Autoconexão e referência removidas; a remoção da senha no cofre não foi confirmada. Confira o cofre com a TI.")
+        return True
+
+    def _remember_successful_router(self, settings, options):
+        if options is None or self._preference_store is None:return
+        if not options["remember"]:
+            if self._preferences.get("saved_router"):self._forget_saved_access()
+            return
+        try:
+            from .preferences import normalize_router_profile
+            public = {key: settings.get(key) for key in ("host", "port", "user", "ca_file", "lab_cidr", "wan_interface_list")}
+            public.update(protected_ips=settings.get("protected_ips") or [], protected_macs=settings.get("protected_macs") or [])
+            profile = normalize_router_profile(public)
+            old = self._preferences.get("saved_router")
+            saved_password = False
+            if options["store_password"] and self._vault_available:
+                self._credential_store.store(profile, settings.get("password", "")); saved_password = True
+            elif options["auto_connect"] and self._vault_available:
+                existing = self._credential_store.load(profile)
+                saved_password = bool(existing and existing == settings.get("password"))
+            automatic = bool(options["auto_connect"] and saved_password)
+            self._preferences = self._preference_store.save(dict(self._preferences, saved_router=profile, auto_connect=automatic))
+            # O alvo do cofre depende apenas de endereço, porta e usuário. Alterar
+            # CA ou a rede do laboratório não deve apagar a senha recém-salva.
+            identity = lambda item: tuple(item.get(key) for key in ("host", "port", "user"))
+            if old and identity(old) != identity(profile) and self._credential_store is not None:
+                try:self._credential_store.delete(old)
+                except Exception:pass
+            self.auto_connect_var.set(automatic)
+            self._set_startup_message("Acesso salvo. Ao abrir, haverá uma tentativa somente de consulta; alterar regras sempre exige escolha nesta sessão." if automatic else
+                "Perfil salvo sem conexão automática. Para ativá-la, escolha o cofre e Conectar ao abrir antes de reconectar.")
+        except Exception:self._set_startup_message("A conexão funcionou, mas o acesso salvo não foi confirmado. Nenhuma autorização de alterar regras foi gravada.")
+
+    def _queue_saved_startup(self):
+        if not self.__dict__.get("_startup_observation_pending", False):return
+        self._startup_observation_pending = False
+        if self._demo_requested or not self._preferences.get("auto_connect"):return
+        self._restore_id = self.after_idle(self._restore_saved_connection)
+
+    def _restore_saved_connection(self):
+        if self._closed or self._startup_attempted:return False
+        self._startup_attempted = True
+        if self._busy or self._demo_requested or self.snapshot.get("mode") != "observation":return False
+        profile = self._preferences.get("saved_router")
+        if not self._preferences.get("auto_connect") or not isinstance(profile, dict) or not self._vault_available:
+            self._set_startup_message("Acesso automático indisponível. A observação permanece disponível; conecte manualmente quando necessário."); return False
+        try:password = self._credential_store.load(profile)
+        except Exception:password = None
+        if not password:
+            self._set_startup_message("Senha não disponível no cofre. A observação permanece ativa; conecte manualmente para conferir o acesso."); return False
+        settings = dict(profile, password=password, manage_rules=False)
+        self.manage_var.set(False)
+        def failed(category):
+            self._auto_connect_in_progress = False
+            self._set_startup_message("O acesso salvo não conectou. A observação local permanece disponível; confira o perfil em Acesso ao equipamento.")
+            self.status.set(self._startup_message)
+        self._set_startup_message("Conectando o perfil salvo somente para consulta. Nenhuma lista ou regra será aplicada.")
+        self.profile_var.set("Controlar MikroTik via HTTPS"); self._profile_changed()
+        self.port_var.set(str(profile["port"]))
+        self._auto_connect_in_progress = True
+        return self._start_transport("routeros", settings, authorized=False, on_error=failed)
 
     def _style(self):
         installed = set(tkfont.families(self))
@@ -271,7 +510,7 @@ class App(tk.Tk):
         IconBadge(header, kind="shield", color=PURPLE, tint="#EEE7FD", size=40).pack(side="left", padx=(0, 10))
         brand = tk.Frame(header, bg=PANEL); brand.pack(side="left")
         self._label(brand, "LabGuard", bg=PANEL, fg=TEXT, font=(self.font_family, 19, "bold")).pack(anchor="w")
-        self._label(brand, "CONTROLE ESCOLAR · 2.1", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
+        self._label(brand, "CONTROLE ESCOLAR · 2.2", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
         ActionButton(header, text="Outros equipamentos", command=self._open_integrations, height=38).pack(side="right")
         ActionButton(header, text="Mapa e relatórios", command=self._open_network_map, style="Yellow.TButton", height=38).pack(side="right", padx=9)
         nav = tk.Frame(self, bg=BG, padx=23, pady=12); nav.grid(row=1, column=0, sticky="ew")
@@ -347,6 +586,9 @@ class App(tk.Tk):
         self.host_var, self.port_var = tk.StringVar(), tk.StringVar(value="443")
         self.user_var, self.password_var = tk.StringVar(), tk.StringVar()
         self.ca_var, self.key_var, self.known_hosts_var = tk.StringVar(), tk.StringVar(), tk.StringVar()
+        saved = self._preferences.get("saved_router") or {}
+        self.host_var.set(saved.get("host", "")); self.port_var.set(str(saved.get("port", 443)))
+        self.user_var.set(saved.get("user", "")); self.ca_var.set(saved.get("ca_file", ""))
         self.fields_frame = tk.Frame(body, bg=PANEL); self.fields_frame.columnconfigure(1, weight=1)
         self._field_widgets = {}
         fields = [("host", "Endereço do roteador", self.host_var), ("port", "Porta", self.port_var),
@@ -367,6 +609,9 @@ class App(tk.Tk):
         self.advanced_frame = tk.Frame(body, bg=PANEL); self.advanced_frame.columnconfigure(1, weight=1)
         self.wan_var = tk.StringVar(value="WAN"); self.cidr_var = tk.StringVar()
         self.protected_ips_var = tk.StringVar(); self.protected_macs_var = tk.StringVar()
+        self.wan_var.set(saved.get("wan_interface_list", "WAN")); self.cidr_var.set(saved.get("lab_cidr", ""))
+        self.protected_ips_var.set(", ".join(saved.get("protected_ips", [])))
+        self.protected_macs_var.set(", ".join(saved.get("protected_macs", [])))
         for row, (label, variable) in enumerate((("Lista de interfaces WAN", self.wan_var), ("Rede do laboratório", self.cidr_var), ("IPs protegidos (vírgula)", self.protected_ips_var), ("MACs protegidos (vírgula)", self.protected_macs_var))):
             self._label(self.advanced_frame, label, bg=PANEL).grid(row=row, column=0, sticky="w", padx=(0, 9), pady=4)
             ttk.Entry(self.advanced_frame, textvariable=variable, style="Compact.TEntry").grid(row=row, column=1, sticky="ew", pady=4)
@@ -374,7 +619,21 @@ class App(tk.Tk):
         self.consent_row = tk.Frame(body, bg=PANEL)
         tk.Checkbutton(self.consent_row, text="Autorizar alterações neste roteador", variable=self.manage_var,
                        bg=PANEL, activebackground=PANEL, fg=TEXT, anchor="w", selectcolor=PANEL).pack(fill="x")
-        self._label(self.consent_row, "Permite aplicar bloqueios usando a API. Desmarcado: somente consulta. A senha fica apenas nesta sessão.", bg=PANEL, font=(self.font_family, 8)).pack(fill="x", pady=(2, 5))
+        self._label(self.consent_row, "Permite aplicar bloqueios usando a API. Desmarcado: somente consulta. Por padrão, a senha fica nesta sessão; o cofre abaixo é opcional.", bg=PANEL, font=(self.font_family, 8)).pack(fill="x", pady=(2, 5))
+        self.startup_frame = tk.Frame(body, bg=PANEL)
+        self.remember_profile_var = tk.BooleanVar(value=bool(saved))
+        self.store_password_var = tk.BooleanVar(value=False)
+        self.auto_connect_var = tk.BooleanVar(value=bool(self._preferences.get("auto_connect") and self._vault_available))
+        tk.Checkbutton(self.startup_frame, text="Lembrar este acesso", variable=self.remember_profile_var,
+            command=self._remember_choice_changed, bg=PANEL, activebackground=PANEL, fg=TEXT, anchor="w").pack(fill="x")
+        tk.Checkbutton(self.startup_frame, text="Salvar senha no cofre do Windows", variable=self.store_password_var,
+            state="normal" if self._vault_available else "disabled", bg=PANEL, activebackground=PANEL, fg=TEXT, anchor="w").pack(fill="x")
+        tk.Checkbutton(self.startup_frame, text="Conectar ao abrir (somente consulta)", variable=self.auto_connect_var,
+            command=self._auto_connect_choice_changed, state="normal" if self._vault_available else "disabled",
+            bg=PANEL, activebackground=PANEL, fg=TEXT, anchor="w").pack(fill="x")
+        self._label(self.startup_frame, "As opções são salvas após Conectar com sucesso. A autorização de alterar regras nunca é lembrada." +
+            ("" if self._vault_available else " Cofre indisponível: preencha a senha ao conectar; não há armazenamento em texto."), bg=PANEL, font=(self.font_family, 8)).pack(fill="x", pady=(4, 6))
+        ActionButton(self.startup_frame, text="Esquecer acesso salvo", command=self._forget_saved_access, height=34).pack(anchor="w", pady=(0, 7))
         self.connect_bar = tk.Frame(body, bg=PANEL); self.connect_bar.pack(fill="x", pady=(8, 0))
         self.connect_button = ActionButton(self.connect_bar, text="Identificar minha rede", command=self._connect, style="Accent.TButton")
         self.connect_button.pack(side="left")
@@ -406,6 +665,19 @@ class App(tk.Tk):
             label.pack(fill="x", pady=5); self.capability_labels[key] = label
         self.connection_note = tk.StringVar(value="Modelo/API necessários para bloquear.")
         self._label(self.details_panel, textvariable=self.connection_note).pack(fill="x", pady=12)
+        options = RoundCard(self.details_panel, padding=17); options.pack(fill="x", pady=(0, 10))
+        self._label(options.body, "Atualizações do programa", bg=PANEL, fg=TEXT, font=(self.font_family, 12, "bold")).pack(fill="x")
+        self.auto_updates_var = tk.BooleanVar(value=self._preferences.get("auto_updates") is True)
+        self.update_checkbox = tk.Checkbutton(options.body, text="Atualizações automáticas", variable=self.auto_updates_var,
+            command=self._save_update_preference, bg=PANEL, activebackground=PANEL, fg=TEXT, anchor="w")
+        self.update_checkbox.pack(fill="x", pady=(8, 5))
+        self.update_status = tk.StringVar(value=self._update_message)
+        self._label(options.body, textvariable=self.update_status, bg=PANEL).pack(fill="x")
+        self._label(options.body, "No Windows instalado por usuário, o pacote validado é preparado em segundo plano e aplicado ao encerrar. O programa não fecha nem reinicia sozinho.", bg=PANEL, font=(self.font_family, 8)).pack(fill="x", pady=(5, 8))
+        self.update_button = ActionButton(options.body, text="Verificar atualização", command=self._check_for_updates, height=36)
+        self.update_button.pack(anchor="w")
+        self.startup_status = tk.StringVar(value=self._startup_message)
+        self._label(options.body, textvariable=self.startup_status, bg=PANEL).pack(fill="x", pady=(11, 0))
         panels = tk.Frame(action_card.body, bg=PANEL); panels.pack(fill="x", pady=(12, 0))
         self.admin_toggle_button = ActionButton(panels, text="Acesso ao equipamento", command=self._toggle_admin, height=37)
         self.admin_toggle_button.pack(side="left")
@@ -415,6 +687,7 @@ class App(tk.Tk):
         ActionButton(more, text="Abrir demonstração", command=self._switch_demo, height=36).pack(side="left")
         ActionButton(more, text="Manual do usuário", command=self._open_manual, height=36).pack(side="left", padx=8)
         self._profile_changed()
+        self._render_background_options()
 
     def _table(self, parent, columns, titles):
         parent.columnconfigure(0, weight=1); parent.rowconfigure(0, weight=1)
@@ -493,10 +766,11 @@ class App(tk.Tk):
             button.configure(face=PURPLE if key == name else "#EEE8FA", fg="white" if key == name else PURPLE)
 
     def _profile_changed(self, _event=None):
+        if _event is not None:self._cancel_saved_startup()
         kind = PROFILE_KINDS[self.profile_var.get()]
         self.password_var.set(""); self.manage_var.set(False)
         self.fields_frame.pack_forget(); self.advanced_button.pack_forget()
-        self.advanced_frame.pack_forget(); self.consent_row.pack_forget()
+        self.advanced_frame.pack_forget(); self.consent_row.pack_forget(); self.startup_frame.pack_forget()
         hints = {"observation": "Funciona na rede atual, sem senha de roteador. Mostra vizinhos conhecidos e a rota padrão; não bloqueia a internet.",
             "routeros": "Controle direto de MikroTik com API REST HTTPS já habilitada. Certificado validado; nenhuma configuração é ativada automaticamente.",
             "integration": "Consulte os perfis disponíveis para TP-Link, Cisco, OpenWrt e outros. Recursos variam por modelo e firmware.",
@@ -510,6 +784,7 @@ class App(tk.Tk):
                 for widget in widgets: widget.grid() if name in visible else widget.grid_remove()
             if kind == "routeros":self.advanced_button.pack(anchor="w", before=self.connect_bar, pady=(0, 8))
             self.consent_row.pack(fill="x", before=self.connect_bar)
+            if kind == "routeros":self.startup_frame.pack(fill="x", before=self.connect_bar, pady=(7, 0))
         self.connect_button.configure(text="Identificar minha rede" if kind == "observation" else "Ver equipamentos" if kind == "integration" else "Conectar")
 
     def _toggle_home_panel(self, panel, button, label):
@@ -536,6 +811,7 @@ class App(tk.Tk):
         if path:variable.set(path)
 
     def _connect(self):
+        self._cancel_saved_startup()
         kind = PROFILE_KINDS[self.profile_var.get()]
         if kind == "integration":return self._open_integrations()
         if kind == "observation":return self._observe()
@@ -551,17 +827,37 @@ class App(tk.Tk):
             "lab_cidr": self.cidr_var.get().strip(),
             "protected_ips": [x.strip() for x in self.protected_ips_var.get().split(",") if x.strip()] or None,
             "protected_macs": [x.strip() for x in self.protected_macs_var.get().split(",") if x.strip()] or None}
-        return self._start_transport(kind, settings, authorized=bool(settings["manage_rules"]))
+        choices = {}
+        for name, variable in (("remember", "remember_profile_var"), ("store_password", "store_password_var"), ("auto_connect", "auto_connect_var")):
+            option = self.__dict__.get(variable); choices[name] = bool(option.get()) if option is not None else False
+        self._demo_requested = False
+        return self._start_transport(kind, settings, authorized=bool(settings["manage_rules"]), remember_options=choices if kind == "routeros" else None)
 
-    def _observe(self):
+    def _observe(self, *, _startup=False):
+        if not _startup:self._cancel_saved_startup()
+        if self._busy:return False
+        self._demo_requested = False
         self.password_var.set(""); self.manage_var.set(False)
         return self._start_transport("observation", {}, authorized=False)
 
     def _switch_demo(self):
+        self._cancel_saved_startup()
+        if self._busy:return False
+        self._demo_requested = True; self._stop_update_manager()
         self.password_var.set(""); self.manage_var.set(False)
         return self._start_transport("demo", {}, authorized=True)
 
-    def _start_transport(self, kind, settings, *, authorized=False):
+    def _cancel_saved_startup(self):
+        self._startup_observation_pending = False
+        identifier = self.__dict__.get("_restore_id")
+        if identifier is not None:
+            try:self.after_cancel(identifier)
+            except tk.TclError:pass
+            self._restore_id = None
+        if self.__dict__.get("_auto_connect_in_progress", False):
+            self._auto_connect_in_progress = False; self._generation += 1; self._busy = False
+
+    def _start_transport(self, kind, settings, *, authorized=False, remember_options=None, on_error=None):
         if self._busy:return False
         def connect():
             transport = create_transport(kind, **settings)
@@ -571,14 +867,20 @@ class App(tk.Tk):
         def connected(value):
             old = self.transport; self.transport, snapshot = value
             self._close_transport(old); self._management_authorized = authorized
+            self._auto_connect_in_progress = False
             self.password_var.set("")
             for window in self._map_windows:
                 try:window.close()
                 except tk.TclError:pass
             self._map_windows.clear(); self._apply_snapshot(snapshot)
-        return self._run_job(connect, label="Lendo a rede local" if kind == "observation" else "Conectando perfil", on_success=connected, alert=kind not in {"observation", "demo"})
+            if kind == "routeros" and not self._snapshot_stale:
+                if on_error is not None:self._set_startup_message("Perfil salvo conectado somente para consulta. Nenhuma lista ou regra foi aplicada.")
+                else:self._remember_successful_router(settings, remember_options)
+            if "password" in settings:settings["password"] = ""
+        return self._run_job(connect, label="Lendo a rede local" if kind == "observation" else "Conectando perfil", on_success=connected,
+            alert=kind not in {"observation", "demo"} and on_error is None, on_error=on_error)
 
-    def _run_job(self, function, *, label, on_success=None, alert=False):
+    def _run_job(self, function, *, label, on_success=None, alert=False, on_error=None):
         if self._busy or self._closed:return False
         self._busy = True; self.status.set(label + "…"); self._refresh_mutation_controls()
         self.refresh_button.configure(state="disabled")
@@ -592,7 +894,7 @@ class App(tk.Tk):
                 self._results.put((generation, True, value, on_success, alert))
                 if (self._closed or generation != self._generation) and isinstance(value, tuple):
                     self._close_transport(value[0])
-            except Exception as error:self._results.put((generation, False, str(error), None, alert))
+            except Exception as error:self._results.put((generation, False, str(error), on_error, alert))
         self._executor.submit(work); return True
 
     def _drain(self):
@@ -606,17 +908,22 @@ class App(tk.Tk):
                 self._busy = False; self.refresh_button.configure(state="normal")
                 if ok:(callback or self._apply_snapshot)(value)
                 else:
-                    self._snapshot_stale = True; self.password_var.set("")
+                    self.password_var.set("")
                     from .diagnostics import classify_connection_error, safe_error_message
                     self._last_error = classify_connection_error(value) or "connection_error"
                     self.error_help_button.pack(side="right", padx=(0, 8), before=self.refresh_button)
                     safe_message = safe_error_message(self._last_error)
-                    self.status.set(safe_message)
+                    if callback:
+                        callback(self._last_error)
+                    else:
+                        self._snapshot_stale = True; self.status.set(safe_message)
                     self._render_home()
                     self._notify_diagnostics()
                     if alert:messagebox.showerror("Operação não confirmada", safe_message, parent=self)
+                    self._queue_saved_startup()
                 self._refresh_mutation_controls()
         except queue.Empty:pass
+        self._drain_update_results()
         self._drain_id = self.after(70, self._drain)
 
     def refresh(self):
@@ -627,6 +934,7 @@ class App(tk.Tk):
     def _tick(self):
         if self._closed:return
         self._refresh_mutation_controls(); self._render_home()
+        self._automatic_update_check()
         if not self._busy and monotonic() - self._last_snapshot_monotonic > 15:self.refresh()
         self._tick_id = self.after(5000, self._tick)
 
@@ -662,6 +970,8 @@ class App(tk.Tk):
         prefix = "Dados recebidos sem coleta recente confirmada: " if self._snapshot_stale else "Leitura recebida: "
         self.status.set(prefix + self._time(snapshot.get("timestamp")) + ". Consulte a fonte e a cobertura antes de agir." + bank_warning + (" " + self._banks.warning if self._banks.warning else ""))
         self._notify_diagnostics()
+        if snapshot.get("mode") == "observation":self._queue_saved_startup()
+        if "_update_start_pending" in self.__dict__:self._render_background_options()
         return True
 
     def _notify_diagnostics(self):
@@ -977,8 +1287,12 @@ class App(tk.Tk):
 
     def close(self):
         if self._closed:return
+        self._drain_update_results()
+        self._schedule_update_on_close()
         self._closed = True; self._generation += 1; self.password_var.set("")
-        for identifier in (self._drain_id, self._initial_id, self._tick_id):
+        self._stop_update_manager()
+        for identifier in (self._drain_id, self._initial_id, self._tick_id, self._updates_id, self._restore_id):
+            if identifier is None:continue
             try:self.after_cancel(identifier)
             except tk.TclError:pass
         try:

@@ -1,4 +1,10 @@
-# Validação da versão 2.1.0
+# Validação da versão 2.2.0
+
+Preparada em 7 de novembro de 2026. Início automático, preferências privadas, cofre opcional e atualizador estão em validação. Os novos pacotes dependem de testes de procedência, arquivos, encerramento e instaladores nativos; os resultados serão registrados após a compilação.
+
+A automação do aplicativo não cria compatibilidade universal com hardware, não altera permissões do roteador e não autoriza escrita ao restaurar acesso salvo. Os cenários de atualização administrativa serão identificados explicitamente.
+
+## Evidência anterior: 2.1.0
 
 Publicada em 7 de novembro de 2026. O [fluxo completo Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/42384743010) passou para o commit `8f6141d5c0388dfe13fbdcd40447d7ce49824843`. A [versão 2.1.0](https://github.com/perabru/LabGuard/releases/tag/v2.1.0) contém seis pacotes desktop/servidor, autotestes e somas SHA-256.
 

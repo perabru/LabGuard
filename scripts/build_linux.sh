@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Execute em Linux x86_64. CI usa Ubuntu 22.04 (glibc 2.35).
 set -euo pipefail
-version="${1:-2.1.0}"
+version="${1:-2.2.0}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Versão inválida.' >&2; exit 1; }
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Compile em Linux x86_64.' >&2; exit 1; }
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,7 +11,7 @@ if [[ -d labguard/assets ]]; then
   asset_args=(--add-data 'labguard/assets:labguard/assets')
 fi
 python3 -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --name LabGuard \
-  --add-data 'gateway/ai_services.json:gateway' --add-data 'docs:docs' --add-data 'README.md:.' \
+  --add-data 'gateway/ai_services.json:gateway' --add-data 'docs:docs' --add-data 'README.md:.' --add-data 'labguard/update_helpers:labguard/update_helpers' \
   --collect-data reportlab --collect-submodules labguard --collect-submodules winrm "${asset_args[@]}" main.py
 cp packaging/LEIA-ME.html dist/LabGuard/LEIA-ME.html
 cp -R docs dist/LabGuard/docs

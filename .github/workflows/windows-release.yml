@@ -25,7 +25,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "2.1.0"
+  LABGUARD_VERSION: "2.2.0"
 
 jobs:
   test:
@@ -66,10 +66,15 @@ jobs:
         run: |
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./packaging/validate_discovery_windows.ps1
           if ($LASTEXITCODE -ne 0) { throw "A validação nativa da descoberta Windows falhou." }
+      - name: Validar preferências privadas e cofre do Windows
+        shell: pwsh
+        run: |
+          python packaging/validate_startup_windows.py
+          if ($LASTEXITCODE -ne 0) { throw "A validação nativa de preferências e cofre falhou." }
       - name: Testar componentes compatíveis com Windows
         shell: pwsh
         run: |
-          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_updater.py", "test_preferences.py", "test_credential_store.py", "test_update_manifest.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
           foreach ($pattern in $patterns) {
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
@@ -86,6 +91,20 @@ jobs:
       - name: Gerar painel e servidor Windows
         shell: pwsh
         run: ./scripts/build_windows.ps1 -Version $env:LABGUARD_VERSION
+      - name: Validar atualização real isolada da 2.1 para a 2.2
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $oldDirectory = Join-Path $env:RUNNER_TEMP "LabGuardPreviousRelease"
+          New-Item -ItemType Directory -Path $oldDirectory | Out-Null
+          gh release download v2.1.0 --pattern LabGuard-Setup.exe --dir $oldDirectory
+          if ($LASTEXITCODE -ne 0) { throw "Não foi possível obter o instalador anterior para validação." }
+          $oldSetup = Join-Path $oldDirectory "LabGuard-Setup.exe"
+          $installDir = Join-Path $env:LOCALAPPDATA "LabGuardUpdateSmoke\Installed App"
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./packaging/validate_updater_windows.ps1 -OldSetup $oldSetup -NewSetup "$PWD\dist\release\LabGuard-Setup.exe" -InstallDir $installDir
+          if ($LASTEXITCODE -ne 0) { throw "A atualização nativa isolada não passou na validação." }
       - name: Testar instalador e abertura do painel
         shell: pwsh
         run: |
@@ -98,7 +117,7 @@ jobs:
           $check = Start-Process -FilePath $exe -ArgumentList @("--self-test", "--output", "`"$report`"") -Wait -PassThru
           if ($check.ExitCode -ne 0 -or -not (Test-Path $report)) { throw "Autoteste do painel não concluiu." }
           $result = Get-Content $report -Raw | ConvertFrom-Json
-          if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4 -or $result.identification_help_steps -lt 3 -or $result.inventory_summary_check -cne "ok") { throw "Recursos empacotados incompletos." }
+          if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4 -or $result.identification_help_steps -lt 3 -or $result.inventory_summary_check -cne "ok" -or $result.preferences_check -cne "ok" -or $result.update_helper_check -cne "ok") { throw "Recursos empacotados incompletos." }
           $app = Start-Process -FilePath $exe -ArgumentList @("--demo") -PassThru
           Start-Sleep -Seconds 4
           $app.Refresh()
@@ -221,6 +240,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v5
         with:
           pattern: LabGuard-*-${{ env.LABGUARD_VERSION }}
@@ -231,6 +251,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          python packaging/build_update_manifest.py --directory release --version "$LABGUARD_VERSION"
           cd release
           rm -f SHA256SUMS.txt
           sha256sum * > SHA256SUMS.txt
@@ -240,9 +261,11 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          LabGuard 2.1.0: identificação mais resiliente, resumo de evidências e interface simplificada.
+          LabGuard 2.2.0: início automático, preferências privadas e atualizações do aplicativo.
 
-          Inclui leitura alternativa da configuração local quando as ferramentas principais falham, contagens deduplicadas, indicação de fonte, dados antigos e identidade conflitante. O resumo apresenta uma amostra parcial; não garante descoberta total, presença atual ou identificação de pessoas. As ações administrativas continuam dependentes do equipamento compatível e das permissões confirmadas.
+          O desktop inicia a observação automaticamente. No Windows instalado por usuário, atualizações estáveis oficiais são conferidas, preparadas e aplicadas ao encerrar voluntariamente o programa. A primeira migração de versões anteriores exige instalar a 2.2 uma vez; outros pacotes continuam sujeitos às permissões do sistema e à administração da TI.
+
+          O acesso automático opcional ao RouterOS usa o cofre do Windows e começa somente para consulta; senhas não são salvas no JSON de preferências. O programa não autoriza alterações nem aplica listas por restaurar uma conexão. A identificação permanece parcial e a compatibilidade depende do modelo, protocolo e permissões do equipamento.
 
           O desktop inicia em observação local; dados fictícios aparecem somente ao selecionar a demonstração. Equipamentos compatíveis podem ser configurados diretamente, sem tornar um gateway Linux adicional obrigatório para o painel.
 

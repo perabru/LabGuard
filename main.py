@@ -21,6 +21,16 @@ def self_test(output: str | None = None) -> int:
         from labguard.direct_routeros import DirectRouterOSTransport
         from labguard.diagnostics import build_diagnostic_plan
         from labguard.inventory import summarize_inventory
+        from labguard.preferences import default_preferences, normalize_preferences
+        from labguard.credential_store import CredentialStore  # import only: no vault access
+        from labguard.updater import version_tuple
+        if normalize_preferences(default_preferences()) != default_preferences():
+            raise RuntimeError("Preferências internas incompatíveis.")
+        if version_tuple(__version__) <= (0, 0, 0):
+            raise RuntimeError("Versão do atualizador incompatível.")
+        update_helper = Path(__file__).parent / "labguard" / "update_helpers" / "apply_windows.ps1"
+        if not update_helper.is_file() or update_helper.stat().st_size < 100:
+            raise RuntimeError("Assistente de atualização ausente do pacote.")
         inventory_check = summarize_inventory({"mode": "observation", "interfaces": [], "devices": [],
             "discovery": {"read_success": False, "interfaces_read": False, "routes_read": False, "neighbors_read": False}})
         if inventory_check["status"] != "unavailable" or inventory_check["facts"]["coverage_complete"] is not False:
@@ -57,6 +67,8 @@ def self_test(output: str | None = None) -> int:
                    "reports": ["svg", "html", "csv", "pdf"],
                    "identification_help_steps": len(identification["steps"]),
                    "inventory_summary_check": "ok",
+                   "preferences_check": "ok", "update_helper_check": "ok",
+                   "credential_storage": "windows-vault-optional",
                    "startup_mode": "observation", "controller_modes": ["observation", "routeros", "legacy", "demo"]}
         code = 0
     except Exception as error:
@@ -73,6 +85,7 @@ def run() -> int:
     parser = argparse.ArgumentParser(description="LabGuard - controle do laboratório escolar")
     parser.add_argument("--self-test", action="store_true", help="Validar recursos do pacote sem abrir a interface")
     parser.add_argument("--demo", action="store_true", help="Abrir demonstração explícita com dados fictícios")
+    parser.add_argument("--no-updates", action="store_true", help="Desativar consultas de atualização nesta execução")
     parser.add_argument("--legacy-ui", action="store_true", help="Abrir a interface avançada do gateway existente")
     parser.add_argument("--output", help="Gravar resultado do autoteste em JSON")
     args = parser.parse_args()
@@ -84,7 +97,8 @@ def run() -> int:
     else:
         from labguard.simple_gui import App
         from labguard.controller import create_transport
-        app = App(transport=create_transport("demo") if args.demo else None)
+        app = App(transport=create_transport("demo") if args.demo else None,
+                  updates_enabled=not args.no_updates and not args.demo)
         app.mainloop()
     return 0
 

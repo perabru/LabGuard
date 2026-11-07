@@ -1,4 +1,4 @@
-param([string]$Version = "2.1.0", [switch]$SkipInstaller)
+param([string]$Version = "2.2.0", [switch]$SkipInstaller)
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -8,7 +8,7 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw "Gere o
 python packaging/make_assets.py
 if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar os recursos visuais." }
 
-$arguments = @("--noconfirm", "--clean", "--onedir", "--windowed", "--noupx", "--name", "LabGuard", "--icon", "packaging/generated/LabGuard.ico", "--version-file", "packaging/windows-version.txt", "--add-data", "gateway/ai_services.json:gateway", "--add-data", "docs:docs", "--add-data", "README.md:.", "--collect-data", "reportlab", "--collect-submodules", "labguard", "--collect-submodules", "winrm")
+$arguments = @("--noconfirm", "--clean", "--onedir", "--windowed", "--noupx", "--name", "LabGuard", "--icon", "packaging/generated/LabGuard.ico", "--version-file", "packaging/windows-version.txt", "--add-data", "gateway/ai_services.json:gateway", "--add-data", "docs:docs", "--add-data", "README.md:.", "--add-data", "labguard/update_helpers:labguard/update_helpers", "--collect-data", "reportlab", "--collect-submodules", "labguard", "--collect-submodules", "winrm")
 if (Test-Path "labguard/assets") { $arguments += @("--add-data", "labguard/assets:labguard/assets") }
 $arguments += "main.py"
 python -m PyInstaller @arguments

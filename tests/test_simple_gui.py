@@ -6,6 +6,7 @@ import json
 import os
 import queue
 import tempfile
+from threading import Event
 from time import monotonic
 import types
 import unittest
@@ -440,6 +441,241 @@ class InventoryUiTests(unittest.TestCase):
             self.assertFalse(app._set_block(True))
             app._run_job.assert_not_called(); self.assertEqual(router.mutations, [])
         finally:controller.close()
+
+
+class StartupAndUpdateUiTests(unittest.TestCase):
+    """Fluxos locais sem rede, cofre real ou execução de instaladores."""
+    @staticmethod
+    def profile(**changes):
+        from labguard.preferences import normalize_router_profile
+        return normalize_router_profile({"host": "192.168.88.1", "port": 8443, "user": "lab-read", **changes})
+
+    def app(self, mode="observation"):
+        from labguard.preferences import default_preferences, normalize_preferences
+        app = SimpleUiTests.app(mode)
+        app._generation = 0; app._updates_enabled = True; app._demo_requested = mode == "demo"
+        app._preferences = default_preferences()
+        app._preference_store = Mock(save=Mock(side_effect=normalize_preferences))
+        app._credential_store = Mock(load=Mock(return_value="vault-secret-sentinel"))
+        app._vault_available = True
+        app._startup_observation_pending = True; app._startup_attempted = False
+        app._auto_connect_in_progress = False; app._restore_id = None
+        app._startup_message = ""; app._startup_status = Mock()
+        app._update_manager = Mock()
+        app._update_manager.check_update.return_value = {"state": "current"}
+        app._update_manager.stage_update.return_value = {"state": "prepared", "prepared_id": "verified", "can_apply": True, "auto_apply": True}
+        app._update_manager.schedule_apply.return_value = True
+        app._update_installation = {"supported": True, "auto_apply": True}
+        app._update_generation = 0; app._update_results = queue.Queue(); app._update_busy = False
+        app._update_thread = None; app._prepared_update = None; app._update_start_pending = True
+        app._render_background_options = Mock(); app._profile_changed = Mock()
+        app._start_transport = Mock(return_value=True)
+        app.after_idle = Mock(return_value="restore-timer"); app.after_cancel = Mock()
+        app.winfo_children = Mock(return_value=[])
+        for field in ("manage_var", "profile_var", "port_var", "password_var", "remember_profile_var", "store_password_var", "auto_connect_var", "auto_updates_var"):
+            setattr(app, field, Mock())
+        return app
+
+    def saved(self, app):
+        app._preferences.update(saved_router=self.profile(), auto_connect=True)
+
+    def finish_update(self, app):
+        app._update_thread.join(timeout=2)
+        self.assertFalse(app._update_thread.is_alive())
+        app._drain_update_results()
+
+    def test_observation_queues_one_optional_readonly_startup_attempt(self):
+        app = self.app(); self.saved(app)
+        app._queue_saved_startup(); app._queue_saved_startup()
+        app.after_idle.assert_called_once_with(app._restore_saved_connection)
+        self.assertTrue(app._restore_saved_connection())
+        self.assertFalse(app._restore_saved_connection())
+        app._start_transport.assert_called_once()
+        kind, settings = app._start_transport.call_args.args
+        self.assertEqual(kind, "routeros"); self.assertFalse(settings["manage_rules"])
+        self.assertEqual(settings["password"], "vault-secret-sentinel")
+        self.assertFalse(app._start_transport.call_args.kwargs["authorized"])
+        self.assertIsNone(app._start_transport.call_args.kwargs.get("remember_options"))
+        app.manage_var.set.assert_called_with(False); app.port_var.set.assert_called_with("8443")
+        app.transport.request.assert_not_called(); app._run_job.assert_not_called()
+
+    def test_no_automatic_connection_without_optin_vault_or_secret(self):
+        for setting in ("optout", "unavailable", "missing", "error", "demo"):
+            app = self.app("demo" if setting == "demo" else "observation"); self.saved(app)
+            if setting == "optout":app._preferences["auto_connect"] = False
+            if setting == "unavailable":app._vault_available = False
+            if setting == "missing":app._credential_store.load.return_value = None
+            if setting == "error":app._credential_store.load.side_effect = RuntimeError("secret-sentinel")
+            self.assertFalse(app._restore_saved_connection(), setting)
+            app._start_transport.assert_not_called()
+            self.assertNotIn("secret-sentinel", app._startup_message)
+            self.assertEqual(app.snapshot["mode"], "demo" if setting == "demo" else "observation")
+
+    def test_failed_saved_attempt_keeps_observation_and_does_not_loop(self):
+        app = self.app(); self.saved(app); old = app.snapshot
+        app._restore_saved_connection()
+        app._start_transport.call_args.kwargs["on_error"]("authentication")
+        self.assertIs(app.snapshot, old); self.assertFalse(app._auto_connect_in_progress)
+        self.assertFalse(app._restore_saved_connection())
+        app._start_transport.assert_called_once(); app._confirm.assert_not_called()
+
+    def test_user_choice_cancels_pending_and_late_automatic_session(self):
+        app = self.app(); self.saved(app)
+        app._restore_id = "pending"; app._auto_connect_in_progress = True; app._busy = True
+        app._cancel_saved_startup()
+        self.assertEqual(app._generation, 1); self.assertFalse(app._busy)
+        self.assertFalse(app._auto_connect_in_progress); self.assertFalse(app._startup_observation_pending)
+        app.after_cancel.assert_called_once_with("pending")
+        app._results = queue.Queue(); late = Mock()
+        app._results.put((0, True, (late, snapshot()), Mock(), False))
+        app.refresh_button = Mock(); app.after = Mock()
+        app._drain()
+        late.close.assert_called_once(); self.assertEqual(app.snapshot["mode"], "observation")
+
+    def test_save_success_records_public_profile_and_explicit_vault_only(self):
+        for store, automatic in ((False, False), (True, True)):
+            app = self.app()
+            settings = dict(self.profile(), password="vault-secret-sentinel", manage_rules=True)
+            app._remember_successful_router(settings, {"remember": True, "store_password": store, "auto_connect": automatic})
+            data = app._preference_store.save.call_args.args[0]
+            encoded = json.dumps(data)
+            self.assertNotIn("vault-secret-sentinel", encoded); self.assertNotIn("manage_rules", encoded)
+            self.assertEqual(data["auto_connect"], automatic)
+            self.assertEqual(app._credential_store.store.call_count, int(store))
+            app.transport.request.assert_not_called()
+
+    def test_changed_ca_does_not_delete_same_vault_identity(self):
+        app = self.app(); self.saved(app)
+        settings = dict(self.profile(ca_file="new-ca.pem"), password="vault-secret-sentinel")
+        app._remember_successful_router(settings, {"remember": True, "store_password": True, "auto_connect": True})
+        app._credential_store.store.assert_called_once(); app._credential_store.delete.assert_not_called()
+        self.assertTrue(app._preferences["auto_connect"])
+
+    def test_changed_target_removes_old_vault_reference_after_public_save(self):
+        app = self.app(); self.saved(app); old = app._preferences["saved_router"]
+        settings = dict(self.profile(host="192.168.88.2"), password="vault-secret-sentinel")
+        app._remember_successful_router(settings, {"remember": True, "store_password": True, "auto_connect": True})
+        app._credential_store.delete.assert_called_once_with(old)
+        self.assertEqual(app._preferences["saved_router"]["host"], "192.168.88.2")
+
+    def test_forget_access_is_local_and_disables_reference_even_if_vault_delete_fails(self):
+        app = self.app(); self.saved(app)
+        app._credential_store.delete.side_effect = RuntimeError("secret-sentinel")
+        self.assertTrue(app._forget_saved_access())
+        self.assertIsNone(app._preferences["saved_router"]); self.assertFalse(app._preferences["auto_connect"])
+        self.assertIn("não foi confirmada", app._startup_message)
+        self.assertNotIn("secret-sentinel", app._startup_message)
+        app.transport.request.assert_not_called(); app._run_job.assert_not_called()
+
+    def test_malformed_local_options_fall_back_without_network_or_secrets(self):
+        app = App.__new__(App)
+        with patch("labguard.preferences.PreferenceStore") as store, patch("labguard.credential_store.CredentialStore") as vault, patch("labguard.updater.UpdateManager") as updater:
+            store.return_value.load.side_effect = RuntimeError("secret-sentinel")
+            vault.return_value.available.return_value = False
+            updater.return_value.installation_status.return_value = {"supported": False, "auto_apply": False}
+            app._load_local_options()
+        self.assertFalse(app._preferences["auto_connect"]); self.assertIsNone(app._preferences["saved_router"])
+        self.assertFalse(app._preferences["auto_updates"])
+        self.assertNotIn("secret-sentinel", app._startup_message)
+        updater.return_value.check_update.assert_not_called(); vault.return_value.load.assert_not_called()
+
+    def test_local_options_use_delivered_credential_store_module(self):
+        app = App.__new__(App)
+        with patch("labguard.preferences.PreferenceStore") as store, patch("labguard.credential_store.CredentialStore") as vault, patch("labguard.updater.UpdateManager"):
+            from labguard.preferences import default_preferences
+            store.return_value.load.return_value = default_preferences()
+            vault.return_value.available.return_value = True
+            app._load_local_options()
+        self.assertIs(app._credential_store, vault.return_value)
+        self.assertTrue(app._vault_available); self.assertTrue(app._preferences["auto_updates"])
+
+    def test_forget_or_disable_automatic_access_cancels_inflight_restore(self):
+        for action in ("_forget_saved_access", "_disable_saved_autoconnect"):
+            app = self.app(); self.saved(app)
+            app._auto_connect_in_progress = True; app._busy = True
+            getattr(app, action)()
+            self.assertEqual(app._generation, 1, action)
+            self.assertFalse(app._auto_connect_in_progress)
+            self.assertFalse(app._preferences["auto_connect"])
+
+    def test_reenable_updates_requeues_one_check_after_old_worker_cancels(self):
+        app = self.app(); app._update_start_pending = False
+        app.auto_updates_var.get.return_value = True
+        app._save_update_preference(); self.finish_update(app)
+        app._update_manager.check_update.assert_called_once()
+        self.assertFalse(app._update_start_pending)
+
+    def test_source_demo_cli_and_portable_do_not_automatically_check_or_download(self):
+        for kind in ("source", "demo", "cli", "portable", "optout"):
+            app = self.app("demo" if kind == "demo" else "observation")
+            if kind == "source":app._update_installation = {"supported": False, "auto_apply": False}
+            if kind == "portable":app._update_installation = {"supported": True, "auto_apply": False}
+            if kind == "cli":app._updates_enabled = False
+            if kind == "optout":app._preferences["auto_updates"] = False
+            self.assertFalse(app._automatic_update_check(), kind)
+            app._update_manager.check_update.assert_not_called(); app._update_manager.stage_update.assert_not_called()
+
+    def test_update_worker_is_daemon_and_independent_of_busy_router(self):
+        app = self.app(); app._busy = True
+        app._update_manager.check_update.return_value = {"state": "available", "candidate_id": "fixed-repository"}
+        self.assertTrue(app._automatic_update_check()); self.finish_update(app)
+        self.assertTrue(app._update_thread.daemon); self.assertTrue(app._busy)
+        app._run_job.assert_not_called(); app.transport.request.assert_not_called()
+        self.assertEqual(app._prepared_update["prepared_id"], "verified")
+        app._update_manager.schedule_apply.assert_not_called()
+        self.assertFalse(app._schedule_update_on_close())
+
+    def test_offline_update_preserves_inventory_and_never_exposes_raw_error(self):
+        app = self.app(); old = app.snapshot
+        app._update_manager.check_update.side_effect = RuntimeError("https://secret-sentinel@invalid/")
+        self.assertTrue(app._automatic_update_check()); self.finish_update(app)
+        self.assertIs(app.snapshot, old); self.assertFalse(app._snapshot_stale)
+        self.assertNotIn("secret-sentinel", app._update_message); self.assertIn("continuar", app._update_message)
+        app._update_manager.schedule_apply.assert_not_called(); app._run_job.assert_not_called()
+
+    def test_frozen_portable_manual_check_never_stages(self):
+        app = self.app(); app._update_installation["auto_apply"] = False
+        app._update_manager.check_update.return_value = {"state": "available", "candidate_id": "fixed"}
+        self.assertTrue(app._check_for_updates()); self.finish_update(app)
+        app._update_manager.stage_update.assert_not_called(); self.assertIsNone(app._prepared_update)
+
+    def test_prepared_update_schedules_only_at_close_and_with_current_consent(self):
+        app = self.app(); manager = app._update_manager
+        app._update_manager.check_update.return_value = {"state": "available", "candidate_id": "fixed"}
+        app._automatic_update_check(); self.finish_update(app)
+        manager.schedule_apply.assert_not_called()
+        self.assertTrue(app._schedule_update_on_close())
+        manager.schedule_apply.assert_called_once_with(app._prepared_update, os.getpid(), consent=True)
+        for state in ("demo", "optout", "partial", "busy"):
+            blocked = self.app(); blocked._prepared_update = dict(app._prepared_update)
+            if state == "demo":blocked.snapshot["mode"] = "demo"
+            if state == "optout":blocked._preferences["auto_updates"] = False
+            if state == "partial":blocked._prepared_update = None; blocked._update_busy = True
+            if state == "busy":blocked._busy = True
+            self.assertFalse(blocked._schedule_update_on_close(), state)
+            blocked._update_manager.schedule_apply.assert_not_called()
+
+    def test_optout_cancels_download_and_late_queue_cannot_prepare_or_apply(self):
+        app = self.app(); manager = app._update_manager
+        app.auto_updates_var.get.return_value = False
+        app._save_update_preference()
+        manager.close.assert_called_once(); self.assertFalse(app._preferences["auto_updates"])
+        app._update_results.put((0, "done", {"state": "prepared", "prepared_id": "late", "can_apply": True, "auto_apply": True}))
+        app._drain_update_results(); self.assertIsNone(app._prepared_update)
+        self.assertFalse(app._schedule_update_on_close()); manager.schedule_apply.assert_not_called()
+
+    def test_update_return_after_close_is_ignored_without_worker_blocking(self):
+        app = self.app(); manager = app._update_manager
+        started, finish = Event(), Event()
+        def delayed():
+            started.set(); finish.wait(2)
+            return {"state": "available", "candidate_id": "fixed"}
+        manager.check_update.side_effect = delayed
+        app._automatic_update_check(); self.assertTrue(started.wait(1))
+        app._closed = True; app._stop_update_manager(); finish.set()
+        app._update_thread.join(timeout=2)
+        self.assertTrue(app._update_results.empty()); manager.stage_update.assert_not_called()
+        manager.schedule_apply.assert_not_called(); self.assertIsNone(app._prepared_update)
 
 
 if __name__ == "__main__":unittest.main()

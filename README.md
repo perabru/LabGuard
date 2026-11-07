@@ -1,10 +1,18 @@
-# LabGuard 2.1
+# LabGuard 2.2
 
 Painel em Python para conhecer a rede do laboratório e administrar os equipamentos compatíveis que já estão nela. A nova interface reúne **Início, Dispositivos, Sites e Atividade**.
 
 **Começa em Observação real:** consulta o computador, a rota padrão e os vizinhos conhecidos, com leituras locais alternativas quando o método principal falha. O resumo indica origem, recência e limites da amostra. Para começar, não precisa trocar cabos, instalar gateway ou informar credenciais.
 
 [Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.0](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
+
+## Início e atualizações
+
+Ao abrir, o desktop inicia a observação real em segundo plano. A configuração do equipamento é feita na primeira utilização; o acesso automático opcional ao RouterOS começa em consulta, sem aplicar listas ou restaurar autorização de alterações. No Windows, a senha dessa opção fica no cofre do sistema; o JSON de preferências contém somente configurações permitidas.
+
+A instalação por usuário no Windows pode verificar e preparar versões estáveis oficiais e aplicá-las ao encerrar voluntariamente o programa. A janela não é fechada para forçar a atualização. A conferência usa HTTPS e SHA-256 do repositório fixo `perabru/LabGuard`; esses controles não equivalem a uma assinatura digital independente do autor. A migração das versões antigas exige instalar a 2.2 uma vez, pois elas não possuíam esse mecanismo. Pacotes portáteis, Linux, servidores e instalações administradas podem exigir atualização pela TI; não há elevação automática.
+
+O programa aceita perfis de equipamentos compatíveis. Não existe uma integração universal que administre todos os modelos de rede ou elimine a necessidade de acesso autorizado.
 
 ## Como interpretar o inventário
 
@@ -59,7 +67,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A [versão 2.1.0 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.1.0), com identificação resiliente e interface simplificada. Foram aprovados 344 testes no Linux, 300 no Windows, coleta CIM/ARP real no Windows PowerShell 5.1 e instalação, abertura e serviços nativos. Confira a [validação](docs/VALIDACAO.md) e os hashes do lançamento.
+A versão **2.2.0**, com início e atualizações automáticos nos cenários compatíveis, está em validação dos pacotes nativos. A [versão 2.1.0](https://github.com/perabru/LabGuard/releases/tag/v2.1.0) permanece como base anterior verificada; acompanhe os novos [pacotes](https://github.com/perabru/LabGuard/releases) e a [validação](docs/VALIDACAO.md).
 
 ## Documentação e legado
 

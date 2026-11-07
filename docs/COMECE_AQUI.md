@@ -1,10 +1,10 @@
-# Comece aqui - LabGuard 2.1.0
+# Comece aqui - LabGuard 2.2.0
 
-O LabGuard 2.1.0 abre em **Observação**, usando a rede existente. Não precisa trocar o roteador, mudar cabos, instalar um novo gateway nem informar senha para começar a consultar o computador e os vizinhos conhecidos da rede.
+Por padrão, o LabGuard 2.2.0 abre em **Observação**, usando a rede existente. Não precisa trocar o roteador, mudar cabos, instalar um novo gateway nem informar senha para começar a consultar o computador e os vizinhos conhecidos da rede.
 
 ## Primeiro uso
 
-1. Baixe a versão 2.1.0 do seu sistema na [página de versões](https://github.com/perabru/LabGuard/releases). Os pacotes ficam disponíveis depois da publicação; confira o número do arquivo.
+1. Instale a versão 2.2.0 do seu sistema pela [página de versões](https://github.com/perabru/LabGuard/releases). Quem vem da 2.1 ou anterior precisa dessa primeira instalação manual para receber o atualizador. Os pacotes ficam disponíveis depois da publicação; confira o número do arquivo.
 2. Abra o programa. Pelo código-fonte, execute `python3 main.py` com Python 3.10 ou superior e Tcl/Tk instalado.
 3. Em **Início**, mantenha **Observação** e use **Identificar minha rede**. Abra **Dispositivos** para conferir os endereços locais, o roteador padrão e os vizinhos conhecidos pelo sistema.
 4. Use **Sites → Banco de sites** para organizar os domínios. O cadastro pode ser feito sem controlar o roteador.
@@ -30,6 +30,16 @@ Para configurar uma conexão administrativa, abra **Acesso ao equipamento**. Con
 A lista inicial acompanha a primeira conexão MikroTik compatível, enquanto não estiver vinculada a outro destino. Desconectar ou reiniciar mantém o último banco real; outro destino e a demonstração usam bancos separados. Para IA no MikroTik, adicione o catálogo ao banco e aplique a seleção quando o filtro de domínios estiver disponível.
 
 Leia o [manual em HTML](MANUAL_DO_USUARIO_V2.html) ou [PDF](Manual_LabGuard_2.pdf). A documentação 1.4 permanece como referência do modo avançado com gateway Linux existente.
+
+## Atualizar e abrir com a configuração pronta
+
+No **Windows instalado por usuário**, mantenha habilitada a opção **Detalhes e recursos → Atualizações do programa → Atualizações automáticas**. O programa verifica e prepara novas versões em segundo plano. Quando uma atualização estiver pronta, ela será aplicada ao fechar voluntariamente, sem encerrar a aula ou reiniciar o Windows. A próxima abertura usa a nova versão. Se houver operação ou download em curso, a aplicação fica adiada.
+
+Windows portátil, Linux, `.deb` e servidor continuam com atualização manual ou administrada pela TI. Fonte, desenvolvimento e Demonstração não instalam automaticamente. Sem internet ou se a verificação/download falhar, o aplicativo atual continua disponível.
+
+Para lembrar um MikroTik já preparado pela TI, conecte manualmente e escolha **Lembrar este acesso**. No Windows, **Salvar senha no cofre do Windows** e **Conectar ao abrir (somente consulta)** são opções explícitas, salvas depois de uma conexão bem-sucedida. A senha vai para o cofre do sistema, nunca para o JSON de preferências. No Linux, conecte manualmente quando o cofre não estiver disponível.
+
+A abertura começa em Observação e, se autorizado, tenta uma conexão de consulta. A autorização para alterar regras não é lembrada e nenhuma lista de sites é aplicada automaticamente. Use **Esquecer acesso salvo** para remover perfil e credencial e confira o resultado; a conexão atual continua ativa. Veja o [capítulo 15 do manual](MANUAL_DO_USUARIO_V2.html#atualizacoes-e-inicio).
 
 ## Não identificou a rede?
 

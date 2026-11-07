@@ -1,4 +1,4 @@
-# Erro de identificação: passo a passo - LabGuard 2.1.0
+# Erro de identificação: passo a passo - LabGuard 2.2.0
 
 Use este guia quando o IP do roteador não aparecer, houver poucas máquinas ou uma conexão administrativa falhar. A Observação consulta os dados disponíveis no computador e pode ser usada sem uma API do roteador. O alcance depende do sistema, da rede e das fontes acessíveis; não há identificação garantida de todos os equipamentos.
 
@@ -129,6 +129,25 @@ Anote versão do LabGuard, Windows/distribuição Linux, modo escolhido, tipo de
 
 **Não inclua senha do roteador, senha Wi-Fi, tokens, chaves privadas ou a saída completa dos comandos sem revisão.** A etiqueta e o painel do equipamento podem exibir segredos; transcreva somente os campos necessários.
 
+## 12. Atualização ou conexão ao abrir não funcionou
+
+### Atualização do aplicativo
+
+1. Confira se você já instalou a **2.2 ou posterior**. A primeira migração de uma versão antiga é manual, pois ela não tinha o atualizador.
+2. Abra **Detalhes e recursos → Atualizações do programa** e leia o estado. A aplicação automática exige o Windows instalado por usuário; portátil, Linux, `.deb` e servidor continuam com procedimento manual ou da TI. Fonte, desenvolvimento e Demonstração não instalam atualizações automaticamente.
+3. Confira a conexão com a publicação oficial e use **Verificar atualização**, quando disponível. Se houver falha de rede, download ou validação, continue com a versão em uso. Não desative TLS ou firewall para liberar o download.
+4. Uma atualização preparada é aplicada somente ao encerramento voluntário e sem operação/download em curso. Não force o encerramento de processos para antecipar essa etapa.
+5. Se a instalação falhar, peça à TI que confira a versão e a instalação antes de voltar ao uso. Não presuma que todo erro tenha recuperação automática.
+
+### Acesso lembrado ao MikroTik
+
+1. Confira se a conexão manual funcionou depois de escolher **Lembrar este acesso**. As opções não são salvas após uma tentativa com falha.
+2. No Windows, confirme **Salvar senha no cofre do Windows** e **Conectar ao abrir (somente consulta)**. Se o cofre não estiver disponível, continue em Observação e conecte manualmente; não copie a senha para o JSON.
+3. Mudou o IP, a conta ou o certificado? Abra **Acesso ao equipamento**, corrija e reconecte manualmente. O início automático faz uma única tentativa, não corrige requisitos do equipamento.
+4. Para retirar o acesso lembrado, use **Esquecer acesso salvo** e confira a confirmação. A sessão atual continua ativa. Se a remoção da senha no cofre não for confirmada, peça à TI que confira o cofre antes de considerar a credencial removida.
+
+A abertura automática nunca restaura autorização de alterar regras nem aplica listas de sites. Se a consulta falhar, a Observação continua disponível. Para suporte, informe também o tipo de pacote e o estado apresentado, preservando os segredos.
+
 ## Referências de consulta
 
 - [Microsoft: ipconfig](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/ipconfig).
@@ -136,4 +155,5 @@ Anote versão do LabGuard, Windows/distribuição Linux, modo escolhido, tipo de
 - [Microsoft: arp](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/arp).
 - [Linux: tabela de vizinhos](https://man7.org/linux/man-pages/man8/ip-neighbour.8.html).
 - [MikroTik: REST API](https://manual.mikrotik.com/docs/developer-guides/rest-api/).
-- [Manual 2.1.0: recuperação](MANUAL_DO_USUARIO_V2.html#erro-de-identificacao).
+- [Manual 2.2.0: recuperação](MANUAL_DO_USUARIO_V2.html#erro-de-identificacao).
+- [Manual 2.2.0: atualizações e início](MANUAL_DO_USUARIO_V2.html#atualizacoes-e-inicio).
