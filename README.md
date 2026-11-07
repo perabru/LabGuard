@@ -4,7 +4,7 @@ Painel em Python para conhecer a rede do laboratório e administrar os equipamen
 
 **Começa em Observação real:** consulta o computador, a rota padrão e os vizinhos conhecidos, com leituras locais alternativas quando o método principal falha. O resumo indica origem, recência e limites da amostra. Para começar, não precisa trocar cabos, instalar gateway ou informar credenciais.
 
-[Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.0](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
+[Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.2](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
 
 ## Início e atualizações
 
@@ -67,11 +67,11 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A versão **2.2.0**, com início e atualizações automáticos nos cenários compatíveis, está em validação dos pacotes nativos. A [versão 2.1.0](https://github.com/perabru/LabGuard/releases/tag/v2.1.0) permanece como base anterior verificada; acompanhe os novos [pacotes](https://github.com/perabru/LabGuard/releases) e a [validação](docs/VALIDACAO.md).
+A [versão 2.2.0 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.2.0), com início simplificado e atualizações nos cenários compatíveis. Passaram 411 testes no Linux, 367 no Windows, cofre/permissões nativos e atualização real isolada da 2.1 para a 2.2, além de instalação, abertura e serviços nas duas plataformas. Confira os [pacotes](https://github.com/perabru/LabGuard/releases/tag/v2.2.0) e a [validação](docs/VALIDACAO.md).
 
 ## Documentação e legado
 
-[Manual 2.0 em Markdown](docs/MANUAL_DO_USUARIO_V2.md) · [Administração remota](docs/ADMINISTRACAO_REMOTA.md) · [Integrações](docs/INTEGRACOES.md) · [Validação](docs/VALIDACAO.md)
+[Manual 2.2 em Markdown](docs/MANUAL_DO_USUARIO_V2.md) · [Administração remota](docs/ADMINISTRACAO_REMOTA.md) · [Integrações](docs/INTEGRACOES.md) · [Validação](docs/VALIDACAO.md)
 
 O [manual 1.4](docs/MANUAL_DO_USUARIO.md) e o [PDF 1.4](docs/Manual_LabGuard_1.4.pdf) foram preservados para o modo avançado legado. Duas interfaces e gateway Linux pertencem a esse modo; não são requisito do novo início em Observação.
 

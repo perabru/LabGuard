@@ -1,6 +1,16 @@
 # Validação da versão 2.2.0
 
-Preparada em 7 de novembro de 2026. Início automático, preferências privadas, cofre opcional e atualizador estão em validação. Os novos pacotes dependem de testes de procedência, arquivos, encerramento e instaladores nativos; os resultados serão registrados após a compilação.
+Publicada em 7 de novembro de 2026. O [fluxo completo Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/42387750673) passou para o commit `fe6ed9a221ea475ac00c6699e8a50060f369907b`. A [versão 2.2.0](https://github.com/perabru/LabGuard/releases/tag/v2.2.0) inclui seis pacotes desktop/servidor, manifesto de atualização, relatório de atualização real, autotestes e somas SHA-256.
+
+Passaram **411 testes** localmente e no Linux CI e **367 testes compatíveis com Windows**. O CI Windows validou permissões privadas de diretório/arquivo e uma gravação, recuperação e exclusão real no cofre, usando somente credencial temporária isolada. Coletores e helper passaram no parser PowerShell 5.1; a coleta alternativa CIM/ARP real permaneceu somente para consulta.
+
+A atualização nativa isolada **2.1 → 2.2** passou: instalador anterior com hash fixo, pacotes reais, leitura HTTPS substituída por respostas locais de teste, preparo e verificação reais, recibo explícito de espera, fechamento por `WM_CLOSE`, helper PowerShell real e instalação no mesmo diretório com espaços. Foram confirmadas versão PE numérica, registro HKCU e autoteste do aplicativo atualizado. A instalação de teste foi removida ao final. O teste não alterou o scheduler de produção, que exige o próprio PID e a imagem instalada; não prova uma transferência HTTPS real em cada rede escolar.
+
+Instalação, abertura da janela e serviços SCM/systemd passaram nas plataformas nativas. A primeira migração exige instalar a 2.2 uma vez. A aplicação automática fica restrita ao Windows instalado por usuário e ao encerramento voluntário, sem elevar privilégios, fechar outras instâncias ou reiniciar. Linux, portátil e servidores mantêm a atualização sob administração da TI.
+
+O [Pages](https://github.com/perabru/LabGuard/actions/runs/42386745085) publicou site e manual 2.2. O manual tem **16 páginas e 15 capítulos**, com renderização/revisão visual, links e âncoras conferidos. A GUI foi verificada em 1240×820 e 1000×700; o início em observação e a restauração opcional em consulta passaram no smoke Tk sem mutações de rede.
+
+O instalador anexado foi conferido por hash do artefato, CRC do ZIP, SHA-256 interno, estrutura PE e autotestes. SHA-256 do EXE: `c24b30741f6c4baf379e3ca640985fd05f86009e03971977deeb417ba3d6f8ec`. O mesmo hash foi publicado no asset da versão. HTTPS e SHA-256 do repositório fixo verificam procedência/transporte e integridade, sem equivaler a uma assinatura digital independente do autor. Nenhum equipamento do colégio foi acessado ou homologado.
 
 A automação do aplicativo não cria compatibilidade universal com hardware, não altera permissões do roteador e não autoriza escrita ao restaurar acesso salvo. Os cenários de atualização administrativa serão identificados explicitamente.
 
@@ -26,7 +36,7 @@ O manual de **15 páginas e 14 capítulos** foi renderizado e revisado. O [Pages
 
 O instalador Windows anexado foi conferido pelo hash do artefato, CRC do arquivo ZIP, SHA-256 interno, estrutura PE e autotestes 2.0.1. SHA-256 do EXE: `917a2a57ff6cb64da4b8fd7ab34057786de54e08a08510b2b6f0b129bae140de`.
 
-## Alteração desta versão
+## Alteração anterior: 2.0.1
 
 O desktop inclui **Não identificou? Ver passo a passo**, com orientação por sintoma e sistema. A consulta de diagnóstico não altera regras, rede, arquivos de configuração ou capacidades. O assistente não usa demonstração para substituir uma leitura falhada e não exibe segredos a partir das mensagens de erro. O painel de servidor oferece um guia equivalente. O pacote Debian passa a declarar a dependência `iproute2`; a versão portátil continua dependendo das ferramentas locais.
 
@@ -69,4 +79,4 @@ No RouterOS, confirme HTTPS e permissões, gateway DHCP, rede do laboratório, l
 
 Comece por uma estação de teste. Confirme fisicamente IP/MAC e proteção administrativa. Aplique e remova um domínio controlado, teste corte e restauração por IP e confira as regras diretamente no equipamento. Cache, VPN, DoH, IPv6 e caminhos alternativos exigem avaliação no ambiente. MAC privado ou oculto por NAT reduz a identificação; o mapa é lógico, não comprova cabos ou associação Wi-Fi.
 
-A administração de programas exige WinRM HTTPS ou SSH previamente preparado. Remoções e avisos continuam limitados ao catálogo e às permissões da estação. Nenhum jogo real foi removido durante os testes. Consulte o [manual 2.0](MANUAL_DO_USUARIO_V2.html), o [roteador direto](ROTEADOR_DIRETO.md), [servidores](SERVIDORES.md) e [administração remota](ADMINISTRACAO_REMOTA.md).
+A administração de programas exige WinRM HTTPS ou SSH previamente preparado. Remoções e avisos continuam limitados ao catálogo e às permissões da estação. Nenhum jogo real foi removido durante os testes. Consulte o [manual 2.2](MANUAL_DO_USUARIO_V2.html), o [roteador direto](ROTEADOR_DIRETO.md), [servidores](SERVIDORES.md) e [administração remota](ADMINISTRACAO_REMOTA.md).
