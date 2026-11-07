@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import __version__
 from .banlist import BanlistDatabase, BanlistError
 from .demo import DemoTransport, normalize_domain
+from .inventory import collection_recency, summarize_inventory
 from .reports import ReportError, export_report, network_map_svg
 
 BIND_HOST = "127.0.0.1"
@@ -392,7 +393,25 @@ class Application:
                 for key in flags:
                     data["capabilities"][key] = False
             data["capabilities"]["port_control"] = False
+        # A fonte não pode fornecer um resumo pronto nem usar esse diagnóstico
+        # para conceder capacidades. Só contagens e textos estáticos do motor
+        # local chegam ao painel; interfaces/discovery brutos ficam privados.
+        data["identification"] = summarize_inventory(snapshot)
         return data
+
+    def collection_current(self, cached):
+        """Combina idade e falha técnica, sem exigir clientes observados.
+
+        ``cached`` é o DTO produzido por public_snapshot; identification nunca
+        é aceito diretamente da fonte. Falta de metadados não cria uma falha.
+        """
+        if self.config.demo:
+            return True
+        summary = cached.get("identification") if isinstance(cached, dict) else None
+        facts = summary.get("facts") if isinstance(summary, dict) else None
+        if isinstance(facts, dict) and (facts.get("read_success") is False or facts.get("collection_metadata_valid") is False):
+            return False
+        return collection_recency(cached, max_age_seconds=MAX_AGE)["fresh"] is True
 
     def check_mutation(self, action):
         if self.config.demo and self.last_snapshot is None:
@@ -401,6 +420,8 @@ class Application:
             raise ServerError("Atualize o estado do controlador antes de alterar regras.")
         if self.last_snapshot.get("mode") == "observation" or (not self.config.demo and self.config.controller["kind"] == "routeros" and self.config.controller.get("manage_rules") is not True):
             raise ServerError("O controlador está em observação ou consulta somente leitura; nenhuma regra de rede será alterada.")
+        if not self.collection_current(self.last_snapshot):
+            raise ServerError("A coleta da fonte está indisponível, antiga ou sem horário confirmado. Atualize a fonte e confira o relógio antes de alterar regras.")
         capabilities = self.last_snapshot.get("capabilities", {})
         if not isinstance(capabilities, dict) or not all(capabilities.get(key) is True for key in ACTION_CAPABILITIES[action]):
             raise ServerError("O controlador não disponibiliza essa operação. A observação e os equipamentos somente leitura não alteram a rede.")
@@ -424,7 +445,8 @@ class Application:
             if not isinstance(cached, dict):
                 raise ServerError("Atualize a fonte antes de exportar a primeira amostra.")
             source = copy.deepcopy(cached)
-            state = "stale" if self.stale or time.monotonic() - self.last_success > MAX_AGE else "fresh"
+            source_recent = self.collection_current(cached)
+            state = "stale" if self.stale or time.monotonic() - self.last_success > MAX_AGE or not source_recent else "fresh"
             original = len(source.get("devices", []))
             source["devices"] = source.get("devices", [])[:MAX_REPORT_ROWS]
             source["events"] = source.get("events", [])[:1000]

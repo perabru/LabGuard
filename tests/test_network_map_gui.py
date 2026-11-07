@@ -1,5 +1,6 @@
 """Fronteiras do mapa: evidências, regras independentes e controles protegidos."""
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
 
 from labguard.network_map_gui import (NetworkMapWindow, address_is_blocked,
@@ -59,7 +60,8 @@ class MapActionTests(unittest.TestCase):
     def window(self, device, *, stale=False, demo=False):
         win = NetworkMapWindow.__new__(NetworkMapWindow)
         win.parent = Mock(_busy=False, _session_locked=False, _snapshot_stale=stale)
-        win.snapshot = {"mode": "demo" if demo else "gateway", "address_blocks": []}
+        win.snapshot = {"mode": "demo" if demo else "gateway", "address_blocks": [],
+                        "devices": [device], "timestamp": datetime.now(timezone.utc).isoformat()}
         win.action_callback = Mock()
         win._source_error = False
         win._selected_key = "selected"
@@ -73,6 +75,29 @@ class MapActionTests(unittest.TestCase):
         win._act("ip", True)
         win._act("ip", False)
         win.action_callback.assert_not_called()
+
+    def test_conflicting_identity_disables_map_actions_before_dispatch(self):
+        device = {"ip": "192.168.50.1", "mac": "02:00:00:00:00:01"}
+        win = self.window(device)
+        win.snapshot["devices"].append(dict(device, mac="02:00:00:00:00:02"))
+        self.assertFalse(win._allowed(device))
+        win._act("ip", True)
+        win.action_callback.assert_not_called()
+        win.snapshot["devices"] = [dict(device, identity_conflict=True)]
+        self.assertFalse(win._allowed(device))
+        offline = self.window({"mac": "02:00:00:00:00:01", "observed": False})
+        offline.snapshot["devices"].append({"mac": "02:00:00:00:00:02", "observed": False})
+        self.assertTrue(offline._allowed(offline._selected()))
+
+    def test_old_missing_or_future_source_time_disables_map_without_parent_error(self):
+        for stamp in (None, (datetime.now(timezone.utc)-timedelta(seconds=30)).isoformat(),
+                      (datetime.now(timezone.utc)+timedelta(minutes=5)).isoformat()):
+            with self.subTest(stamp=stamp):
+                win = self.window({"ip": "192.168.50.1"})
+                win.snapshot["timestamp"] = stamp
+                self.assertTrue(win._stale())
+                win._act("ip", True)
+                win.action_callback.assert_not_called()
 
     def test_stale_live_snapshot_cannot_dispatch_actions(self):
         win = self.window({"ip": "192.168.50.1"}, stale=True)

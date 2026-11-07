@@ -160,7 +160,7 @@ def build_diagnostic_plan(snapshot=None, last_error="", system=None, case=None):
             "IP estático pode não aparecer no DHCP; VLAN, isolamento e NAT também limitam a lista. Não faça varreduras ou gere tráfego só para preencher registros; consulte o inventário autorizado do equipamento compatível."], commands["neighbors"]),
         "missing_mac": _step("missing_mac", CASE_LABELS["missing_mac"], [
             "Confira se o IP pertence à mesma rede local e se existe uma entrada no cache de vizinhos.",
-            "O MAC do próprio computador fica vazio na observação por contrato; isso não é falha. Um MAC remoto pode não ser visível através de roteadores ou NAT.",
+            "O MAC do próprio computador pode ficar vazio quando a fonte não o fornece; isso não é falha. Um MAC remoto pode não ser visível através de roteadores ou NAT.",
             "Não invente um MAC nem associe o endereço a uma pessoa. Atualizar pode reler o cache, mas não garante descobrir um endereço ausente."], commands["neighbors"]),
         "unknown_model": _step("unknown_model", CASE_LABELS["unknown_model"], [
             "Confira fabricante, modelo e firmware na etiqueta ou no inventário administrativo autorizado.",

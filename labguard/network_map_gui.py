@@ -55,6 +55,25 @@ def address_is_blocked(snapshot, device, kind):
     return isinstance(scopes, (list, tuple)) and kind in scopes
 
 
+def identity_conflicted(snapshot, device):
+    if not isinstance(device, dict):
+        return False
+    if device.get("identity_conflict") is True:
+        return True
+    if not valid_address("ip", device.get("ip")):
+        return False
+    rows = snapshot.get("devices", [])
+    macs = set()
+    for row in rows[:10000] if isinstance(rows, list) else []:
+        if not isinstance(row, dict) or row.get("ip") != device.get("ip"):
+            continue
+        if row.get("identity_conflict") is True:
+            return True
+        if valid_address("mac", row.get("mac")):
+            macs.add(row["mac"].lower())
+    return len(macs) > 1
+
+
 def block_description(snapshot, device):
     if snapshot.get("mode") == "observation":
         return "Bloqueio não verificado"
@@ -211,8 +230,15 @@ class NetworkMapWindow(tk.Toplevel):
         self.status_label.configure(wraplength=max(100, width-44))
 
     def _stale(self):
-        return bool(self._source_error or self.snapshot.get("_stale") or self.snapshot.get("stale")
-                    or getattr(self.parent, "_snapshot_stale", False))
+        if (self._source_error or self.snapshot.get("_stale") or self.snapshot.get("stale")
+                or getattr(self.parent, "_snapshot_stale", False)):
+            return True
+        if self.snapshot.get("mode") == "demo":
+            return False
+        from .inventory import collection_recency, summarize_inventory
+        facts = summarize_inventory(self.snapshot)["facts"]
+        return (not collection_recency(self.snapshot)["fresh"] or facts["read_success"] is False
+                or facts["collection_metadata_valid"] is False)
 
     def refresh(self, force=False):
         try:
@@ -351,7 +377,7 @@ class NetworkMapWindow(tk.Toplevel):
     def _allowed(self, device):
         if not snapshot_capabilities(self.snapshot)["address_blocking"]:
             return False
-        if not device or device.get("protected") or not callable(self.action_callback):
+        if not device or device.get("protected") or identity_conflicted(self.snapshot, device) or not callable(self.action_callback):
             return False
         if getattr(self.parent, "_busy", False) or getattr(self.parent, "_session_locked", False):
             return False
@@ -363,7 +389,7 @@ class NetworkMapWindow(tk.Toplevel):
             self.selected_title.configure(text=d.get("name") or d.get("hostname") or "Sem nome")
             self.details.set(f"IP  {d.get('ip') or 'Não informado'}\nMAC  {d.get('mac') or 'Não informado'}\n\n"
                              f"Evidência: {d.get('state') or 'Observada'}\nÚltimo registro: {d.get('last_seen') or 'Não informado'}\n\n"
-                             f"{block_description(self.snapshot, d)}\n" + self._wireless_details(d) + ("Equipamento protegido: ações indisponíveis." if d.get("protected") else "Presença atual não confirmada."))
+                             f"{block_description(self.snapshot, d)}\n" + self._wireless_details(d) + ("Identidade IP/MAC em conflito: ações indisponíveis." if identity_conflicted(self.snapshot, d) else "Equipamento protegido: ações indisponíveis." if d.get("protected") else "Presença atual não confirmada."))
         else:
             self.selected_title.configure(text="Escolha uma máquina")
             self.details.set("Selecione um cartão ou uma linha. O inventário pode conter concessões antigas; o estado exibido é a evidência fornecida pela fonte.")

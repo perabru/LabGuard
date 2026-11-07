@@ -26,8 +26,15 @@
       <p id="capability-summary" class="capability-summary">Aguardando os recursos informados pela fonte.</p>
       <div class="freshness"><span id="fresh-dot" class="status-dot"></span><span id="updated">Ainda sem atualização.</span><span id="request-status" aria-live="polite"></span></div>
       <p id="action-error" class="message error" role="alert" hidden></p>
+      <section class="panel inventory-overview" aria-labelledby="inventory-title">
+        <div class="panel-heading"><div><span class="eyebrow">IDENTIFICAÇÃO DA REDE</span><h2 id="inventory-title">O que foi identificado</h2></div><span id="inventory-state" class="state-badge">Aguardando leitura</span></div>
+        <p id="inventory-summary">A identificação será apresentada conforme as evidências da fonte, sem garantia de inventário completo.</p>
+        <div class="inventory-facts"><span id="inventory-source">Fonte ainda não confirmada</span><span id="inventory-counts">Nenhum registro confirmado neste painel</span><span id="inventory-time">Horário não confirmado</span></div>
+        <p id="inventory-next" class="inventory-next">Use Atualizar para consultar a fonte configurada.</p>
+        <details><summary>Limites desta leitura</summary><ul id="inventory-gaps"></ul></details>
+      </section>
       <div class="metrics" aria-label="Indicadores da amostra recente">
-        <article class="metric"><span class="metric-icon blue" aria-hidden="true">PC</span><span class="metric-name">Máquinas observadas</span><strong id="metric-devices">—</strong><small>Evidências da fonte conectada</small></article>
+        <article class="metric"><span class="metric-icon blue" aria-hidden="true">IP</span><span class="metric-name">Endereços observados</span><strong id="metric-devices">—</strong><small>IPs únicos com evidência disponível</small></article>
         <article class="metric"><span class="metric-icon purple" aria-hidden="true">IP</span><span class="metric-name">Internet suspensa</span><strong id="metric-blocked">—</strong><small>Regras informadas pela fonte</small></article>
         <article class="metric"><span class="metric-icon blue" aria-hidden="true">DNS</span><span class="metric-name">Consultas DNS</span><strong id="metric-queries">—</strong><small>Na amostra disponível</small></article>
         <article class="metric"><span class="metric-icon yellow" aria-hidden="true">!</span><span class="metric-name">Bloqueios DNS</span><strong id="metric-dns-blocked">—</strong><small>Confirmados na amostra</small></article>

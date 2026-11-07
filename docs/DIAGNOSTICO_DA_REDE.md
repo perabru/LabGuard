@@ -1,8 +1,14 @@
-# Erro de identificação: passo a passo - LabGuard 2.0.1
+# Erro de identificação: passo a passo - LabGuard 2.1.0
 
-Use este guia quando o IP do roteador não aparecer, houver poucas máquinas ou uma conexão administrativa falhar. A Observação continua sendo útil com qualquer roteador; você não precisa selecionar MikroTik nem instalar um novo gateway para consultar a rede local.
+Use este guia quando o IP do roteador não aparecer, houver poucas máquinas ou uma conexão administrativa falhar. A Observação consulta os dados disponíveis no computador e pode ser usada sem uma API do roteador. O alcance depende do sistema, da rede e das fontes acessíveis; não há identificação garantida de todos os equipamentos.
+
+Confirme onde o programa está sendo executado. Em uma máquina virtual, contêiner ou servidor, a consulta descreve a rede desse ambiente, que pode ser diferente da rede do computador ou navegador utilizado para acessá-lo.
 
 ## 1. Abrir a ajuda do programa
+
+Em Observação, comece por **Identificar minha rede**. Confira a fonte e o estado no cartão **O que foi identificado**, seguido de **Próximo passo**. As contagens representam amostras, não um censo físico. Uma leitura confirmada ainda tem cobertura parcial.
+
+Se a leitura estiver indisponível, a coleta não confirmou informações; isso não comprova ausência de rede. Se aparecerem **Dados desatualizados**, os registros anteriores continuam visíveis para consulta, mas não foram confirmados como atuais. Horário ausente, inválido ou futuro não é recente. Dados de **Demonstração** são fictícios e ficam separados das consultas reais.
 
 1. Em **Início**, clique **Não identificou? Ver passo a passo**. Depois de uma falha, use também o botão de ajuda apresentado junto ao erro.
 2. No assistente **Ajuda para identificar a rede**, leia o caso indicado e avance por **Voltar / Avançar**.
@@ -12,6 +18,8 @@ Use este guia quando o IP do roteador não aparecer, houver poucas máquinas ou 
 No gateway SSH legado, esse botão fica desabilitado: a consulta avançada pode reconciliar políticas já configuradas. Siga o fluxo do legado ou escolha **Observar esta rede** em Início para consultar a rede local. O assistente não troca o modo automaticamente.
 
 ## 2. Conferir a conexão e o IP no Windows
+
+O programa prefere os recursos de rede do PowerShell. Quando a fonte principal falha, tenta consultas **CIM locais** para configuração e rotas, e o cache ARP quando os vizinhos não puderam ser lidos. Isso não consulta computadores remotos, não baixa ferramentas e não solicita elevação. As fontes alternativas podem fornecer menos campos ou endereços. PowerShell indisponível ou uma política institucional ainda pode impedir a coleta.
 
 Abra o Terminal, PowerShell ou Prompt de Comando na sua conta habitual. Estes comandos apenas exibem informações; não é necessário iniciar como administrador para a consulta normal:
 
@@ -45,7 +53,9 @@ ip -4 neigh
 | `ip -4 route` | Linha `default via`, IP de saída e interface `dev`; compare também as demais rotas |
 | `ip -4 neigh` | Vizinhos IPv4 conhecidos, campo `lladdr` e estado; `STALE` não comprova presença atual |
 
-Se o comando `ip` não existir, a distribuição precisa fornecer o pacote **iproute2**. Peça à TI a instalação pelo gerenciador da distribuição; o programa não baixa ferramentas automaticamente. O pacote Debian do LabGuard declara essa dependência, enquanto o portátil e a execução pelo código-fonte dependem do sistema local.
+O programa usa **iproute2** como fonte preferencial. Se `ip` não existir ou uma consulta falhar, tenta fontes alternativas somente para os dados indisponíveis: interfaces e tabelas locais de rotas e ARP do Linux. A alternativa pode mostrar menos interfaces ou endereços adicionais. Ela não eleva privilégios, não instala ferramentas e não envia sondagens à rede.
+
+Uma tabela válida e vazia continua sendo um resultado válido: não dispara uma busca para forçar o aparecimento de máquinas. Se precisar dos comandos manuais acima e `ip` não existir, peça à TI a instalação de **iproute2** pelo gerenciador da distribuição. O pacote Debian do LabGuard declara essa dependência.
 
 Não é necessário usar `sudo` para essas consultas normais. Se uma política institucional impedir a leitura, peça à TI que confira a permissão específica.
 
@@ -61,11 +71,13 @@ A Observação desta versão usa **IPv4 privado** das faixas `10.0.0.0/8`, `172.
 
 ## 5. Sem MAC ou com poucos dispositivos
 
-1. Confira se o campo vazio é o **MAC do próprio computador**. Essa informação pode ficar vazia por desenho da coleta; sozinha, não é falha de identificação.
+1. Confira se o campo vazio é o **MAC do próprio computador**. Ele pode ficar vazio quando a fonte não o fornece; essa ausência, sozinha, não é falha de identificação.
 2. Compare a tabela do LabGuard com `arp -a` no Windows ou `ip -4 neigh` no Linux. A coleta local lê cache, sem varrer todas as máquinas.
 3. Considere VLANs, roteadores intermediários, NAT, pontos de acesso e isolamento entre clientes Wi-Fi. Essas configurações podem impedir que o computador veja os MACs dos demais clientes.
-4. Uma entrada antiga ou `STALE` também pode permanecer depois que a máquina saiu da rede. Não trate o cache como lista de presença.
+4. Uma entrada antiga ou `STALE` também pode permanecer depois que a máquina saiu da rede. Não trate o cache como lista de presença. Ausência de MAC, ARP ou concessão DHCP tampouco comprova que uma estação esteja desligada; IP fixo pode não gerar concessão.
 5. Para inventário mais amplo, consulte o equipamento ou controlador compatível com uma conta autorizada. A disponibilidade desse acesso depende do modelo; não é requisito para continuar em Observação.
+
+Se o mesmo IP aparecer associado a MACs diferentes, confirme a identidade com a TI antes de agir. Um mesmo MAC em vários IPs pode refletir endereços adicionais ou registros antigos. Contar IPs ou MACs não equivale a contar computadores físicos ou pessoas.
 
 ## 6. Marca, modelo ou modem Vivo desconhecido
 
@@ -124,4 +136,4 @@ Anote versão do LabGuard, Windows/distribuição Linux, modo escolhido, tipo de
 - [Microsoft: arp](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/arp).
 - [Linux: tabela de vizinhos](https://man7.org/linux/man-pages/man8/ip-neighbour.8.html).
 - [MikroTik: REST API](https://manual.mikrotik.com/docs/developer-guides/rest-api/).
-- [Manual 2.0.1: recuperação](MANUAL_DO_USUARIO_V2.html#erro-de-identificacao).
+- [Manual 2.1.0: recuperação](MANUAL_DO_USUARIO_V2.html#erro-de-identificacao).

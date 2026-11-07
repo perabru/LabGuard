@@ -43,8 +43,17 @@
     const name = {add_domain: "domain_filtering", remove_domain: "domain_filtering", set_ai_block: "ai_block", set_device_block: "device_internet_cut", set_address_block: "address_blocking"}[action];
     return !!name && capabilities[name] === true && (action !== "set_ai_block" || capabilities.domain_filtering === true);
   }
+  function sourceRecent() {
+    if (snapshot?.mode === "demo") return true;
+    const identification = snapshot?.identification;
+    if (!identification || identification.time_status !== "fresh" || identification.facts?.read_success === false || identification.facts?.collection_metadata_valid === false) return false;
+    const collected = new Date(identification.timestamp).getTime();
+    const age = Date.now() - collected;
+    return Number.isFinite(age) && age >= 0 && age <= 20000;
+  }
   function canWrite(action) {
     if (!token || role !== "admin" || !snapshot || busy || dbBusy || dbSyncing || Date.now() - lastSuccess > 20000) return false;
+    if (!sourceRecent()) return false;
     if (!supports(action)) return false;
     if (snapshot.mode === "demo") return true;
     const health = snapshot.health || {};
@@ -59,7 +68,9 @@
     document.querySelectorAll("[data-write-kind]").forEach(button => {
       button.disabled = !canWrite(button.dataset.writeKind) || button.dataset.protected === "true" || button.dataset.unavailable === "true";
     });
-    const fresh = !!snapshot && Date.now() - lastSuccess <= 20000;
+    const responseRecent = !!snapshot && Date.now() - lastSuccess <= 20000;
+    const fresh = responseRecent && sourceRecent();
+    el("workspace").dataset.sampleState = fresh ? "fresh" : "stale";
     el("fresh-dot").className = `status-dot ${fresh ? "fresh" : "stale"}`;
     const editable = canEditDB();
     for (const id of ["db-save", "db-domain", "db-category", "db-enabled", "db-notes", "db-import-text", "db-import-category", "db-import-button"]) el(id).disabled = !editable;
@@ -73,6 +84,7 @@
     el("report-state").textContent = `${fresh ? "Dados recentes." : "Dados desatualizados ou indisponíveis no painel."} ${sample} Os arquivos usam o último estado armazenado no servidor.`;
     if (mapObjectURL && mapSnapshotTime !== snapshot?.timestamp) el("map-status").textContent = "O painel recebeu outra amostra. Atualize o mapa para consultar o estado armazenado no servidor.";
     if (mapObjectURL && (!fresh || mapCacheState === "stale")) el("map-status").textContent = "Mapa de uma amostra anterior; o estado atual da rede não está confirmado.";
+    renderIdentification(responseRecent);
   }
   function canEditDB() { return !!token && role === "admin" && !gatewayWriting && !dbBusy && !dbSyncing; }
   function logout() {
@@ -165,11 +177,33 @@
   function domainImpact() {
     return snapshot?.mode === "gateway" ? "O DNS/DHCP do gateway legado será reiniciado brevemente. Caches e conexões abertas podem continuar." : "A aplicação usa os recursos de filtragem do equipamento conectado. O resultado depende da configuração de DNS da rede; caches e conexões abertas podem continuar.";
   }
+  function renderIdentification(responseRecent) {
+    const result = snapshot?.identification;
+    const supplied = result && typeof result === "object" ? result : {};
+    const status = ["partial", "unavailable", "demo"].includes(supplied.status) ? supplied.status : "unavailable";
+    const sourceAge = Date.now() - new Date(supplied.timestamp).getTime();
+    const previous = !!snapshot && (!responseRecent || supplied.time_status === "stale" || Number.isFinite(sourceAge) && sourceAge > 20000);
+    const notConfirmed = !!snapshot && !sourceRecent();
+    const labels = {partial: "Amostra parcial", unavailable: "Identificação indisponível", demo: "Demonstração"};
+    el("inventory-state").textContent = `${snapshot ? labels[status] : "Aguardando leitura"}${previous ? " · dados anteriores" : notConfirmed ? " · leitura não confirmada" : ""}`;
+    el("inventory-state").className = `state-badge ${status === "unavailable" || previous || notConfirmed ? "off" : ""}`;
+    el("inventory-summary").textContent = previous ? "Esta é a amostra anterior. A identificação atual da rede não foi confirmada; os registros continuam visíveis para consulta." : supplied.summary || "Consulte a fonte configurada para conhecer as evidências disponíveis. Uma lista vazia não comprova que não há equipamentos na rede.";
+    el("inventory-source").textContent = `Fonte: ${supplied.source_label || "não confirmada"}`;
+    const count = key => Number.isInteger(supplied.counts?.[key]) && supplied.counts[key] >= 0 ? supplied.counts[key] : 0;
+    el("inventory-counts").textContent = `${count("local_devices")} endereço(s) local(is) informado(s) · ${count("observed_neighbors")} vizinho(s) com evidência · ${count("unique_ips")} IP(s) · ${count("known_macs")} MAC(s)`;
+    el("inventory-time").textContent = supplied.timestamp ? `Coleta: ${stamp(supplied.timestamp)}` : "Horário da coleta não confirmado";
+    el("inventory-next").textContent = previous || notConfirmed ? "Atualize a leitura e confira a fonte antes de tomar uma decisão. Nenhum resumo concede permissão de bloqueio." : supplied.next_action || "Confira o modo e a configuração da fonte antes de prosseguir.";
+    el("inventory-gaps").replaceChildren();
+    const gaps = Array.isArray(supplied.gaps) ? supplied.gaps.filter(value => typeof value === "string").slice(0, 12) : [];
+    for (const gap of gaps) el("inventory-gaps").append(text("li", gap));
+    if (!gaps.length) el("inventory-gaps").append(text("li", "A amostra não garante identificar todas as máquinas, seus usuários ou todo o tráfego."));
+    el("refresh").textContent = snapshot?.mode === "observation" ? "Identificar minha rede" : "Atualizar";
+  }
   function render() {
     const data = snapshot;
     const metrics = data.metrics || {};
     const capabilities = data.capabilities || {};
-    el("metric-devices").textContent = metrics.observed_devices ?? (data.devices || []).length;
+    el("metric-devices").textContent = data.identification?.counts?.devices ?? metrics.observed_devices ?? (data.devices || []).length;
     el("metric-blocked").textContent = data.mode === "observation" ? "—" : metrics.blocked_devices ?? 0;
     el("metric-queries").textContent = capabilities.dns_history === true ? metrics.queries_window ?? (data.events || []).length : "—";
     el("metric-dns-blocked").textContent = capabilities.dns_history === true ? metrics.blocked_events_window ?? 0 : "—";
@@ -197,7 +231,7 @@
     el("warnings").textContent = warnings; el("warnings").hidden = !warnings;
     el("devices").replaceChildren();
     const devices = Array.isArray(data.devices) ? data.devices : [];
-    el("device-count").textContent = devices.length;
+    el("device-count").textContent = `${devices.length} registro(s)`;
     el("address-rule-count").textContent = `Regras IP / MAC: ${Array.isArray(data.address_blocks) ? data.address_blocks.length : 0}`;
     for (const device of devices.slice(0, 1000)) {
       const row = document.createElement("tr");
@@ -205,6 +239,7 @@
       if (device.protected) name.append(text("small", "Equipamento protegido"));
       const address = document.createElement("td"); address.append(text("strong", device.ip), text("small", device.mac || "MAC não observado"));
       const state = document.createElement("td"); state.append(text("strong", device.observed === false ? "Regra salva · sem observação atual" : device.state || "Observada"), text("small", wifiEvidence(device)));
+      state.append(text("small", "Leitura atual não confirmada · presença não comprovada", "row-stale"));
       const access = document.createElement("td"); const knownAccess = data.mode !== "observation" && typeof device.blocked === "boolean";
       access.append(badge(!knownAccess ? "Não verificada" : device.blocked ? "Suspensa" : "Sem suspensão", !knownAccess ? "" : device.blocked ? "off" : "ok"));
       const causes = Array.isArray(device.blocked_by) ? device.blocked_by.map(value => ({device: "máquina", ip: "IP", mac: "MAC"})[value]).filter(Boolean) : [];

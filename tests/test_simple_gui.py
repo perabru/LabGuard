@@ -1,5 +1,6 @@
 """Contratos e limites da interface simples, sem janelas ou rede reais."""
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -10,11 +11,12 @@ import types
 import unittest
 from unittest.mock import Mock, patch
 
-from labguard.simple_gui import App, DiagnosticWindow, PolicyBankSelection, mutation_reason, snapshot_capabilities
+from labguard.simple_gui import (App, DiagnosticWindow, PolicyBankSelection, mutation_reason,
+                                snapshot_capabilities, inventory_presentation, conflicted_device_ips)
 
 
 def snapshot(mode="equipment", **caps):
-    return {"mode": mode, "capabilities": {"inventory": True, **caps},
+    return {"mode": mode, "timestamp": datetime.now(timezone.utc).isoformat(), "capabilities": {"inventory": True, **caps},
             "health": {"dns": True, "firewall": True, "forwarding": True}}
 
 
@@ -310,6 +312,121 @@ class ControllerRestUiTests(unittest.TestCase):
             self.assertTrue(selected["blocked"])
             self.assertEqual([row["kind"] for row in released["address_blocks"]], ["mac"])
         finally:controller.close()
+
+
+class InventoryUiTests(unittest.TestCase):
+    def observed(self):
+        data = snapshot("observation")
+        data.update(interfaces=[{"name": "LAN", "ipv4": "192.168.1.10/24"}],
+                    discovery={"read_success": True, "interfaces_read": True, "routes_read": True, "neighbors_read": True},
+                    devices=[{"name": "Este computador", "ip": "192.168.1.10", "mac": "", "state": "Endereço local"},
+                             {"name": "Estação", "ip": "192.168.1.30", "mac": "02:00:00:00:00:30"}])
+        return data
+
+    def receiver(self, mode="observation"):
+        app = SimpleUiTests.app(mode)
+        app._banks = Mock(); app._banks.warning = ""
+        for name in ("_render_home", "_render_devices", "_render_sites", "_render_activity", "_refresh_mutation_controls", "_notify_diagnostics"):
+            setattr(app, name, Mock())
+        app.error_help_button = Mock(); app.refresh_button = Mock()
+        return app
+
+    def test_card_confirmed_partial_unavailable_and_local_stale_override(self):
+        data = self.observed()
+        view = inventory_presentation(data)
+        self.assertEqual(view["state"], "Leitura confirmada · cobertura parcial")
+        self.assertEqual(view["evidence"]["counts"]["observed_neighbors"], 1)
+        self.assertEqual(inventory_presentation(data, stale=True)["state"], "Dados desatualizados")
+        self.assertEqual(inventory_presentation(data, busy=True)["state"], "Consultando · leitura anterior")
+        data["discovery"] = {"read_success": False, "interfaces_read": False, "routes_read": False, "neighbors_read": False}
+        data["devices"], data["interfaces"] = [], []
+        self.assertEqual(inventory_presentation(data)["state"], "Leitura indisponível")
+
+    def test_new_failed_collection_keeps_old_rows_and_their_receipt_time(self):
+        app = self.receiver(); previous = self.observed()
+        app.snapshot = previous; app._snapshot_source = app._snapshot_identity(previous)
+        old_clock = app._last_snapshot_monotonic
+        failed = snapshot("observation")
+        failed.update(devices=[], discovery={"read_success": False, "interfaces_read": False, "routes_read": False, "neighbors_read": False})
+        self.assertFalse(app._apply_snapshot(failed))
+        self.assertIs(app.snapshot, previous); self.assertTrue(app._snapshot_stale)
+        self.assertEqual(app._last_snapshot_monotonic, old_clock)
+        app._render_devices.assert_not_called(); app._banks.path_for.assert_not_called()
+        self.assertIn("desatualizados", app.status.set.call_args.args[0])
+
+    def test_failed_real_collection_never_adopts_previous_demo_inventory(self):
+        app = self.receiver("demo")
+        app.snapshot["devices"] = [{"ip": "192.168.50.101", "name": "Fictício"}]
+        app._snapshot_source = app._snapshot_identity(app.snapshot)
+        app.transport = Mock(kind="observation", host="", port="")
+        failed = snapshot("observation")
+        failed.update(devices=[], discovery={"read_success": False, "interfaces_read": False, "routes_read": False, "neighbors_read": False})
+        self.assertTrue(app._apply_snapshot(failed))
+        self.assertEqual(app.snapshot["mode"], "observation"); self.assertEqual(app.snapshot["devices"], [])
+        self.assertTrue(app._snapshot_stale); app._render_devices.assert_called_once()
+
+    def test_old_missing_naive_or_future_source_never_becomes_fresh_on_arrival(self):
+        values = [None, "invalid", datetime.now().isoformat(),
+                  (datetime.now(timezone.utc)-timedelta(seconds=25)).isoformat(),
+                  (datetime.now(timezone.utc)+timedelta(seconds=5)).isoformat()]
+        for stamp in values:
+            app = SimpleUiTests.app(domain_filtering=True); app.snapshot["timestamp"] = stamp
+            self.assertFalse(app._add_domain())
+            app._confirm.assert_not_called(); app._run_job.assert_not_called()
+
+    def test_failed_or_invalid_collection_metadata_cannot_authorize_dns(self):
+        for metadata in ({"read_success": False}, {"read_success": "yes"}, []):
+            data = snapshot(domain_filtering=True); data["discovery"] = metadata
+            data["inventory_summary"] = {"fresh": True, "facts": {"read_success": True}}
+            self.assertIsNotNone(mutation_reason(data, capability="domain_filtering", required_health=("dns",)))
+        data = snapshot(inventory=False, domain_filtering=True)
+        self.assertIsNone(mutation_reason(data, capability="domain_filtering", required_health=("dns",)))
+
+    def test_zero_inventory_does_not_disable_legitimate_dns_after_applying_snapshot(self):
+        app = self.receiver("equipment")
+        data = snapshot(inventory=False, domain_filtering=True)
+        self.assertTrue(app._apply_snapshot(data))
+        self.assertFalse(app._snapshot_stale)
+        self.assertTrue(app._mutation_allowed(("dns",), capability="domain_filtering"))
+
+    def test_summary_is_not_an_authority_for_observation_or_missing_capability(self):
+        misleading = {"fresh": True, "capabilities": {"domain_filtering": True},
+                      "facts": {"read_success": True, "collection_metadata_valid": True}}
+        for mode, capability in (("observation", True), ("equipment", False)):
+            app = SimpleUiTests.app(mode, domain_filtering=capability)
+            with patch("labguard.simple_gui.summarize_inventory", return_value=misleading):
+                self.assertFalse(app._add_domain())
+            app._run_job.assert_not_called()
+
+    def test_duplicate_device_and_domain_records_keep_distinct_table_keys(self):
+        app = SimpleUiTests.app("observation")
+        own = {"ip": "192.168.1.10", "mac": "", "state": "Endereço local", "name": "LAN"}
+        app.snapshot["devices"] = [dict(own), dict(own)]
+        app.device_search = Mock(get=Mock(return_value="")); app.devices_table = Mock(); app.devices_note = Mock()
+        app._fill = Mock(); app._render_devices()
+        rows = app._fill.call_args.args[1]
+        self.assertEqual(len(rows), 2); self.assertEqual(len({key for key, _ in rows}), 2)
+        app.snapshot["domains"] = [{"domain": "same.example", "source": "external"}, {"domain": "same.example", "source": "external"}]
+        app.domains_table = Mock(); app.site_note = Mock(); app.ai_button = Mock()
+        app._render_sites(); rows = app._fill.call_args.args[1]
+        self.assertEqual(len(rows), 2); self.assertEqual(len({key for key, _ in rows}), 2)
+
+    def test_identity_conflicts_are_visible_and_block_device_address_and_remote_actions(self):
+        app = SimpleUiTests.app(address_blocking=True)
+        one = {"ip": "192.168.1.30", "mac": "02:00:00:00:00:30", "name": "A"}
+        two = {"ip": "192.168.1.30", "mac": "02:00:00:00:00:31", "name": "B"}
+        app.snapshot["devices"] = [one, two]; app._selected_device.return_value = one
+        self.assertEqual(conflicted_device_ips(app.snapshot), {"192.168.1.30"})
+        for blocked in (True, False):
+            self.assertFalse(app._set_block(blocked))
+            self.assertFalse(app._set_address_block("ip", one["ip"], blocked))
+            self.assertFalse(app._set_address_block("mac", one["mac"], blocked))
+        with patch("labguard.remote_gui.RemoteWindow") as remote:
+            self.assertIsNone(app._open_remote()); remote.assert_not_called()
+        app._run_job.assert_not_called(); app._confirm.assert_not_called()
+        app.device_search = Mock(get=Mock(return_value="")); app.devices_table = Mock(); app.devices_note = Mock(); app._fill = Mock()
+        app._render_devices()
+        self.assertTrue(all("Identidade incerta" in row[1][3] for row in app._fill.call_args.args[1]))
 
     def test_readonly_real_controller_does_not_schedule_equipment_cut(self):
         from labguard.controller import ControllerTransport

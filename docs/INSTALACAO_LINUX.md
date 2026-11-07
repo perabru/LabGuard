@@ -99,6 +99,6 @@ Referências: [PyInstaller](https://pyinstaller.org/en/stable/usage.html), [recu
 
 ## Identificação local e comando ip
 
-A observação usa o comando `ip`, do pacote `iproute2`. O instalador `.deb` declara essa dependência. Na versão portátil, no servidor Linux ou ao executar o código-fonte, confirme que `ip -4 address show up` e `ip -4 route show default` estão disponíveis. Se o comando estiver ausente, a TI deve instalar `iproute2` pelo gerenciador da distribuição; o LabGuard não instala ferramentas automaticamente.
+A observação tenta primeiro o comando `ip`, do pacote `iproute2`; o `.deb` continua declarando essa dependência. A versão 2.1 inclui leituras locais alternativas quando a consulta principal falha ou a ferramenta está ausente, com indicação das fontes disponíveis. Isso não torna o inventário completo. No portátil, servidor ou código-fonte, a TI pode instalar `iproute2` pelo gerenciador da distribuição quando necessário; o LabGuard não instala ferramentas automaticamente.
 
 No desktop, abra **Início → Não identificou? Ver passo a passo**. No servidor, o diagnóstico corresponde ao host do serviço, que pode estar em outra rede em relação ao navegador. Consulte o [passo a passo](https://perabru.github.io/LabGuard/manual2/index.html#erro-de-identificacao).

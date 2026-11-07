@@ -1,10 +1,10 @@
-# LabGuard 2.0.1 - Manual do usuário
+# LabGuard 2.1.0 - Manual do usuário
 
 Começar na rede existente, conectar um controlador e conferir cada resultado.
 
-Edição 2.0.1 | 6 de novembro de 2026
+Edição 2.1.0 | 7 de novembro de 2026
 
-Este manual acompanha a interface simplificada 2.0.1 e sua ajuda de identificação da rede. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote 1.4 não contém automaticamente as funções descritas aqui.
+Este manual acompanha a interface 2.1.0, com identificação orientada pelas fontes disponíveis e ajuda de diagnóstico. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote 1.4 não contém automaticamente as funções descritas aqui.
 
 ## 1. Primeiro uso em cinco passos
 
@@ -12,7 +12,7 @@ O LabGuard começa em **Observação**, com informações reais que o sistema lo
 
 1. Baixe o pacote correto na [página de versões](https://github.com/perabru/LabGuard/releases), conferindo versão e arquivo de verificação da mesma publicação.
 2. Abra o programa. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`. No Windows, use também o inicializador do projeto. No Debian/Ubuntu, o Tk está no pacote `python3-tk`.
-3. Na tela **Início**, mantenha **Observar esta rede**. Não precisa instalar gateway Linux nem trocar cabos para consultar os dados locais.
+3. Na tela **Início**, mantenha **Observação** e use **Identificar minha rede**. Não precisa instalar gateway Linux nem trocar cabos para consultar os dados locais.
 4. Abra **Dispositivos** e confira os endereços disponíveis. A lista reúne evidências do sistema; não garante descobrir todas as máquinas ligadas ao switch.
 5. Abra **Sites → Banco de sites** para organizar a política desejada. Cadastrar um domínio não modifica o firewall. A aplicação exige um controlador compatível conectado.
 
@@ -20,7 +20,7 @@ Para aprender sem usar dados reais, escolha **Abrir demonstração** em Início.
 
 ### Antes de uma aula
 
-Confira o modo ativo e a última atualização. Comece com uma estação de teste. Aplique regras somente depois de confirmar que a conexão corresponde ao equipamento certo e que a capacidade desejada está disponível.
+Confira o modo, a fonte e o horário da coleta. Comece com uma estação de teste. Aplique regras somente depois de confirmar que a conexão corresponde ao equipamento certo e que a capacidade desejada está disponível.
 
 ## 2. Escolher o modo certo
 
@@ -35,6 +35,10 @@ Confira o modo ativo e a última atualização. Comece com uma estação de test
 ### Observação é o padrão
 
 A tabela de vizinhos depende do tráfego conhecido pelo computador. Uma máquina silenciosa, em outra VLAN ou atrás de NAT pode não aparecer. Um endereço pode continuar listado depois de o equipamento ser desligado. Isso não é inventário físico completo.
+
+Em máquina virtual, contêiner ou servidor, a fonte local descreve a rede desse ambiente. Ela pode ser diferente da rede do computador ou navegador que está acessando o programa.
+
+Quando uma fonte principal falha, a coleta tenta alternativas locais do próprio sistema: CIM/cache ARP no Windows e interfaces/rotas/ARP no Linux. Elas podem oferecer menos campos ou endereços. O processo não eleva privilégios, instala ferramentas ou sonda estações; uma tabela válida e vazia continua sendo válida.
 
 Nesse modo, suspender internet, aplicar domínios e ativar filtro de IA ficam indisponíveis. Cadastros e relatórios locais continuam úteis.
 
@@ -51,11 +55,21 @@ A marca ou operadora não define uma API universal. Um modem Vivo identificado n
 | Sites | Administrar domínios, perfil de IA e banco de sites |
 | Atividade | Consultar a amostra DNS, ações e conexões disponibilizadas |
 
-Em Início, o formulário de MikroTik pede **Endereço**, **Porta**, **Usuário**, **Senha da sessão** e **Certificado CA opcional**. **Autorizar alterações neste roteador** começa desmarcado.
+Em Início, abra **Acesso ao equipamento** para configurar uma conexão administrativa. O formulário de MikroTik pede **Endereço do roteador**, **Porta**, **Usuário**, **Senha da sessão** e **Certificado CA (opcional)**. **Autorizar alterações neste roteador** começa desmarcado.
 
 As opções avançadas incluem lista de interfaces WAN, rede do laboratório e IPs/MACs protegidos. Preencha com a TI antes de autorizar alterações. Esses valores delimitam as regras.
 
-**Mapa e relatórios** e **Outros equipamentos** abrem ferramentas adicionais, mantendo a navegação principal simples.
+**Detalhes e recursos** abre requisitos e capacidades da conexão. Esse painel e **Acesso ao equipamento** começam recolhidos. **Mapa e relatórios** e **Outros equipamentos** abrem ferramentas adicionais.
+
+### Ler a identificação
+
+Em Observação, use **Identificar minha rede**. O cartão **O que foi identificado** apresenta a fonte, o estado da leitura, as contagens e o **Próximo passo** recomendado. Confira esses dados antes de interpretar a lista de dispositivos.
+
+Uma leitura confirmada indica resposta da fonte, com **cobertura parcial**. As contagens representam evidências de endereços e MACs, sem garantir o total físico de máquinas. A data informa quando a fonte foi consultada, não a presença de cada estação.
+
+Uma leitura indisponível não comprova falta de internet. **Dados desatualizados** avisa que a amostra anterior não foi confirmada pela consulta atual ou pelo horário da fonte. Atualize e siga a orientação apresentada. Horário ausente, inválido ou futuro não é tratado como recente.
+
+**Demonstração** identifica dados fictícios. Eles ficam separados da rede real e não são usados para preencher uma consulta real com falha.
 
 ### Ação indisponível
 
@@ -68,10 +82,10 @@ Ao trocar de modo, atualize antes de agir. Uma falha real deve ser apresentada c
 A integração usa a API REST HTTPS do **RouterOS 7**. Ela administra o roteador compatível que já está no caminho da rede, sem instalar um novo gateway.
 
 1. Peça à TI que confira a versão, o serviço `www-ssl`, o certificado e as permissões REST. Comece com uma conta de consulta.
-2. Em **Início**, selecione **Controlar MikroTik via HTTPS**.
+2. Em **Início → Acesso ao equipamento**, selecione **Controlar MikroTik via HTTPS**.
 3. Informe o IP literal do roteador, porta HTTPS, usuário e senha da sessão. Se necessário, selecione a CA institucional. Este adaptador não aceita nomes DNS no campo de endereço.
 4. Mantenha **Autorizar alterações neste roteador** desmarcado e clique **Conectar**.
-5. Confira a identificação, a rede e as capacidades antes de autorizar qualquer alteração.
+5. Confira a identificação e a rede. Abra **Detalhes e recursos** para verificar as capacidades antes de autorizar qualquer alteração.
 
 ### Certificado e alcance
 
@@ -112,7 +126,9 @@ Abra **Dispositivos** e selecione a máquina pela combinação de nome disponív
 
 ### Consultar primeiro
 
-Uma concessão DHCP informa um endereço concedido, não garante presença atual. ARP e vizinhos também são evidências limitadas. MAC privado, troca de interface, NAT e equipamentos intermediários podem afetar a identificação.
+Uma concessão DHCP informa um endereço concedido, não garante presença atual. ARP e vizinhos também são evidências limitadas. A ausência de MAC, ARP ou concessão não comprova que a estação esteja desligada; um IP fixo pode não aparecer no DHCP. MAC privado, troca de interface, NAT e equipamentos intermediários podem afetar a identificação.
+
+O mesmo IP com MACs diferentes exige conferência da identidade antes de agir. Um MAC em vários IPs pode refletir endereços adicionais ou registros antigos. As contagens não representam computadores físicos nem pessoas.
 
 ### Bloquear e desbloquear IP
 
@@ -209,7 +225,7 @@ Consulte [Administração remota](ADMINISTRACAO_REMOTA.md) para catálogo e perm
 
 O atalho usa a amostra da fonte conectada. O desenho é lógico: ligações inferidas não comprovam porta física, cabo, switch ou associação Wi-Fi. MAC privado não equivale a identidade permanente de pessoa.
 
-Os formatos incluem SVG, HTML, CSV e PDF conforme o pacote e suas dependências. Exporte após atualizar; confira horário, modo e origem dos dados. Relatório de demonstração continua fictício.
+Os formatos incluem SVG, HTML, CSV e PDF conforme o pacote e suas dependências. Exporte após atualizar; confira horário, modo e origem dos dados. A idade da coleta não informa há quanto tempo uma máquina está presente. Relatório de demonstração continua fictício e seus dados ficam separados da rede real.
 
 ### Perfis de equipamentos
 
@@ -223,7 +239,7 @@ Para modem Vivo sem API compatível documentada, mantenha Observação e use adm
 
 ## 11. Servidor administrativo e legado
 
-### Servidor 2.0
+### Servidor administrativo
 
 O servidor roda sem Tk e oferece painel web local em `http://127.0.0.1:8765/`. O padrão é observação/controlador, sem exigir gateway Linux no caminho do tráfego.
 
@@ -269,13 +285,13 @@ Abra um terminal na conta habitual. As consultas normais não exigem administrad
 | `route print -4` | `ip -4 route` | Rota padrão, gateway e interface de saída |
 | `arp -a` | `ip -4 neigh` | IPs/MACs já conhecidos no cache local |
 
-Se faltar `ip` no Linux portátil ou pelo código-fonte, peça à TI a instalação de **iproute2** pelo gerenciador da distribuição. O pacote Debian declara essa dependência.
+No Linux, a coleta prefere **iproute2**; quando faltar ou falhar, tenta fontes locais alternativas, com possível redução dos dados. Isso não instala ferramentas nem eleva privilégios. Para executar os comandos manuais sem `ip`, peça à TI a instalação pela distribuição; o pacote Debian declara essa dependência.
 
 Confira o cabo ou SSID e compare a interface com o planejamento da TI. VPNs e várias conexões podem criar mais de uma rota. Uma rede só local pode não ter gateway padrão. Não altere DHCP ou rotas por tentativa: uma estação com IP fixo pode não aparecer nas concessões DHCP.
 
 ### Poucas máquinas ou MAC vazio
 
-A Observação lê um **cache parcial**, não faz varredura completa. Cache vazio pode ser normal; entrada antiga ou `STALE` não comprova presença. O MAC do próprio computador fica vazio por desenho da coleta e isso não é falha.
+A Observação lê um **cache parcial**, não faz varredura completa. Cache vazio pode ser normal; entrada antiga ou `STALE` não comprova presença. O MAC do próprio computador pode ficar vazio quando a fonte não o fornece; isso não é falha de identificação.
 
 VLANs, roteadores, NAT, pontos de acesso e isolamento Wi-Fi podem ocultar vizinhos e seus MACs. A coleta automática cobre IPv4 privado `10.x`, `172.16-31.x` e `192.168.x`; redes somente IPv6 ou outros endereços podem ficar fora da lista. Continue em Observação sem exigir um MikroTik.
 

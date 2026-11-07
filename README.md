@@ -1,10 +1,16 @@
-# LabGuard 2.0
+# LabGuard 2.1
 
 Painel em Python para conhecer a rede do laboratório e administrar os equipamentos compatíveis que já estão nela. A nova interface reúne **Início, Dispositivos, Sites e Atividade**.
 
-**Começa em Observação real:** consulta o computador, a rota padrão e os vizinhos conhecidos. Para esse primeiro uso, não precisa trocar o roteador, mudar cabos, instalar gateway nem informar credenciais.
+**Começa em Observação real:** consulta o computador, a rota padrão e os vizinhos conhecidos, com leituras locais alternativas quando o método principal falha. O resumo indica origem, recência e limites da amostra. Para começar, não precisa trocar cabos, instalar gateway ou informar credenciais.
 
 [Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.0](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
+
+## Como interpretar o inventário
+
+A lista mostra endereços com evidências, sem garantir que representam todas as máquinas físicas ou que continuam conectados. O mesmo computador pode usar vários IPs e MACs; esses dados não identificam uma pessoa. A interface separa leitura parcial, dados indisponíveis, demonstração e coleta antiga. Identidades conflitantes exigem conferência antes de uma ação.
+
+Estar na mesma rede não garante visibilidade de VLANs, clientes isolados, equipamentos silenciosos ou redes atrás de NAT. Para ampliar a amostra, conecte uma fonte administrativa compatível já preparada pela TI. O software não tenta senhas, não intercepta tráfego e não usa dados fictícios como recuperação de falhas.
 
 ## Se a identificação falhar
 
@@ -53,7 +59,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A [versão 2.0.1 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.0.1), com o assistente de identificação, manual atualizado e pacotes Windows/Linux. Foram aprovados 294 testes no Linux, 250 no Windows e os testes nativos de instalação, abertura e serviços. Confira a [validação](docs/VALIDACAO.md) e os hashes do mesmo lançamento.
+A versão **2.1.0** está em validação dos pacotes nativos. Inclui leitura local mais resiliente, resumo de evidências e orientação para completar a identificação. A publicação depende dos testes Windows/Linux; acompanhe a [página de versões](https://github.com/perabru/LabGuard/releases) e a [validação](docs/VALIDACAO.md).
 
 ## Documentação e legado
 

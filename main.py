@@ -20,6 +20,11 @@ def self_test(output: str | None = None) -> int:
         from labguard.discovery import LocalObservationTransport
         from labguard.direct_routeros import DirectRouterOSTransport
         from labguard.diagnostics import build_diagnostic_plan
+        from labguard.inventory import summarize_inventory
+        inventory_check = summarize_inventory({"mode": "observation", "interfaces": [], "devices": [],
+            "discovery": {"read_success": False, "interfaces_read": False, "routes_read": False, "neighbors_read": False}})
+        if inventory_check["status"] != "unavailable" or inventory_check["facts"]["coverage_complete"] is not False:
+            raise RuntimeError("Resumo de identificação indisponível ou incompatível.")
         identification = build_diagnostic_plan({"mode": "observation", "interfaces": [], "devices": [], "gateway": {}}, system="Windows")
         if len(identification["steps"]) < 3 or "no_gateway" not in identification["cases"]:
             raise RuntimeError("Ajuda de identificação indisponível no pacote.")
@@ -51,6 +56,7 @@ def self_test(output: str | None = None) -> int:
                    "banlist_database": "sqlite3", "remote_process_signatures": len(PROCESS_CATALOGUE),
                    "reports": ["svg", "html", "csv", "pdf"],
                    "identification_help_steps": len(identification["steps"]),
+                   "inventory_summary_check": "ok",
                    "startup_mode": "observation", "controller_modes": ["observation", "routeros", "legacy", "demo"]}
         code = 0
     except Exception as error:

@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>LabGuard 2.0.1 · Manual do usuário</title>
+<title>LabGuard 2.1.0 · Manual do usuário</title>
 <style>
 :root{--purple:#6938c9;--deep:#2f195b;--blue:#1364d8;--yellow:#f9cc45;--ink:#1e293b;--muted:#596477;--line:#dfe5ee;--paper:#fff;--wash:#f5f6fb;--lavender:#f0eafd}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--wash);color:var(--ink);font-family:Arial,"Liberation Sans",sans-serif;font-size:16px;line-height:1.68}a{color:var(--blue);text-decoration-thickness:1px;text-underline-offset:3px}a:hover{color:var(--purple)}a:focus-visible{outline:3px solid var(--yellow);outline-offset:4px}p,ul,ol,dl,blockquote,pre,table{margin:0 0 1.15em}h1,h2,h3,h4{line-height:1.22;color:var(--deep);font-weight:750}h1{font-size:2.5rem;letter-spacing:-.035em;margin:0 0 .5em}h2{font-size:1.85rem;letter-spacing:-.025em;margin:2.1em 0 .7em;padding-top:.5em;border-top:3px solid var(--purple)}h3{font-size:1.2rem;margin:1.6em 0 .65em;color:var(--blue)}h4{font-size:1.05rem;margin:1.4em 0 .55em}li{padding-left:.15em;margin:.35em 0}li>p{margin-bottom:.6em}strong{color:#302248}hr{border:0;border-top:1px solid var(--line);margin:2em 0}code,kbd{font-family:"DejaVu Sans Mono","Liberation Mono",monospace;font-size:.88em;background:#edf1f8;border-radius:4px;padding:.12em .3em;overflow-wrap:anywhere}pre{background:#f1f4fa;border:1px solid #d7dfec;border-left:4px solid var(--blue);border-radius:8px;padding:16px 18px;overflow-x:auto;line-height:1.5;font-size:.91rem;white-space:pre-wrap;overflow-wrap:anywhere}pre code{background:none;padding:0;border-radius:0;font-size:inherit}blockquote{margin-left:0;padding:16px 20px;border-left:5px solid var(--yellow);background:#fff9e5;border-radius:0 8px 8px 0;color:#4b4228}blockquote p:last-child{margin-bottom:0}table{width:100%;border-collapse:collapse;font-size:.92rem;line-height:1.5;overflow-wrap:anywhere}th,td{border:1px solid var(--line);padding:11px 13px;text-align:left;vertical-align:top}th{background:var(--lavender);color:var(--deep);font-weight:700}tbody tr:nth-child(even){background:#f8faff}img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:10px;margin:1.5em auto}svg{display:block;max-width:100%;height:auto;margin:1.5em auto}figure{margin:1.5em 0}figcaption{font-size:.86rem;color:var(--muted);text-align:center;margin-top:.5em}.document{max-width:1120px;margin:36px auto 60px;background:var(--paper);box-shadow:0 15px 65px #25285410;border:1px solid #e2e6ef;border-radius:18px;overflow:hidden}.cover{position:relative;padding:68px 68px 56px;background:linear-gradient(135deg,#251147 0%,#5936b0 57%,#1863bf 100%);color:#fff}.cover:before{content:"";position:absolute;left:0;top:0;width:100%;height:9px;background:var(--yellow)}.brand{font-weight:800;font-size:1.15rem;letter-spacing:.08em;margin-bottom:45px}.brand-mark{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;background:var(--yellow);color:var(--deep);border-radius:11px;margin-right:12px;letter-spacing:0}.eyebrow{font-size:.8rem;letter-spacing:.15em;text-transform:uppercase;font-weight:700;color:#f9d96f;margin-bottom:15px}.cover h1{font-size:3.9rem;max-width:730px;color:#fff;font-weight:750;line-height:1.05;letter-spacing:-.05em;margin:0 0 24px}.subtitle{font-size:1.14rem;max-width:690px;line-height:1.65;color:#ecedff;margin:0 0 35px}.cover-meta{display:flex;gap:14px;flex-wrap:wrap}.cover-meta span{display:inline-block;border:1px solid #ffffff44;border-radius:50px;padding:7px 14px;font-size:.83rem;color:#fff}.cover-meta span:first-child{background:var(--yellow);border-color:var(--yellow);color:var(--deep);font-weight:700}.reading-note{padding:18px 68px;background:#fff7d9;border-bottom:1px solid #f0e0a8;font-size:.88rem;color:#594a1d}.reading-note strong{color:#493b18}#TOC{margin:0 68px;padding:44px 0 26px;border-bottom:1px solid var(--line)}#TOC h2{border:0;margin:0 0 20px;padding:0;font-size:1.55rem}#TOC>ul{columns:2;column-gap:42px;font-size:.9rem;line-height:1.5;padding-left:20px}#TOC li{break-inside:avoid;margin:0 0 11px}#TOC li ul{list-style:circle;padding-left:19px;margin:.5em 0 .9em;font-size:.88em}#TOC a{text-decoration:none;color:#3a3761}#TOC a:hover{text-decoration:underline;color:var(--blue)}main{padding:25px 68px 52px}main>h1:first-child{font-size:2rem;margin-top:1.1em}main>:first-child{margin-top:1.1em}.doc-footer{padding:22px 68px;background:#f0eafd;border-top:1px solid #ded3f7;color:#5b4b78;font-size:.83rem;display:flex;justify-content:space-between;gap:20px}.doc-footer a{color:var(--purple)}.footnotes{font-size:.88em;color:var(--muted)}.sourceCode .co{color:#586676}.sourceCode .st{color:#146442}.sourceCode .kw,.sourceCode .cf{color:#6938c9}.sourceCode .fu{color:#1458ac}
 @media(max-width:900px){.document{margin:0;border-radius:0;border:0;box-shadow:none}.cover{padding:55px 28px 40px}.cover h1{font-size:3rem}.brand{margin-bottom:36px}.reading-note{padding:18px 28px}#TOC{margin:0 28px;padding-top:30px}#TOC>ul{columns:1}main{padding:20px 28px 40px}.doc-footer{padding:20px 28px}table{font-size:.85rem}th,td{padding:9px}h2{font-size:1.6rem}}
 @media print{
-@page{size:A4;margin:17mm 16mm 19mm;@bottom-left{content:"LabGuard 2.0.1 · Manual do usuário";font-family:Arial,sans-serif;font-size:8pt;color:#687082}@bottom-right{content:counter(page);font-family:Arial,sans-serif;font-size:8pt;color:#687082}}
+@page{size:A4;margin:17mm 16mm 19mm;@bottom-left{content:"LabGuard 2.1.0 · Manual do usuário";font-family:Arial,sans-serif;font-size:8pt;color:#687082}@bottom-right{content:counter(page);font-family:Arial,sans-serif;font-size:8pt;color:#687082}}
 html{scroll-behavior:auto}body{background:#fff;font-size:10.2pt;line-height:1.54;color:#202b3a;-webkit-print-color-adjust:exact;print-color-adjust:exact}.document{max-width:none;margin:0;background:#fff;border:0;border-radius:0;box-shadow:none;overflow:visible}.cover{padding:28mm 14mm 22mm;min-height:238mm;break-after:page;background:linear-gradient(140deg,#29134e,#5631a9 65%,#2364ba)}.cover:before{height:3mm}.brand{font-size:14pt;margin-bottom:25mm}.brand-mark{width:10mm;height:10mm;border-radius:3mm}.eyebrow{font-size:8.4pt;letter-spacing:.12em;margin-bottom:6mm}.cover h1{font-size:43pt;max-width:140mm;margin-bottom:10mm;line-height:1.08}.subtitle{font-size:13pt;line-height:1.7;margin-bottom:14mm;max-width:140mm}.cover-meta{gap:3mm}.cover-meta span{font-size:8.5pt;padding:2mm 4mm}.reading-note{padding:5mm 0;font-size:9pt;border:0;background:none;color:#4b4f5b}.reading-note strong{color:#2f195b}#TOC{margin:0;padding:7mm 0 3mm;border:0;break-after:page}#TOC h2{font-size:21pt;break-before:auto;padding:0;border:0}#TOC>ul{columns:1;column-gap:0;font-size:9.8pt;line-height:1.45;padding-left:6mm}#TOC li{margin-bottom:2.2mm}#TOC li ul{margin:1mm 0 2mm;font-size:8.8pt}main{padding:0}main>h1:first-child{font-size:23pt;margin-top:3mm;break-before:auto}h2{font-size:21pt;margin:0 0 6mm;padding-top:4mm;border-top:1mm solid var(--purple);break-before:page}h3{font-size:13pt;margin:6mm 0 3mm}h4{font-size:11pt}h1,h2,h3,h4{break-after:avoid}p,li{orphans:3;widows:3}p,ul,ol,dl,blockquote,pre,table{margin-bottom:3.8mm}li{margin:1.4mm 0}table{font-size:8.7pt;line-height:1.42;break-inside:auto}th,td{padding:2.5mm 3mm}thead{display:table-header-group}tr{break-inside:avoid}pre{font-size:8.4pt;line-height:1.45;padding:3.5mm 4mm;border-radius:2mm;break-inside:avoid}blockquote{padding:4mm 5mm;break-inside:avoid}svg{width:100%;max-height:70mm;height:auto;break-inside:avoid}img{max-height:70mm;object-fit:contain;break-inside:avoid;border-radius:2mm}a{color:#164c9f;text-decoration:none}main a[href^="https://"]{overflow-wrap:anywhere}.doc-footer{margin-top:9mm;padding:5mm 0;background:none;border-top:1px solid var(--line);font-size:8pt;color:#596477}.doc-footer a[href="#inicio"]{display:none}.footnotes{font-size:8.5pt}}
 </style>
 </head>
@@ -18,10 +18,10 @@ html{scroll-behavior:auto}body{background:#fff;font-size:10.2pt;line-height:1.54
 <div class="document">
 <header class="cover" id="inicio">
 <div class="brand"><span class="brand-mark" aria-hidden="true">L</span>LABGUARD</div>
-<p class="eyebrow">Laboratório escolar · Guia da interface 2.0.1</p>
+<p class="eyebrow">Laboratório escolar · Guia da interface 2.1.0</p>
 <h1>Manual do<br>usuário</h1>
 <p class="subtitle">Comece pela rede existente. Consulte dispositivos, conecte um controlador compatível e acompanhe sites e ações em quatro telas.</p>
-<div class="cover-meta"><span>Versão 2.0.1</span><span>Observação como padrão</span><span>6 de novembro de 2026</span></div>
+<div class="cover-meta"><span>Versão 2.1.0</span><span>Observação como padrão</span><span>7 de novembro de 2026</span></div>
 </header>
 <div class="reading-note"><a href="Manual_LabGuard_2.pdf"><strong>Baixar manual em PDF</strong></a> · <strong>Como usar:</strong> escolha um capítulo no sumário. Este arquivo funciona sem conexão à internet; os links externos precisam de acesso à rede. Para imprimir ou salvar em PDF, use <strong>Ctrl+P</strong> e papel A4.</div>
 <nav id="TOC" role="doc-toc" aria-label="Sumário">
@@ -83,7 +83,8 @@ publicação.</li>
 Tcl/Tk e execute <code>python3 main.py</code>. No Windows, use também o
 inicializador do projeto. No Debian/Ubuntu, o Tk está no pacote
 <code>python3-tk</code>.</li>
-<li>Na tela <strong>Início</strong>, mantenha <strong>Observar esta
+<li>Na tela <strong>Início</strong>, mantenha
+<strong>Observação</strong> e use <strong>Identificar minha
 rede</strong>. Não precisa instalar gateway Linux nem trocar cabos para
 consultar os dados locais.</li>
 <li>Abra <strong>Dispositivos</strong> e confira os endereços
@@ -97,7 +98,7 @@ aplicação exige um controlador compatível conectado.</li>
 demonstração</strong> em Início. O modo fictício fica identificado e não
 altera a rede.</p>
 <h3 id="antes-de-uma-aula">Antes de uma aula</h3>
-<p>Confira o modo ativo e a última atualização. Comece com uma estação
+<p>Confira o modo, a fonte e o horário da coleta. Comece com uma estação
 de teste. Aplique regras somente depois de confirmar que a conexão
 corresponde ao equipamento certo e que a capacidade desejada está
 disponível.</p>
@@ -148,6 +149,14 @@ disponível.</p>
 Uma máquina silenciosa, em outra VLAN ou atrás de NAT pode não aparecer.
 Um endereço pode continuar listado depois de o equipamento ser
 desligado. Isso não é inventário físico completo.</p>
+<p>Em máquina virtual, contêiner ou servidor, a fonte local descreve a
+rede desse ambiente. Ela pode ser diferente da rede do computador ou
+navegador que está acessando o programa.</p>
+<p>Quando uma fonte principal falha, a coleta tenta alternativas locais
+do próprio sistema: CIM/cache ARP no Windows e interfaces/rotas/ARP no
+Linux. Elas podem oferecer menos campos ou endereços. O processo não
+eleva privilégios, instala ferramentas ou sonda estações; uma tabela
+válida e vazia continua sendo válida.</p>
 <p>Nesse modo, suspender internet, aplicar domínios e ativar filtro de
 IA ficam indisponíveis. Cadastros e relatórios locais continuam
 úteis.</p>
@@ -189,17 +198,37 @@ equipamentos</strong>.</p>
 </tr>
 </tbody>
 </table>
-<p>Em Início, o formulário de MikroTik pede <strong>Endereço</strong>,
-<strong>Porta</strong>, <strong>Usuário</strong>, <strong>Senha da
-sessão</strong> e <strong>Certificado CA opcional</strong>.
-<strong>Autorizar alterações neste roteador</strong> começa
-desmarcado.</p>
+<p>Em Início, abra <strong>Acesso ao equipamento</strong> para
+configurar uma conexão administrativa. O formulário de MikroTik pede
+<strong>Endereço do roteador</strong>, <strong>Porta</strong>,
+<strong>Usuário</strong>, <strong>Senha da sessão</strong> e
+<strong>Certificado CA (opcional)</strong>. <strong>Autorizar alterações
+neste roteador</strong> começa desmarcado.</p>
 <p>As opções avançadas incluem lista de interfaces WAN, rede do
 laboratório e IPs/MACs protegidos. Preencha com a TI antes de autorizar
 alterações. Esses valores delimitam as regras.</p>
-<p><strong>Mapa e relatórios</strong> e <strong>Outros
-equipamentos</strong> abrem ferramentas adicionais, mantendo a navegação
-principal simples.</p>
+<p><strong>Detalhes e recursos</strong> abre requisitos e capacidades da
+conexão. Esse painel e <strong>Acesso ao equipamento</strong> começam
+recolhidos. <strong>Mapa e relatórios</strong> e <strong>Outros
+equipamentos</strong> abrem ferramentas adicionais.</p>
+<h3 id="ler-a-identificação">Ler a identificação</h3>
+<p>Em Observação, use <strong>Identificar minha rede</strong>. O cartão
+<strong>O que foi identificado</strong> apresenta a fonte, o estado da
+leitura, as contagens e o <strong>Próximo passo</strong> recomendado.
+Confira esses dados antes de interpretar a lista de dispositivos.</p>
+<p>Uma leitura confirmada indica resposta da fonte, com
+<strong>cobertura parcial</strong>. As contagens representam evidências
+de endereços e MACs, sem garantir o total físico de máquinas. A data
+informa quando a fonte foi consultada, não a presença de cada
+estação.</p>
+<p>Uma leitura indisponível não comprova falta de internet.
+<strong>Dados desatualizados</strong> avisa que a amostra anterior não
+foi confirmada pela consulta atual ou pelo horário da fonte. Atualize e
+siga a orientação apresentada. Horário ausente, inválido ou futuro não é
+tratado como recente.</p>
+<p><strong>Demonstração</strong> identifica dados fictícios. Eles ficam
+separados da rede real e não são usados para preencher uma consulta real
+com falha.</p>
 <h3 id="ação-indisponível">Ação indisponível</h3>
 <p>O botão pode depender do modo, permissões, atualização recente ou
 requisito do roteador. Leia a indicação apresentada. Conseguir consultar
@@ -215,14 +244,15 @@ instalar um novo gateway.</p>
 <ol type="1">
 <li>Peça à TI que confira a versão, o serviço <code>www-ssl</code>, o
 certificado e as permissões REST. Comece com uma conta de consulta.</li>
-<li>Em <strong>Início</strong>, selecione <strong>Controlar MikroTik via
-HTTPS</strong>.</li>
+<li>Em <strong>Início → Acesso ao equipamento</strong>, selecione
+<strong>Controlar MikroTik via HTTPS</strong>.</li>
 <li>Informe o IP literal do roteador, porta HTTPS, usuário e senha da
 sessão. Se necessário, selecione a CA institucional. Este adaptador não
 aceita nomes DNS no campo de endereço.</li>
 <li>Mantenha <strong>Autorizar alterações neste roteador</strong>
 desmarcado e clique <strong>Conectar</strong>.</li>
-<li>Confira a identificação, a rede e as capacidades antes de autorizar
+<li>Confira a identificação e a rede. Abra <strong>Detalhes e
+recursos</strong> para verificar as capacidades antes de autorizar
 qualquer alteração.</li>
 </ol>
 <h3 id="certificado-e-alcance">Certificado e alcance</h3>
@@ -311,9 +341,15 @@ combinação de nome disponível, IP, MAC e evidência apresentada. Confirme
 o alvo físico quando houver dúvida.</p>
 <h3 id="consultar-primeiro">Consultar primeiro</h3>
 <p>Uma concessão DHCP informa um endereço concedido, não garante
-presença atual. ARP e vizinhos também são evidências limitadas. MAC
-privado, troca de interface, NAT e equipamentos intermediários podem
-afetar a identificação.</p>
+presença atual. ARP e vizinhos também são evidências limitadas. A
+ausência de MAC, ARP ou concessão não comprova que a estação esteja
+desligada; um IP fixo pode não aparecer no DHCP. MAC privado, troca de
+interface, NAT e equipamentos intermediários podem afetar a
+identificação.</p>
+<p>O mesmo IP com MACs diferentes exige conferência da identidade antes
+de agir. Um MAC em vários IPs pode refletir endereços adicionais ou
+registros antigos. As contagens não representam computadores físicos nem
+pessoas.</p>
 <h3 id="bloquear-e-desbloquear-ip">Bloquear e desbloquear IP</h3>
 <ol type="1">
 <li>Conecte um controlador compatível e atualize o inventário.</li>
@@ -487,7 +523,9 @@ associação Wi-Fi. MAC privado não equivale a identidade permanente de
 pessoa.</p>
 <p>Os formatos incluem SVG, HTML, CSV e PDF conforme o pacote e suas
 dependências. Exporte após atualizar; confira horário, modo e origem dos
-dados. Relatório de demonstração continua fictício.</p>
+dados. A idade da coleta não informa há quanto tempo uma máquina está
+presente. Relatório de demonstração continua fictício e seus dados ficam
+separados da rede real.</p>
 <h3 id="perfis-de-equipamentos">Perfis de equipamentos</h3>
 <p>Perfis podem consultar portas, MACs, concessões ou saída limitada. Um
 adaptador de inventário não passa a controlar firewall por ter sido
@@ -506,7 +544,7 @@ procedimentos de outro modelo não substituem uma integração
 suportada.</p>
 <h2 id="servidor-administrativo-e-legado">11. Servidor administrativo e
 legado</h2>
-<h3 id="servidor-2.0">Servidor 2.0</h3>
+<h3 id="servidor-administrativo">Servidor administrativo</h3>
 <p>O servidor roda sem Tk e oferece painel web local em
 <code>http://127.0.0.1:8765/</code>. O padrão é observação/controlador,
 sem exigir gateway Linux no caminho do tráfego.</p>
@@ -593,9 +631,11 @@ administrador ou <code>sudo</code>.</p>
 </tr>
 </tbody>
 </table>
-<p>Se faltar <code>ip</code> no Linux portátil ou pelo código-fonte,
-peça à TI a instalação de <strong>iproute2</strong> pelo gerenciador da
-distribuição. O pacote Debian declara essa dependência.</p>
+<p>No Linux, a coleta prefere <strong>iproute2</strong>; quando faltar
+ou falhar, tenta fontes locais alternativas, com possível redução dos
+dados. Isso não instala ferramentas nem eleva privilégios. Para executar
+os comandos manuais sem <code>ip</code>, peça à TI a instalação pela
+distribuição; o pacote Debian declara essa dependência.</p>
 <p>Confira o cabo ou SSID e compare a interface com o planejamento da
 TI. VPNs e várias conexões podem criar mais de uma rota. Uma rede só
 local pode não ter gateway padrão. Não altere DHCP ou rotas por
@@ -605,7 +645,8 @@ DHCP.</p>
 <p>A Observação lê um <strong>cache parcial</strong>, não faz varredura
 completa. Cache vazio pode ser normal; entrada antiga ou
 <code>STALE</code> não comprova presença. O MAC do próprio computador
-fica vazio por desenho da coleta e isso não é falha.</p>
+pode ficar vazio quando a fonte não o fornece; isso não é falha de
+identificação.</p>
 <p>VLANs, roteadores, NAT, pontos de acesso e isolamento Wi-Fi podem
 ocultar vizinhos e seus MACs. A coleta automática cobre IPv4 privado
 <code>10.x</code>, <code>172.16-31.x</code> e <code>192.168.x</code>;
@@ -745,7 +786,7 @@ configuração do WinRM</a>.</li>
 <p>Para suporte, informe versão, sistema, modo, modelo/firmware e
 categoria da falha. Não inclua senhas, tokens ou chaves privadas.</p>
 </main>
-<footer class="doc-footer"><span>LabGuard 2.0.1 · Manual do usuário · Consulte a validação da versão antes da implantação.</span><a href="#inicio">Voltar ao início ↑</a></footer>
+<footer class="doc-footer"><span>LabGuard 2.1.0 · Manual do usuário · Consulte a validação da versão antes da implantação.</span><a href="#inicio">Voltar ao início ↑</a></footer>
 </div>
 </body>
 </html>

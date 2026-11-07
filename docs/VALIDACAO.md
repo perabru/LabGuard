@@ -1,4 +1,10 @@
-# Validação da versão 2.0.1
+# Validação da versão 2.1.0
+
+Preparada em 7 de novembro de 2026. A identificação local, o resumo de evidências e a interface foram revisados. Os pacotes desta versão dependem da compilação e dos testes nativos; a execução verificada será registrada aqui após a publicação.
+
+O inventário continua parcial: contagens de endereços não são uma medida de todas as máquinas físicas nem de pessoas. Leituras recentes confirmam a coleta, não a presença atual de cada cliente. A nova interface deve identificar fontes, dados antigos, lacunas e conflitos, mantendo os controles dependentes de permissões e capacidades reais.
+
+## Evidência anterior: 2.0.1
 
 Publicada em 6 de novembro de 2026. O [fluxo completo Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/42296126982) passou no commit `8735368630f207dd2ecb16e112eafb3e20a38318`. A [versão 2.0.1](https://github.com/perabru/LabGuard/releases/tag/v2.0.1) inclui os seis pacotes desktop/servidor, autotestes e somas SHA-256.
 

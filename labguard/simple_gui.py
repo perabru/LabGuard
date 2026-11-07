@@ -15,7 +15,7 @@ from time import monotonic
 import tkinter as tk
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
-from .demo import normalize_domain
+from .demo import normalize_domain, normalize_mac
 from .ui import (ActionButton, RoundCard, IconBadge, BG, PANEL, TEXT, MUTED,
                  PURPLE, BLUE, GREEN, RED, AMBER, BORDER)
 
@@ -110,6 +110,58 @@ def snapshot_capabilities(snapshot):
     return {name: legacy for name in CAPABILITY_NAMES}
 
 
+def summarize_inventory(snapshot):
+    from .inventory import summarize_inventory as summarize
+    return summarize(snapshot, max_age_seconds=FRESH_SECONDS)
+
+
+def source_collection_current(snapshot):
+    if snapshot.get("mode") == "demo":return True
+    from .inventory import collection_recency
+    evidence = summarize_inventory(snapshot)
+    facts = evidence.get("facts", {})
+    return (collection_recency(snapshot, max_age_seconds=FRESH_SECONDS)["fresh"] is True
+            and facts.get("read_success") is not False and facts.get("collection_metadata_valid") is not False)
+
+
+def inventory_presentation(snapshot, *, stale=False, busy=False):
+    """Resume apenas a exibição; nenhuma capacidade ou permissão é produzida."""
+    evidence = summarize_inventory(snapshot)
+    prior = bool(snapshot.get("timestamp") or evidence["facts"]["has_evidence"])
+    if snapshot.get("mode") == "demo":
+        state, kind = "Demonstração · dados fictícios", "demo"
+    elif stale and prior:
+        state, kind = "Dados desatualizados", "stale"
+    elif busy and not prior:
+        state, kind = "Identificando a rede…", "busy"
+    elif evidence["status"] == "unavailable":
+        state, kind = "Leitura indisponível", "unavailable"
+    elif not evidence["fresh"]:
+        state, kind = "Dados desatualizados", "stale"
+    elif busy:
+        state, kind = "Consultando · leitura anterior", "busy"
+    else:
+        state, kind = evidence["status_label"], "partial"
+    next_action = ("A consulta atual não confirmou estes dados. Identifique a rede novamente antes de agir."
+                   if kind == "stale" else evidence["next_action"])
+    return {"evidence": evidence, "state": state, "kind": kind, "next_action": next_action}
+
+
+def conflicted_device_ips(snapshot):
+    identities, conflicts = {}, set()
+    rows = snapshot.get("devices", [])
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):continue
+        try:address = str(ipaddress.IPv4Address(row.get("ip", "")))
+        except (ValueError, TypeError, ipaddress.AddressValueError):continue
+        if row.get("identity_conflict") is True:conflicts.add(address)
+        try:mac = normalize_mac(row.get("mac", ""))
+        except ValueError:continue
+        identities.setdefault(address, set()).add(mac)
+    conflicts.update(address for address, macs in identities.items() if len(macs) > 1)
+    return conflicts
+
+
 def mutation_reason(snapshot, *, capability=None, required_health=(), stale=False,
                     age=0, busy=False, authorized=True):
     if busy:
@@ -120,6 +172,8 @@ def mutation_reason(snapshot, *, capability=None, required_health=(), stale=Fals
         return "Conecte um roteador compatível antes de alterar a rede."
     if stale or age > FRESH_SECONDS:
         return "Atualize a leitura antes de alterar a rede."
+    if not source_collection_current(snapshot):
+        return "O horário ou o resultado da coleta na fonte não foi confirmado. Atualize antes de alterar a rede."
     if snapshot.get("mode") != "demo" and not authorized:
         return "Reconecte com a opção Autorizar alterações habilitada para controlar o roteador."
     if capability and not snapshot_capabilities(snapshot).get(capability):
@@ -169,6 +223,8 @@ class App(tk.Tk):
         self._results = queue.Queue()
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="labguard-controle")
         self._pages, self._nav, self._device_rows = {}, {}, {}
+        self._domain_rows = {}
+        self._snapshot_source = None
         self._map_windows = []
         self._last_error = ""
         self._diagnostics_window = None
@@ -215,7 +271,7 @@ class App(tk.Tk):
         IconBadge(header, kind="shield", color=PURPLE, tint="#EEE7FD", size=40).pack(side="left", padx=(0, 10))
         brand = tk.Frame(header, bg=PANEL); brand.pack(side="left")
         self._label(brand, "LabGuard", bg=PANEL, fg=TEXT, font=(self.font_family, 19, "bold")).pack(anchor="w")
-        self._label(brand, "CONTROLE ESCOLAR · 2.0", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
+        self._label(brand, "CONTROLE ESCOLAR · 2.1", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
         ActionButton(header, text="Outros equipamentos", command=self._open_integrations, height=38).pack(side="right")
         ActionButton(header, text="Mapa e relatórios", command=self._open_network_map, style="Yellow.TButton", height=38).pack(side="right", padx=9)
         nav = tk.Frame(self, bg=BG, padx=23, pady=12); nav.grid(row=1, column=0, sticky="ew")
@@ -270,11 +326,19 @@ class App(tk.Tk):
 
     def _build_home(self, parent):
         parent.columnconfigure(0, weight=3, uniform="home"); parent.columnconfigure(1, weight=2, uniform="home")
-        self._label(parent, "Comece pela rede deste computador", fg=TEXT, font=(self.font_family, 21, "bold")).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(3, 4))
-        self._label(parent, "Observe agora. Para bloquear, conecte a API de um roteador compatível já instalado.").grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 17))
-        setup = RoundCard(parent, padding=19); setup.grid(row=2, column=0, sticky="new", padx=(0, 15))
+        self._label(parent, "Identifique a sua rede", fg=TEXT, font=(self.font_family, 21, "bold")).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(3, 4))
+        self._label(parent, "Comece pela leitura local. Veja o que foi encontrado e qual é o próximo passo.").grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 17))
+        action_card = RoundCard(parent, padding=19); action_card.grid(row=2, column=0, sticky="new", padx=(0, 15))
+        self._label(action_card.body, "Leia a LAN deste computador", bg=PANEL, fg=TEXT, font=(self.font_family, 13, "bold")).pack(fill="x")
+        self.identification_hint = tk.StringVar(value="Consulta interfaces, rota e vizinhos conhecidos. A cobertura é parcial e não concede controle do roteador.")
+        self._label(action_card.body, textvariable=self.identification_hint, bg=PANEL).pack(fill="x", pady=(9, 16))
+        self.identify_button = ActionButton(action_card.body, text="Identificar minha rede", command=self.refresh, style="Accent.TButton")
+        self.identify_button.pack(anchor="w")
+        ActionButton(action_card.body, text="Ver dispositivos", command=lambda:self.show_page("devices"), height=36).pack(anchor="w", pady=(9, 0))
+        self.admin_panel = setup = RoundCard(parent, padding=19)
+        setup.grid(row=4, column=0, columnspan=2, sticky="new", pady=(12, 0)); setup.grid_remove()
         body = setup.body
-        self._label(body, "1  Escolha como usar", bg=PANEL, fg=TEXT, font=(self.font_family, 12, "bold")).pack(fill="x")
+        self._label(body, "Acesso ao equipamento", bg=PANEL, fg=TEXT, font=(self.font_family, 12, "bold")).pack(fill="x")
         self.profile_var = tk.StringVar(value=next(iter(PROFILE_KINDS)))
         combo = ttk.Combobox(body, textvariable=self.profile_var, values=list(PROFILE_KINDS), state="readonly")
         combo.pack(fill="x", pady=(12, 8)); combo.bind("<<ComboboxSelected>>", self._profile_changed)
@@ -312,26 +376,42 @@ class App(tk.Tk):
                        bg=PANEL, activebackground=PANEL, fg=TEXT, anchor="w", selectcolor=PANEL).pack(fill="x")
         self._label(self.consent_row, "Permite aplicar bloqueios usando a API. Desmarcado: somente consulta. A senha fica apenas nesta sessão.", bg=PANEL, font=(self.font_family, 8)).pack(fill="x", pady=(2, 5))
         self.connect_bar = tk.Frame(body, bg=PANEL); self.connect_bar.pack(fill="x", pady=(8, 0))
-        self.connect_button = ActionButton(self.connect_bar, text="Atualizar observação", command=self._connect, style="Accent.TButton")
+        self.connect_button = ActionButton(self.connect_bar, text="Identificar minha rede", command=self._connect, style="Accent.TButton")
         self.connect_button.pack(side="left")
         self.disconnect_button = ActionButton(self.connect_bar, text="Desconectar", command=self._observe)
         self.disconnect_button.pack(side="left", padx=7)
         tools = tk.Frame(parent, bg=BG); tools.grid(row=2, column=1, sticky="new")
         current = RoundCard(tools, padding=18); current.pack(fill="x", pady=(0, 13))
-        self._label(current.body, "SUA REDE AGORA", bg=PANEL, fg=PURPLE, font=(self.font_family, 8, "bold")).pack(fill="x")
-        self.network_text = tk.StringVar(value="Identificando a rede local…")
-        self._label(current.body, textvariable=self.network_text, bg=PANEL, fg=TEXT, font=(self.font_family, 13, "bold")).pack(fill="x", pady=(9, 8))
+        self._label(current.body, "O que foi identificado", bg=PANEL, fg=TEXT, font=(self.font_family, 13, "bold")).pack(fill="x")
+        self.collection_state = tk.StringVar(value="Aguardando consulta")
+        self.collection_state_label = self._label(current.body, textvariable=self.collection_state, bg=PANEL, fg=PURPLE, font=(self.font_family, 10, "bold"))
+        self.collection_state_label.pack(fill="x", pady=(10, 5))
+        self.network_text = tk.StringVar(value="Fonte: observação local")
+        self._label(current.body, textvariable=self.network_text, bg=PANEL).pack(fill="x", pady=(0, 7))
         self.count_text = tk.StringVar(value="Aguardando observações")
         self._label(current.body, textvariable=self.count_text, bg=PANEL).pack(fill="x")
+        self.local_network_text = tk.StringVar(value="Segmento local ainda não informado.")
+        self._label(current.body, textvariable=self.local_network_text, bg=PANEL).pack(fill="x", pady=(7, 10))
+        self._label(current.body, "A amostra é parcial. Registros de DHCP/ARP não confirmam presença atual.", bg=PANEL, font=(self.font_family, 8)).pack(fill="x")
+        self._label(current.body, "PRÓXIMO PASSO", bg=PANEL, fg=PURPLE, font=(self.font_family, 8, "bold")).pack(fill="x", pady=(13, 5))
+        self.next_action_text = tk.StringVar(value="Identifique a rede ou abra o passo a passo de ajuda.")
+        self._label(current.body, textvariable=self.next_action_text, bg=PANEL, fg=TEXT).pack(fill="x")
+        self.details_panel = tk.Frame(parent, bg=BG)
+        self.details_panel.grid(row=5, column=0, columnspan=2, sticky="new", pady=(12, 0)); self.details_panel.grid_remove()
         self.capability_labels = {}
-        capabilities = RoundCard(tools, padding=18); capabilities.pack(fill="x")
+        capabilities = RoundCard(self.details_panel, padding=18); capabilities.pack(fill="x")
         self._label(capabilities.body, "RECURSOS DESTA CONEXÃO", bg=PANEL, fg=PURPLE, font=(self.font_family, 8, "bold")).pack(fill="x", pady=(0, 10))
         for key, name in CAPABILITY_NAMES.items():
             label = self._label(capabilities.body, name + " · aguardando", bg=PANEL)
             label.pack(fill="x", pady=5); self.capability_labels[key] = label
         self.connection_note = tk.StringVar(value="Modelo/API necessários para bloquear.")
-        self._label(tools, textvariable=self.connection_note).pack(fill="x", pady=12)
-        more = tk.Frame(parent, bg=BG); more.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(15, 10))
+        self._label(self.details_panel, textvariable=self.connection_note).pack(fill="x", pady=12)
+        panels = tk.Frame(action_card.body, bg=PANEL); panels.pack(fill="x", pady=(12, 0))
+        self.admin_toggle_button = ActionButton(panels, text="Acesso ao equipamento", command=self._toggle_admin, height=37)
+        self.admin_toggle_button.pack(side="left")
+        self.details_toggle_button = ActionButton(panels, text="Detalhes e recursos", command=self._toggle_details, height=37)
+        self.details_toggle_button.pack(side="left", padx=8)
+        more = tk.Frame(parent, bg=BG); more.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(15, 10))
         ActionButton(more, text="Abrir demonstração", command=self._switch_demo, height=36).pack(side="left")
         ActionButton(more, text="Manual do usuário", command=self._open_manual, height=36).pack(side="left", padx=8)
         self._profile_changed()
@@ -430,7 +510,22 @@ class App(tk.Tk):
                 for widget in widgets: widget.grid() if name in visible else widget.grid_remove()
             if kind == "routeros":self.advanced_button.pack(anchor="w", before=self.connect_bar, pady=(0, 8))
             self.consent_row.pack(fill="x", before=self.connect_bar)
-        self.connect_button.configure(text="Atualizar observação" if kind == "observation" else "Ver equipamentos" if kind == "integration" else "Conectar")
+        self.connect_button.configure(text="Identificar minha rede" if kind == "observation" else "Ver equipamentos" if kind == "integration" else "Conectar")
+
+    def _toggle_home_panel(self, panel, button, label):
+        if panel.winfo_manager():
+            panel.grid_remove(); button.configure(text=label)
+        else:
+            panel.grid(); button.configure(text="Fechar " + label.lower())
+            self.update_idletasks()
+            bounds = self.home_canvas.bbox("all")
+            if bounds:self.home_canvas.yview_moveto(max(0, panel.winfo_y()-8)/max(1, bounds[3]))
+
+    def _toggle_admin(self):
+        self._toggle_home_panel(self.admin_panel, self.admin_toggle_button, "Acesso ao equipamento")
+
+    def _toggle_details(self):
+        self._toggle_home_panel(self.details_panel, self.details_toggle_button, "Detalhes e recursos")
 
     def _toggle_advanced(self):
         if self.advanced_frame.winfo_manager():self.advanced_frame.pack_forget()
@@ -535,11 +630,28 @@ class App(tk.Tk):
         if not self._busy and monotonic() - self._last_snapshot_monotonic > 15:self.refresh()
         self._tick_id = self.after(5000, self._tick)
 
+    def _snapshot_identity(self, snapshot):
+        return (snapshot.get("mode"), str(getattr(self.transport, "kind", "")),
+                str(getattr(self.transport, "host", "")), str(getattr(self.transport, "port", "")))
+
     def _apply_snapshot(self, snapshot):
         if not isinstance(snapshot, dict) or snapshot.get("mode") not in {"demo", "gateway", "equipment", "observation"}:
             self._snapshot_stale = True; self.status.set("Resposta não reconhecida. Dados anteriores mantidos.")
-            self._refresh_mutation_controls(); return False
-        self.snapshot = snapshot; self._snapshot_stale = False; self._last_snapshot_monotonic = monotonic()
+            self._render_home(); self._refresh_mutation_controls(); return False
+        identity = self._snapshot_identity(snapshot)
+        old_evidence = summarize_inventory(self.snapshot)
+        source_current = source_collection_current(snapshot)
+        if (snapshot.get("mode") != "demo" and not source_current and
+                self.__dict__.get("_snapshot_source") == identity and old_evidence["facts"]["has_evidence"]):
+            self._snapshot_stale = True; self._last_error = "connection_error"
+            self.status.set("A nova coleta não foi confirmada. Dados anteriores mantidos como desatualizados; nenhuma ação será repetida.")
+            self.error_help_button.pack(side="right", padx=(0, 8), before=self.refresh_button)
+            self._render_home(); self._refresh_mutation_controls(); self._notify_diagnostics()
+            return False
+        self.snapshot = snapshot
+        self._snapshot_source = identity
+        self._snapshot_stale = not source_current
+        self._last_snapshot_monotonic = monotonic()
         self._last_error = ""
         self.error_help_button.pack_forget()
         bank_warning = ""
@@ -547,7 +659,8 @@ class App(tk.Tk):
         except OSError:bank_warning = " A referência do banco não pôde ser salva; confira a pasta privada antes de preparar a lista."
         self._render_home(); self._render_devices(); self._render_sites(); self._render_activity()
         self._refresh_mutation_controls()
-        self.status.set("Leitura atualizada: " + self._time(snapshot.get("timestamp")) + ". Consulte o modo e os recursos antes de agir." + bank_warning + (" " + self._banks.warning if self._banks.warning else ""))
+        prefix = "Dados recebidos sem coleta recente confirmada: " if self._snapshot_stale else "Leitura recebida: "
+        self.status.set(prefix + self._time(snapshot.get("timestamp")) + ". Consulte a fonte e a cobertura antes de agir." + bank_warning + (" " + self._banks.warning if self._banks.warning else ""))
         self._notify_diagnostics()
         return True
 
@@ -587,16 +700,33 @@ class App(tk.Tk):
         except (ValueError, TypeError):return str(value or "horário não informado")
 
     def _render_home(self):
-        mode = self.snapshot.get("mode", "observation"); stale = self._snapshot_stale
+        view = inventory_presentation(self.snapshot, stale=self._snapshot_stale, busy=self._busy)
+        evidence = view["evidence"]; counts = evidence["counts"]
+        mode = self.snapshot.get("mode", "observation"); stale = view["kind"] == "stale" or self._snapshot_stale
         labels = {"observation": "OBSERVAÇÃO LOCAL · somente consulta", "equipment": "ROTEADOR CONECTADO · recursos conforme a API",
                   "gateway": "GATEWAY SSH EXISTENTE · perfil avançado", "demo": "DEMONSTRAÇÃO · dados fictícios · nenhuma alteração real"}
-        self.mode_text.set(labels.get(mode, "Aguardando conexão") + (" · leitura sem confirmação" if stale else ""))
+        self.mode_text.set(labels.get(mode, "Aguardando conexão") + (" · dados desatualizados" if stale else ""))
         self.mode_banner.configure(bg="#FFF2C4" if mode == "demo" or stale else "#E8F0FF", fg="#77560D" if mode == "demo" or stale else "#2456A3")
         gateway = self.snapshot.get("gateway", {}); local = self.snapshot.get("local", {})
-        name = gateway.get("hostname") or gateway.get("host") or getattr(self.transport, "host", "")
-        self.network_text.set(str(name or "Rede deste computador"))
-        devices = self.snapshot.get("devices", [])
-        self.count_text.set(f"{len(devices)} dispositivo(s) com dados disponíveis\nÚltima leitura: {self._time(self.snapshot.get('timestamp'))}")
+        self.collection_state.set(view["state"])
+        self.collection_state_label.configure(fg=RED if view["kind"] in {"stale", "unavailable"} else PURPLE)
+        self.network_text.set("Fonte: " + evidence["source_label"])
+        records = self.snapshot.get("devices", [])
+        self.count_text.set(f"{len(records)} registro(s) recebido(s) · {counts['unique_ips']} endereço(s) distinto(s)\n"
+                            f"{counts['observed_neighbors']} vizinho(s) registrado(s) · {counts['known_macs']} MAC(s) conhecido(s)")
+        try:
+            network = ipaddress.ip_network(gateway.get("lab_cidr", ""), strict=False)
+            segment = "Segmento informado: " + str(network)
+        except (ValueError, TypeError):segment = "Segmento local não informado."
+        self.local_network_text.set(segment + f"\n{counts['local_interfaces']} interface(s) local(is) · {counts['local_devices']} IP(s) deste computador")
+        self.next_action_text.set(view["next_action"])
+        button_labels = {"observation": "Identificar minha rede", "equipment": "Atualizar leitura da API", "gateway": "Atualizar perfil avançado", "demo": "Atualizar demonstração"}
+        self.identify_button.configure(text=button_labels.get(mode, "Identificar minha rede"), state="disabled" if self._busy else "normal")
+        hints = {"observation": "Consulta interfaces, rota e vizinhos conhecidos. A cobertura é parcial e não concede controle do roteador.",
+                 "equipment": "Relê o inventário disponível na API conectada. Confirme a fonte e o horário antes de agir.",
+                 "gateway": "Perfil avançado existente. A consulta pode reconciliar políticas configuradas; confira os detalhes.",
+                 "demo": "Treinamento com dados fictícios. Use Acesso ao equipamento para escolher a Observação da rede real."}
+        self.identification_hint.set(hints.get(mode, hints["observation"]))
         caps = snapshot_capabilities(self.snapshot)
         for key, label in self.capability_labels.items():
             enabled = caps[key]
@@ -604,8 +734,10 @@ class App(tk.Tk):
         note = "Modelo/API necessários para bloquear. A conexão comum ao Wi-Fi ou cabo não concede acesso administrativo ao roteador."
         if mode in {"equipment", "gateway"}:note = "Recursos confirmados por este perfil. " + ("Alterações autorizadas nesta sessão." if self._management_authorized else "Sessão somente de consulta; autorize alterações ao reconectar.")
         elif mode == "demo":note = "Treinamento com dados fictícios. Volte à observação para consultar a sua rede real."
-        warnings = self.snapshot.get("warnings", [])
-        self.connection_note.set(note + ("\n\n" + str(warnings[0]) if warnings else ""))
+        methods = evidence["facts"].get("source_methods", [])
+        self.connection_note.set(note + "\n\n" + "\n".join(evidence["gaps"][:5]) +
+            ("\n\nMétodos confirmados: " + ", ".join(methods) if methods else "") +
+            "\n\nHorário da fonte: " + self._time(evidence["timestamp"]))
         if not self.host_var.get():
             detected = gateway.get("ip") or gateway.get("gateway_ip") or local.get("default_gateway")
             if detected:self.host_var.set(str(detected))
@@ -620,15 +752,21 @@ class App(tk.Tk):
 
     def _render_devices(self):
         term = self.device_search.get().strip().casefold(); self._device_rows = {}
-        rows = []
+        rows, occurrences = [], {}
+        conflicts = conflicted_device_ips(self.snapshot)
         for index, device in enumerate(self.snapshot.get("devices", [])):
             if not isinstance(device, dict):continue
             if term and term not in " ".join(str(device.get(k, "")) for k in ("name", "ip", "mac", "state")).casefold():continue
             key = str(device.get("ip", "")) + "|" + str(device.get("mac", ""))
             if key == "|":key = "device:" + str(index)
+            duplicate = occurrences.get(key, 0); occurrences[key] = duplicate + 1
+            if duplicate:key += "|record:" + str(duplicate)
             self._device_rows[key] = device
+            uncertain = device.get("identity_conflict") is True or device.get("ip") in conflicts
+            state = "Identidade incerta · MACs conflitantes" if uncertain else device.get("state") or "Registro da fonte"
+            if str(state).strip().casefold() in {"online", "conectado", "ativo"}:state = "Registro da fonte · presença não confirmada"
             rows.append((key, (device.get("name") or "Sem nome", device.get("ip", ""), device.get("mac", ""),
-                device.get("state") or "Observado", "Suspensa" if device.get("blocked") else "Sem suspensão informada", "Sim" if device.get("protected") else "Não")))
+                state, "Suspensa" if device.get("blocked") else "Sem suspensão informada", "Sim" if device.get("protected") else "Não")))
         self._fill(self.devices_table, rows)
         self.devices_note.set("Dispositivos observados; uma entrada antiga não comprova presença atual. " +
             ("Modelo/API necessários para bloquear." if self.snapshot.get("mode") == "observation" else
@@ -636,8 +774,15 @@ class App(tk.Tk):
              "Selecione o alvo e confira as capacidades antes de agir."))
 
     def _render_sites(self):
-        self._fill(self.domains_table, [(str(row.get("domain") or "domain:" + str(index)), (row.get("domain", ""), row.get("category", ""), row.get("source", "Manual")))
-            for index, row in enumerate(self.snapshot.get("domains", [])) if isinstance(row, dict)])
+        rows, self._domain_rows, occurrences = [], {}, {}
+        for index, row in enumerate(self.snapshot.get("domains", [])):
+            if not isinstance(row, dict):continue
+            key = str(row.get("domain") or "domain:" + str(index))
+            duplicate = occurrences.get(key, 0); occurrences[key] = duplicate + 1
+            if duplicate:key += "|record:" + str(duplicate)
+            self._domain_rows[key] = row
+            rows.append((key, (row.get("domain", ""), row.get("category", ""), row.get("source", "Manual"))))
+        self._fill(self.domains_table, rows)
         self.site_note.set("Bloqueios enviados a esta conexão. Caches e conexões já abertas podem continuar." if snapshot_capabilities(self.snapshot)["domain_filtering"] else
             "Este perfil não fornece bloqueio de sites. Você pode organizar o Banco de sites local e conectar um roteador compatível depois.")
         policy = self.snapshot.get("policies", {}).get("ai_block", {})
@@ -656,6 +801,9 @@ class App(tk.Tk):
         selected = self.devices_table.selection()
         return self._device_rows.get(selected[0]) if selected else None
 
+    def _device_identity_uncertain(self, device):
+        return bool(device and (device.get("identity_conflict") is True or device.get("ip") in conflicted_device_ips(self.snapshot)))
+
     def _mutation_allowed(self, required_health=(), notify=True, capability=None):
         if capability is None:
             capability = "domain_filtering" if "dns" in required_health else "address_blocking" if "firewall" in required_health else None
@@ -670,7 +818,7 @@ class App(tk.Tk):
         for button in (self.domain_add_button, self.domain_remove_button):button.configure(state="normal" if dns else "disabled")
         ai = self._mutation_allowed(("dns",), notify=False, capability="ai_block")
         self.ai_button.configure(state="normal" if ai else "disabled")
-        device = self._selected_device(); protected = not device or device.get("protected")
+        device = self._selected_device(); protected = not device or device.get("protected") or self._device_identity_uncertain(device)
         equipment = self.snapshot.get("mode") == "equipment"
         capability = "address_blocking" if equipment else "device_internet_cut"
         allowed = self._mutation_allowed(("firewall", "forwarding"), notify=False, capability=capability) and not protected
@@ -681,8 +829,10 @@ class App(tk.Tk):
             f"{device.get('name') or 'Sem nome'} · {device.get('ip', '')} · {device.get('mac', '')}" +
             (" · IP bloqueado" if equipment and own_block else " · IP sem regra" if equipment else "") +
             (" · MAC bloqueado" if equipment and device.get("blocked_mac") else "") +
+            (" · identidade incerta: ações desabilitadas" if self._device_identity_uncertain(device) else "") +
             (" · protegido" if device.get("protected") else ""))
         self.connect_button.configure(state="disabled" if self._busy else "normal")
+        if "identify_button" in self.__dict__:self.identify_button.configure(state="disabled" if self._busy else "normal")
         self.disconnect_button.configure(state="normal" if not self._busy and self.snapshot.get("mode") in {"equipment", "gateway", "demo"} else "disabled")
 
     def _confirm(self, title, message):
@@ -694,6 +844,8 @@ class App(tk.Tk):
         if not self._mutation_allowed(("firewall", "forwarding"), capability=capability):return False
         device = self._selected_device()
         if not device or device.get("protected") or (blocked and device.get("observed") is False):return False
+        if self._device_identity_uncertain(device):
+            self.status.set("Identidade incerta: confira o IP e os MACs na fonte autorizada antes de agir."); return False
         try:
             if ipaddress.ip_address(str(device.get("ip", ""))).version != 4:raise ValueError
         except ValueError:
@@ -722,8 +874,9 @@ class App(tk.Tk):
         if not self._mutation_allowed(("dns",), capability="domain_filtering"):return False
         selected = self.domains_table.selection()
         if not selected:return False
-        row = next((row for row in self.snapshot.get("domains", []) if isinstance(row, dict) and row.get("domain") == selected[0]), None)
+        row = self.__dict__.get("_domain_rows", {}).get(selected[0]) or next((row for row in self.snapshot.get("domains", []) if isinstance(row, dict) and row.get("domain") == selected[0]), None)
         if not row:return False
+        if row.get("source") == "external":self.status.set("Regra externa: revise-a no equipamento pelo fluxo que a criou."); return False
         if row.get("source") == "ai_profile":self.status.set("Esse domínio pertence ao perfil global de IA. Use o controle do perfil."); return False
         domain = row.get("domain", "")
         if not self._confirm("Remover bloqueio", f"Remover a regra de {domain}? Outras políticas podem manter o domínio bloqueado."):return False
@@ -780,6 +933,9 @@ class App(tk.Tk):
         from .network_map_gui import valid_address
         if type(blocked) is not bool or not valid_address(kind, address):return False
         if not self._mutation_allowed(("firewall", "forwarding"), capability="address_blocking"):return False
+        if any(str(row.get(kind, "")).lower() == str(address).lower() and self._device_identity_uncertain(row)
+               for row in self.snapshot.get("devices", []) if isinstance(row, dict)):
+            self.status.set("Identidade incerta: nenhuma regra desse alvo será alterada até a conferência."); return False
         if any(row.get("protected") and str(row.get(kind, "")).lower() == str(address).lower() for row in self.snapshot.get("devices", [])):return False
         verb = "Bloquear" if blocked else "Desbloquear"
         if not self._confirm(verb + " " + kind.upper(), f"{verb} {kind.upper()} {address}?\n\nA regra é independente dos outros bloqueios. Ela não desassocia o rádio Wi-Fi."):return False
@@ -792,6 +948,7 @@ class App(tk.Tk):
         device = self._selected_device()
         if not device:self.status.set("Selecione um dispositivo com IP real."); return None
         if self.snapshot.get("mode") == "demo":self.status.set("Os IPs da demonstração são fictícios. Volte à observação para selecionar um computador real."); return None
+        if self._device_identity_uncertain(device):self.status.set("Confira a identidade conflitante do dispositivo antes de abrir a administração remota."); return None
         if self._snapshot_stale or monotonic()-self._last_snapshot_monotonic > 60:self.status.set("Atualize a observação antes de escolher o computador."); return None
         try:ipaddress.ip_address(str(device.get("ip", "")))
         except ValueError:self.status.set("O dispositivo selecionado não tem um IP válido."); return None

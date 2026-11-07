@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime, timedelta, timezone
 import hashlib
 import http.client
 import importlib.util
@@ -468,6 +469,128 @@ class HTTPTests(unittest.TestCase):
             sample["capabilities"]["address_blocking"] = True
             self.app.execute("snapshot", {})
             self.assertEqual(self.request("/api/action", token=self.admin, method="POST", payload=payload)[0], 200)
+
+    def test_identification_is_recomputed_without_exposing_raw_discovery_or_claiming_completeness(self):
+        sample = DemoTransport().request("snapshot")
+        sample.update(mode="observation", interfaces=[{"name": "local-interface", "ipv4": "192.168.15.10", "prefixlen": 24}],
+                      gateway={"ip": "192.168.15.1", "vendor": "Desconhecido", "model": "Desconhecido"},
+                      devices=[{"ip": "192.168.15.10", "mac": "", "state": "Endereço local", "protected": True, "observed": True},
+                               {"ip": "192.168.15.20", "mac": "02:aa:bb:cc:dd:20", "observed": True}],
+                      discovery={"read_success": True, "password": "hidden-discovery-password", "sources": ["unexpected-private-source-name"]},
+                      identification={"status": "complete", "fresh": True, "summary": "forged-identification-secret", "capabilities": {"address_blocking": True}})
+        self.app.config.demo = False
+        self.app.config.controller = {"kind": "observation"}
+        with patch.object(self.app.transport, "request", return_value=sample):
+            status, _, body = self.request("/api/snapshot", token=self.viewer)
+        self.assertEqual(status, 200)
+        data = json.loads(body)["data"]
+        summary = data["identification"]
+        self.assertEqual(summary["status"], "partial")
+        self.assertEqual(summary["counts"]["unique_ips"], 2)
+        self.assertFalse(summary["facts"]["coverage_complete"])
+        self.assertFalse(summary["facts"]["presence_confirmed"])
+        self.assertFalse(summary["facts"]["people_identified"])
+        self.assertNotIn("discovery", data)
+        self.assertNotIn("interfaces", data)
+        self.assertNotIn(b"hidden-discovery-password", body)
+        self.assertNotIn(b"unexpected-private-source-name", body)
+        self.assertNotIn(b"forged-identification-secret", body)
+        self.assertFalse(data["capabilities"]["address_blocking"])
+
+    def test_old_missing_invalid_or_future_source_timestamp_never_becomes_fresh_on_arrival(self):
+        now = datetime.now(timezone.utc)
+        for timestamp in ((now-timedelta(seconds=60)).isoformat(), None, "not-a-date", now.replace(tzinfo=None).isoformat(), (now+timedelta(seconds=60)).isoformat()):
+            with self.subTest(timestamp=timestamp):
+                sample = DemoTransport().request("snapshot")
+                sample.update(mode="gateway", capabilities={key: True for key in CAPABILITIES},
+                              identification={"fresh": True, "status": "complete"})
+                if timestamp is None:
+                    sample.pop("timestamp", None)
+                else:
+                    sample["timestamp"] = timestamp
+                self.app.config.demo = False
+                self.app.config.controller = {"kind": "legacy"}
+                with patch.object(self.app.transport, "request", return_value=sample) as network:
+                    status, _, body = self.request("/api/snapshot", token=self.viewer)
+                    self.assertEqual(status, 200)
+                    self.assertFalse(json.loads(body)["data"]["identification"]["fresh"])
+                    self.assertLess(time.monotonic()-self.app.last_success, 1)
+                    network.reset_mock()
+                    status, _, _ = self.request("/api/action", token=self.admin, method="POST", payload={"action": "set_ai_block", "params": {"enabled": True}})
+                    self.assertEqual(status, 400)
+                    network.assert_not_called()
+                status, headers, _ = self.request("/api/report?format=csv", token=self.viewer)
+                self.assertEqual(status, 200)
+                self.assertEqual(headers["X-LabGuard-Snapshot-State"], "stale")
+
+    def test_supplied_identification_summary_never_grants_an_equipment_action(self):
+        sample = DemoTransport().request("snapshot")
+        sample.update(mode="equipment", capabilities={"inventory": True},
+                      identification={"fresh": True, "status": "complete", "capabilities": {"ai_block": True, "domain_filtering": True}})
+        self.app.config.demo = False
+        self.app.config.controller = {"kind": "routeros", "manage_rules": True}
+        with patch.object(self.app.transport, "request", return_value=sample) as network:
+            self.app.execute("snapshot", {})
+            network.reset_mock()
+            status, _, _ = self.request("/api/action", token=self.admin, method="POST", payload={"action": "set_ai_block", "params": {"enabled": True}})
+            self.assertEqual(status, 400)
+            network.assert_not_called()
+
+    def test_explicit_technical_failure_or_invalid_metadata_blocks_contradictory_equipment_writes(self):
+        for discovery in ({"read_success": False}, {"read_success": "yes"}, {"read_success": True, "interfaces_read": False, "routes_read": False, "neighbors_read": False}):
+            with self.subTest(discovery=discovery):
+                sample = DemoTransport().request("snapshot")
+                sample.update(mode="equipment", capabilities={key: True for key in CAPABILITIES}, discovery=discovery,
+                              identification={"fresh": True, "facts": {"read_success": True, "collection_metadata_valid": True}})
+                self.app.config.demo = False
+                self.app.config.controller = {"kind": "routeros", "manage_rules": True}
+                with patch.object(self.app.transport, "request", return_value=sample) as network:
+                    data = self.app.execute("snapshot", {})
+                    self.assertFalse(data["identification"]["fresh"])
+                    self.assertFalse(self.app.collection_current(data))
+                    network.reset_mock()
+                    status, _, _ = self.request("/api/action", token=self.admin, method="POST", payload={"action": "set_ai_block", "params": {"enabled": True}})
+                    self.assertEqual(status, 400)
+                    network.assert_not_called()
+
+    def test_zero_clients_and_unknown_inventory_metadata_do_not_revoke_confirmed_dns_capability(self):
+        sample = DemoTransport().request("snapshot")
+        sample.update(mode="equipment", devices=[], gateway={}, capabilities={"domain_filtering": True, "ai_block": True})
+        self.app.config.demo = False
+        self.app.config.controller = {"kind": "routeros", "manage_rules": True}
+        with patch.object(self.app.transport, "request", return_value=sample) as network:
+            data = self.app.execute("snapshot", {})
+            self.assertEqual(data["identification"]["counts"]["devices"], 0)
+            self.assertIsNone(data["identification"]["facts"]["read_success"])
+            self.assertIsNone(data["identification"]["facts"]["collection_metadata_valid"])
+            self.assertTrue(self.app.collection_current(data))
+            network.reset_mock()
+            status, _, _ = self.request("/api/action", token=self.admin, method="POST", payload={"action": "set_ai_block", "params": {"enabled": True}})
+            self.assertEqual(status, 200)
+            network.assert_called_once_with("set_ai_block", enabled=True)
+
+    def test_failed_read_keeps_previous_identification_and_marks_the_cached_sample_stale(self):
+        before = copy.deepcopy(self.app.execute("snapshot", {}))
+        success = self.app.last_success
+        with patch.object(self.app.transport, "request", side_effect=RuntimeError("private-failure-detail")):
+            status, _, body = self.request("/api/snapshot", token=self.viewer)
+        self.assertEqual(status, 502)
+        self.assertNotIn(b"private-failure-detail", body)
+        self.assertEqual(self.app.last_snapshot, before)
+        self.assertEqual(self.app.last_success, success)
+        self.assertTrue(self.app.stale)
+
+    def test_demo_remains_explicit_simulation_when_source_time_is_old(self):
+        sample = DemoTransport().request("snapshot")
+        sample["timestamp"] = (datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
+        with patch.object(self.app.transport, "request", return_value=sample) as network:
+            self.app.execute("snapshot", {})
+            self.assertFalse(self.app.last_snapshot["identification"]["fresh"])
+            network.reset_mock()
+            status, _, body = self.request("/api/action", token=self.admin, method="POST", payload={"action": "set_ai_block", "params": {"enabled": True}})
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["data"]["mode"], "demo")
+            network.assert_called_once_with("set_ai_block", enabled=True)
 
     def test_controller_close_prevents_new_requests_and_clears_session_secret(self):
         self.app.config.controller_password = "private-session-password"

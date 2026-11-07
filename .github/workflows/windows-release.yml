@@ -25,7 +25,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "2.0.1"
+  LABGUARD_VERSION: "2.1.0"
 
 jobs:
   test:
@@ -61,10 +61,15 @@ jobs:
           cache-dependency-path: requirements-build.txt
       - name: Instalar ferramentas de empacotamento
         run: python -m pip install -r requirements-build.txt
+      - name: Validar descoberta alternativa no Windows PowerShell 5.1
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./packaging/validate_discovery_windows.ps1
+          if ($LASTEXITCODE -ne 0) { throw "A validação nativa da descoberta Windows falhou." }
       - name: Testar componentes compatíveis com Windows
         shell: pwsh
         run: |
-          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
           foreach ($pattern in $patterns) {
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
@@ -93,7 +98,7 @@ jobs:
           $check = Start-Process -FilePath $exe -ArgumentList @("--self-test", "--output", "`"$report`"") -Wait -PassThru
           if ($check.ExitCode -ne 0 -or -not (Test-Path $report)) { throw "Autoteste do painel não concluiu." }
           $result = Get-Content $report -Raw | ConvertFrom-Json
-          if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4 -or $result.identification_help_steps -lt 3) { throw "Recursos empacotados incompletos." }
+          if (-not $result.ok -or $result.catalog_services -lt 1 -or $result.integration_profiles -lt 4 -or $result.identification_help_steps -lt 3 -or $result.inventory_summary_check -cne "ok") { throw "Recursos empacotados incompletos." }
           $app = Start-Process -FilePath $exe -ArgumentList @("--demo") -PassThru
           Start-Sleep -Seconds 4
           $app.Refresh()
@@ -235,9 +240,9 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          LabGuard 2.0.1: assistente passo a passo para falhas de identificação da rede.
+          LabGuard 2.1.0: identificação mais resiliente, resumo de evidências e interface simplificada.
 
-          Inclui orientação por sintoma no desktop e no manual: IP/gateway ausente, poucos dispositivos ou MACs, modelo desconhecido e falhas de HTTPS, autenticação ou API. Atualizar consulta solicita apenas uma nova leitura; nenhuma regra é aplicada pelo assistente.
+          Inclui leitura alternativa da configuração local quando as ferramentas principais falham, contagens deduplicadas, indicação de fonte, dados antigos e identidade conflitante. O resumo apresenta uma amostra parcial; não garante descoberta total, presença atual ou identificação de pessoas. As ações administrativas continuam dependentes do equipamento compatível e das permissões confirmadas.
 
           O desktop inicia em observação local; dados fictícios aparecem somente ao selecionar a demonstração. Equipamentos compatíveis podem ser configurados diretamente, sem tornar um gateway Linux adicional obrigatório para o painel.
 

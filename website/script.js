@@ -77,7 +77,7 @@
     return response.json();
   }).then(release => {
     const version = /^v2\.(\d+)\.(\d+)$/.exec(String(release.tag_name || ""));
-    if (!version || Number(version[1]) === 0 && Number(version[2]) < 1) throw new Error("Versão com ajuda de identificação ainda em publicação");
+    if (!version || Number(version[1]) < 1) throw new Error("Versão 2.1 ainda em publicação");
     const assets = Array.isArray(release.assets) ? release.assets : [];
     document.querySelectorAll("[data-release-asset]").forEach(link => {
       const asset = assets.find(item => item.name === link.dataset.releaseAsset);
