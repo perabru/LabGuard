@@ -249,6 +249,9 @@ class UpdateTests(unittest.TestCase):
                 self.assertIn(flag,helper_text)
             self.assertIn('[IO.FileShare]::Read',helper_text)
             self.assertIn('$startInfo.UseShellExecute = $false',helper_text)
+            for component in ('FileMajorPart','FileMinorPart','FileBuildPart','FilePrivatePart'):
+                self.assertIn('$info.'+component,helper_text)
+            self.assertNotIn('GetVersionInfo($Path).FileVersion',helper_text)
 
     def test_schedule_is_idempotent_and_close_cancels_before_spawn(self):
         executable=self.root/'LabGuard.exe';executable.write_bytes(b'installed')

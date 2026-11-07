@@ -85,8 +85,11 @@ function File-Hash([string]$Path) {
  finally { $sha.Dispose(); $stream.Dispose() }
 }
 function Version-Matches([string]$Path, [string]$Expected) {
- $actual = [Diagnostics.FileVersionInfo]::GetVersionInfo($Path).FileVersion
- return ($actual -eq $Expected -or $actual -eq ($Expected + '.0'))
+ # FileVersion is localized display text; compare the fixed numeric PE fields.
+ $parts = $Expected.Split('.')
+ if ($parts.Length -ne 3) { return $false }
+ $info = [Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
+ return ($info.FileMajorPart -eq [int]$parts[0] -and $info.FileMinorPart -eq [int]$parts[1] -and $info.FileBuildPart -eq [int]$parts[2] -and $info.FilePrivatePart -eq 0)
 }
 
 try {
