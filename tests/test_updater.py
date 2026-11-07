@@ -231,7 +231,7 @@ class UpdateTests(unittest.TestCase):
         powershell=self.root/'powershell.exe';powershell.write_bytes(b'system')
         self.manager.executable=executable
         prepared=self.manager.stage_update(self.manager.check_update())
-        with patch.object(u,'_installed_windows',return_value=True),patch.object(u,'_process_executable',return_value=executable),patch.object(u,'_system_powershell',return_value=powershell),patch.object(u.subprocess,'Popen') as execute:
+        with patch.object(u,'_installed_windows',return_value=True),patch.object(u,'_process_executable',return_value=executable.resolve()),patch.object(u,'_system_powershell',return_value=powershell),patch.object(u.subprocess,'Popen') as execute:
             with self.assertRaises(u.UpdateError):self.manager.schedule_apply(prepared,parent_pid=os.getpid()+1,consent=True)
             execute.assert_not_called()
             self.assertTrue(self.manager.schedule_apply(prepared,consent=True))
@@ -260,7 +260,8 @@ class UpdateTests(unittest.TestCase):
         def process_path(pid):
             entered.set()
             if not release.wait(2):raise AssertionError('test failed to release updater')
-            return executable
+            # The native query returns a resolved path, including Windows 8.3 expansion.
+            return executable.resolve()
         with patch.object(u,'_installed_windows',return_value=True),patch.object(u,'_process_executable',side_effect=process_path),patch.object(u,'_system_powershell',return_value=powershell),patch.object(u.subprocess,'Popen') as execute:
             worker=threading.Thread(target=lambda:results.append(self.manager.schedule_apply(prepared,consent=True)))
             worker.start();self.assertTrue(entered.wait(2))
@@ -269,7 +270,7 @@ class UpdateTests(unittest.TestCase):
             self.assertFalse(worker.is_alive());self.assertEqual(results,[False]);execute.assert_not_called()
         # A completed schedule cannot spawn twice, even with the same valid token.
         self.manager._closed.clear()
-        with patch.object(u,'_installed_windows',return_value=True),patch.object(u,'_process_executable',return_value=executable),patch.object(u,'_system_powershell',return_value=powershell),patch.object(u.subprocess,'Popen') as execute:
+        with patch.object(u,'_installed_windows',return_value=True),patch.object(u,'_process_executable',return_value=executable.resolve()),patch.object(u,'_system_powershell',return_value=powershell),patch.object(u.subprocess,'Popen') as execute:
             self.assertTrue(self.manager.schedule_apply(prepared,consent=True))
             self.assertFalse(self.manager.schedule_apply(prepared,consent=True))
             self.assertEqual(execute.call_count,1)
