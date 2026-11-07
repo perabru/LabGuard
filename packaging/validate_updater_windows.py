@@ -247,6 +247,7 @@ def native_smoke(args):
     require(digest_file(old_setup)[0] == OLD_SHA256, "OLD_SETUP_HASH_MISMATCH")
     new_sha, new_size = digest_file(new_setup)
     require(new_sha != OLD_SHA256, "NEW_SETUP_EQUALS_OLD")
+    require(file_version(new_setup) == (2, 2, 0, 0), "NEW_SETUP_FILE_VERSION_MISMATCH")
     local = updater._safe_path(Path(os.environ["LOCALAPPDATA"]).absolute()).resolve()
     scope = (local / "LabGuardUpdateSmoke").resolve()
     install_dir = updater._safe_path(Path(args.install_dir).absolute()).resolve()
@@ -290,10 +291,24 @@ def native_smoke(args):
                 "UPDATE_STAGE_FAILED")
         require(counts["fixture_requests"] == 4, "FIXTURE_REQUEST_COUNT_MISMATCH")
         helper_process = launch_real_helper(updater, manager, prepared, old_process)
+        # A default pending DTO is not evidence that the helper started. Wait
+        # for its private receipt while keeping the old application open.
+        ready_deadline = time.monotonic() + 30
+        result = manager.application_result(prepared)
+        while result["state"] == "pending" and result["code"] != "WAITING_FOR_EXIT":
+            require(helper_process.poll() is None, "REAL_HELPER_EXIT_WITHOUT_WAIT_RECEIPT")
+            require(time.monotonic() < ready_deadline, "REAL_HELPER_WAIT_RECEIPT_MISSING")
+            time.sleep(0.1)
+            result = manager.application_result(prepared)
+        require(result["state"] == "pending" and result["code"] == "WAITING_FOR_EXIT",
+                "REAL_HELPER_" + (result["code"] or result["state"].upper()))
         # The helper must leave the active parent untouched and wait for WM_CLOSE.
         time.sleep(1)
-        require(old_process.poll() is None and file_version(executable) == (2, 1, 0, 0)
-                and manager.application_result(prepared)["state"] == "pending", "UPDATE_DID_NOT_WAIT_FOR_PARENT")
+        result = manager.application_result(prepared)
+        require(result["state"] == "pending" and result["code"] == "WAITING_FOR_EXIT",
+                "REAL_HELPER_" + (result["code"] or result["state"].upper()))
+        require(old_process.poll() is None and helper_process.poll() is None
+                and file_version(executable) == (2, 1, 0, 0), "UPDATE_DID_NOT_WAIT_FOR_PARENT")
         close_gracefully(old_process)
         deadline = time.monotonic() + 180
         result = manager.application_result(prepared)
@@ -314,9 +329,9 @@ def native_smoke(args):
         evidence = {"ok": True, "old_version": OLD_VERSION, "new_version": NEW_VERSION,
             "old_setup_hash_pinned": True, "transport_fixture_only": True, "fixture_requests": counts["fixture_requests"],
             "real_per_user_install": True, "install_path_spaces": True, "parent_closed_gracefully": True,
-            "waited_for_parent": True, "real_powershell_helper": True, "receipt_applied": True,
+            "waited_for_parent": True, "explicit_wait_receipt": True, "real_powershell_helper": True, "receipt_applied": True,
             "exe_file_version_verified": True, "hkcu_version_verified": True, "updated_package_selftest": True,
-            "production_scheduler_unchanged": True}
+            "new_setup_file_version_verified": True, "production_scheduler_unchanged": True}
         uninstall_own(updater, install_dir)
         installed_own = False
         evidence["scoped_installation_removed"] = True

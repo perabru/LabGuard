@@ -6,6 +6,7 @@ $receiptPath = $null
 $targetVersion = $null
 $installerStream = $null
 $parentHandle = [IntPtr]::Zero
+$failureCode = 'INITIAL_VALIDATION_FAILED'
 
 Add-Type -TypeDefinition @'
 using System;
@@ -123,32 +124,42 @@ try {
  Private-Acl $installer
  $targetVersion = $m.version
  $receiptPath = Join-Path $stage 'result.json'
- Receipt 'pending' 'WAITING_FOR_EXIT'
+ $failureCode = 'PARENT_HANDLE_FAILED'
  # Keep a handle to the original process: PID reuse cannot make us close or kill anything.
  $parentHandle = [LabGuardUpdate.Native]::OpenProcess(0x101000, $false, [uint32]$m.parent_pid)
  if ($parentHandle -eq [IntPtr]::Zero) {
   if ([Runtime.InteropServices.Marshal]::GetLastWin32Error() -ne 87) { throw 'PROCESS_ACCESS' }
+  Receipt 'pending' 'PARENT_ALREADY_EXITED'
  } else {
   $buffer = New-Object Text.StringBuilder(32768)
   [uint32]$length = $buffer.Capacity
   if (-not [LabGuardUpdate.Native]::QueryFullProcessImageName($parentHandle, 0, $buffer, [ref]$length) -or -not (Same-Path $buffer.ToString() $parentExe)) { throw 'PROCESS_IDENTITY' }
+  Receipt 'pending' 'WAITING_FOR_EXIT'
   $wait = [LabGuardUpdate.Native]::WaitForSingleObject($parentHandle, 120000)
   if ($wait -ne 0) { Receipt 'pending' 'APPLICATION_STILL_OPEN'; exit 2 }
   [void][LabGuardUpdate.Native]::CloseHandle($parentHandle); $parentHandle = [IntPtr]::Zero
  }
+ $failureCode = 'OTHER_INSTANCE_CHECK_FAILED'
  foreach ($process in @(Get-Process -Name 'LabGuard' -ErrorAction SilentlyContinue)) {
   try {
    if (-not $process.HasExited -and (Same-Path $process.Path $parentExe)) { Receipt 'pending' 'ANOTHER_INSTANCE_OPEN'; exit 2 }
   } finally { $process.Dispose() }
  }
+ $failureCode = 'STAGING_RECHECK_FAILED'
  [void](Safe-Path $installer); [void](Safe-Path $installDir); Private-Acl $installer; Private-Acl $stage
  # Deny writes/deletion while hashing and starting the already-verified executable.
+ $failureCode = 'INSTALLER_OPEN_FAILED'
  $installerStream = [IO.File]::Open($installer, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+ $failureCode = 'INSTALLER_HANDLE_FAILED'
  $fileInfo = New-Object LabGuardUpdate.Native+FileInfo
  if (-not [LabGuardUpdate.Native]::GetFileInformationByHandle($installerStream.SafeFileHandle.DangerousGetHandle(), [ref]$fileInfo) -or $fileInfo.Links -ne 1 -or $installerStream.Length -ne $m.size) { throw 'INSTALLER_SIZE' }
+ $failureCode = 'INSTALLER_DIGEST_FAILED'
  $sha = [Security.Cryptography.SHA256]::Create()
  try { $hash = ([BitConverter]::ToString($sha.ComputeHash($installerStream))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
- if ($hash -cne $m.sha256 -or -not (Version-Matches $installer $m.version)) { throw 'INSTALLER_HASH' }
+ if ($hash -cne $m.sha256) { throw 'INSTALLER_HASH' }
+ $failureCode = 'INSTALLER_VERSION_FAILED'
+ if (-not (Version-Matches $installer $m.version)) { throw 'INSTALLER_VERSION' }
+ $failureCode = 'INSTALLER_TYPE_FAILED'
  $installerStream.Position = 0
  $header = New-Object byte[] 64
  if ($installerStream.Read($header, 0, 64) -ne 64 -or $header[0] -ne 77 -or $header[1] -ne 90) { throw 'INSTALLER_TYPE' }
@@ -164,15 +175,21 @@ try {
  $startInfo.Arguments = $arguments -join ' '
  $startInfo.UseShellExecute = $false
  $startInfo.CreateNoWindow = $true
+ $failureCode = 'INSTALLER_START_FAILED'
  $child = [Diagnostics.Process]::Start($startInfo)
+ $failureCode = 'INSTALLER_WAIT_FAILED'
  try { $child.WaitForExit(); $exitCode = $child.ExitCode } finally { $child.Dispose() }
  if ($exitCode -eq 3010) { Receipt 'restart_required' 'INSTALLER_RESTART_REQUESTED'; exit 3 }
  if ($exitCode -ne 0) { Receipt 'failed' 'INSTALLER_FAILED'; exit 4 }
+ $failureCode = 'INSTALLED_VERSION_CHECK_FAILED'
  if (-not (Version-Matches $parentExe $m.version)) { Receipt 'failed' 'INSTALLED_VERSION_MISMATCH'; exit 5 }
  Receipt 'applied' 'OK'
  exit 0
 } catch {
- Receipt 'failed' 'VALIDATION_FAILED'
+ # Only our literal guard codes are publishable; native exception text stays private.
+ $guardCodes = @('PATH', 'LOCAL_PATH', 'REPARSE', 'ACL', 'NAMES', 'SIZE', 'IDENTITY', 'VERSION', 'HASH', 'NUMBERS', 'HELPER_HASH', 'PAYLOAD_PATH', 'PER_USER', 'REGISTRY', 'PROCESS_ACCESS', 'PROCESS_IDENTITY', 'INSTALLER_SIZE', 'INSTALLER_HASH', 'INSTALLER_VERSION', 'INSTALLER_TYPE')
+ if ($guardCodes -ccontains $_.Exception.Message) { $failureCode = $_.Exception.Message }
+ Receipt 'failed' $failureCode
  exit 1
 } finally {
  if ($null -ne $installerStream) { $installerStream.Dispose() }

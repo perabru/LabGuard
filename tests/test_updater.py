@@ -282,6 +282,9 @@ class UpdateTests(unittest.TestCase):
             path.write_text(json.dumps(receipt));self.assertEqual(self.manager.application_result(prepared)['state'],'pending')
         path.write_text(json.dumps({'app_id':u.APP_ID,'version':'2.2.0','state':'applied','code':'OK'}))
         self.assertEqual(self.manager.application_result(prepared)['state'],'applied')
+        # Fixed helper diagnostics survive without exposing native exception text.
+        path.write_text(json.dumps({'app_id':u.APP_ID,'version':'2.2.0','state':'failed','code':'INSTALLER_VERSION'}))
+        self.assertEqual(self.manager.application_result(prepared),{'state':'failed','version':'2.2.0','code':'INSTALLER_VERSION'})
 
 
 class TransportTests(unittest.TestCase):

@@ -7,6 +7,8 @@
 AppId={{84474208-6606-4F7A-A421-EDC4FF33948C}
 AppName=LabGuard
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}
+VersionInfoTextVersion={#AppVersion}
 AppVerName=LabGuard {#AppVersion}
 AppPublisher=LabGuard
 AppPublisherURL=https://perabru.github.io/LabGuard/
