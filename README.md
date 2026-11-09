@@ -75,7 +75,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A interface 2.4.0 concentra o uso em Configurar, Gerenciar sites e Testar conexão, com opções técnicas recolhidas e diagnóstico real UDP/TCP do filtro neste PC. Os pacotes passam pela validação nativa Windows/Linux antes da publicação; consulte a [validação](docs/VALIDACAO.md) para resultados e limites.
+A [versão 2.4.0 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.4.0): três ações na tela inicial, assistente DNS em etapas e diagnóstico local UDP/TCP. Passaram 441 testes no Linux, 397 no Windows, instaladores, serviços e atualização isolada 2.3 → 2.4. Consulte a [validação](docs/VALIDACAO.md) para evidências e limites.
 
 ## Documentação e legado
 

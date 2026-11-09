@@ -1,4 +1,20 @@
-# Validação da versão 2.3.0
+# Validação da versão 2.4.0
+
+Publicada em 9 de novembro de 2026. O [fluxo Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/42643188350) passou no commit `49c39b3d5eacacb5b4864ff319e94fcd3761a705`. A [versão 2.4.0](https://github.com/perabru/LabGuard/releases/tag/v2.4.0) contém os seis pacotes desktop/servidor, manifesto de atualização, somas e relatórios dos executáveis.
+
+Passaram **441 testes no Linux** e **397 testes compatíveis com Windows**. O novo diagnóstico do assistente foi exercitado com consultas reais UDP/TCP somente ao listener local do próprio transporte, incluindo recusa de código incorreto, timeout, conexão encerrada e fontes sem DNS. O resultado nunca confirma cobertura das estações. A origem do teste não é um parâmetro arbitrário exposto pela API.
+
+A GUI Tk foi conferida em 1240×820/1000×700, com três cards e opções avançadas recolhidas. O assistente passou em 880×700/820×650, incluindo campos manuais quando não há uma interface real sugerida, autorização desmarcada, cópia do IP em uso e teste local. Janelas encerradas ou trocas de fonte ignoram resultados atrasados. O fluxo ativou DNS em loopback/porta alta, aplicou `roblox.com`, recebeu NXDOMAIN real, preservou o serviço ao recusar o encerramento e recuperou regras e início opcional ao reabrir. Não alterou LAN, DHCP, DNS do sistema ou firewall.
+
+Instalação, janela nativa, DNS UDP/TCP dos executáveis e serviços SCM/systemd passaram nas plataformas correspondentes. A atualização Windows isolada **2.3 → 2.4** usou os instaladores reais e o helper real, com substituição apenas do transporte de release por respostas locais de teste. Foram conferidos hash fixo do pacote anterior, espera explícita pelo processo, versão PE/HKCU, autoteste após atualização e remoção da instalação isolada. Preferências privadas e cofre temporário também passaram.
+
+O [Pages](https://github.com/perabru/LabGuard/actions/runs/42643188445) publicou site e manual. O manual mantém **18 páginas e 16 capítulos**, com os caminhos simplificados e o teste local explicados; as páginas alteradas foram renderizadas e revisadas. A apresentação foi conferida no navegador, com a imagem real da interface em Demonstração.
+
+O instalador foi conferido por hash do artefato, CRC do ZIP, SHA-256 interno, estrutura PE e relatórios 2.4.0. Tamanho: **25.436.867 bytes**. SHA-256: `502cde192861f9d659180c7bd3390800ec3e6223d2a8a9c8fda44bc4063ed289`.
+
+Nenhum equipamento da escola foi acessado ou homologado. Vivo e switch simples exigem que as estações usem o DNS do LabGuard, com IP estável, conectividade e UDP/TCP 53 permitido. O filtro local não oferece corte de internet por IP/MAC, controle do switch simples ou remoção de programas. VPN, DoH, DNS IPv6 alternativo e cache exigem controles complementares; consultas não comprovam visitas. Antes de parar o filtro, restaure o DNS anterior nos clientes.
+
+## Evidência anterior: 2.3.0
 
 Publicada em 9 de novembro de 2026. O [fluxo completo](https://github.com/perabru/LabGuard/actions/runs/42639341179) passou para o commit `7f9492f6527518e82a13cf09b79f9c23a318fe1e`. A [versão 2.3.0](https://github.com/perabru/LabGuard/releases/tag/v2.3.0) contém seis pacotes, manifesto, autotestes DNS e atualização verificada.
 
