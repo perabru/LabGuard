@@ -1,10 +1,6 @@
 # Vivo + Mercusys não gerenciável: bloquear sites sem MikroTik
 
-**Use LabGuard 2.4 ou posterior → Configurar → 1. Ligar filtro.**
-
-A visualização da versão anterior não era uma conexão de controle com o Vivo. Ela apenas lia interfaces, rota e vizinhos do PC. Não é necessário comprar um MikroTik para usar o novo filtro DNS. O switch simples continua ramificando a rede e não possui uma API de configuração que o LabGuard possa habilitar.
-
-O novo modo executa um servidor DNS no próprio computador. Os cabos e o roteador podem continuar no lugar atual. Para funcionar, os computadores precisam consultar esse servidor DNS; estar na mesma rede, sozinho, não basta.
+No PC da TI, abra **LabGuard 2.4.2 → Configurar → 1. Ligar filtro**. O Vivo e o switch continuam transportando o tráfego normalmente. O PC do LabGuard passa a responder às consultas DNS das estações configuradas. Os testes de estação e o ajuste do DNS do Windows são comandados pelo painel da TI.
 
 ## 1. Preparar o PC do filtro
 
@@ -18,41 +14,45 @@ O novo modo executa um servidor DNS no próprio computador. Os cabos e o roteado
 
 O serviço não muda DNS, DHCP, firewall ou configurações do Vivo. Se outro processo já usa a porta, não o encerra. No Linux a conta precisa ter permissão de vincular a porta 53; a TI pode usar o servidor como serviço com `CAP_NET_BIND_SERVICE`, mantendo a interface gráfica sem root. No Windows, autorize no firewall somente o IP/rede necessários; as permissões administrativas seguem a política da escola.
 
-## 2. Apontar uma estação de teste para o filtro
+## 2. Administrar uma estação pelo PC da TI
 
-Antes da mudança, anote se o DNS da estação era automático e quais servidores estavam configurados.
+Abra **Administrar estações** na etapa **2. Usar nos computadores** ou **3. Testar**. Selecione ou informe o IPv4 da estação do laboratório. Escolha o sistema e o acesso autorizado. Use um IPv4 da rede permitida. Endereços do filtro, gateway, dispositivos protegidos e endereços com identidade conflitante ficam fora da seleção. Para Windows, confira WinRM HTTPS, certificado confiável para o endereço utilizado, acesso pela porta de gerenciamento e conta com permissão adequada. Para Linux, use SSH já preparado com chave, identidade do host conferida, Python 3 e `dig` no alvo.
 
-**Se o Vivo permite escolher DNS no DHCP/LAN:** configure o endereço do PC LabGuard como DNS para as estações do laboratório. A posição e disponibilidade dessa opção dependem do modelo e firmware. A TI deve revisar o escopo antes de aplicar à rede inteira.
+1. Clique em **Testar estação** antes de alterar o DNS. Os resultados são calculados a partir da estação selecionada. Compare ambos com o código apresentado no painel.
+2. No Windows, clique em **Preparar alteração** e revise as configurações do adaptador associado ao IP selecionado. Confira o DNS anterior e o IP do filtro em execução. Confirme **Aplicar DNS** e teste de novo.
+3. Para reverter a alteração, selecione o mesmo alvo e confira a restauração antes de confirmar **Restaurar DNS**. Teste a navegação após a recuperação da configuração original.
 
-**Se o Vivo não permite:** configure o DNS diretamente em uma estação de teste. No Windows, `Win+R → ncpa.cpl → adaptador do laboratório → Propriedades → Protocolo IP Versão 4 → Propriedades`. Preserve a configuração IP existente e altere apenas o DNS preferencial para o IP do LabGuard. Em um ambiente de domínio, a TI pode distribuir a opção por política ou administração remota já autorizada, sem instalar um cliente LabGuard.
+No Windows, a prévia propõe usar o IPv4 do LabGuard como DNS e remover os servidores DNS IPv6 alternativos apenas daquele adaptador. O protocolo IPv6 permanece habilitado. A alteração guarda os dados anteriores no Registro da estação, vinculados ao alvo, adaptador e filtro. É possível restaurar após reconectar. A aplicação exige um adaptador identificável e uma configuração cuja origem anterior possa ser recomposta. Ao aplicar, o programa verifica o caminho direto, grava a alteração e testa o DNS padrão. Se essa verificação falhar, tenta restaurar. Em caso de perda de acesso durante a operação, reconecte e confira o estado antes de repetir.
 
-Não coloque um DNS público como alternativo: o sistema pode escolhê-lo e contornar os bloqueios. Para redundância, use outro resolvedor que aplique a mesma política. IPv6, DNS seguro do navegador, VPN e redes Wi-Fi isoladas também precisam de avaliação; não são desativados pelo programa.
+### Usar o navegador da TI
 
-## 3. Confirmar por código, em outro computador
+No desktop, abra **Painel web → Copiar chave e abrir** e cole a chave no login. Mantenha a janela do painel aberta. No serviço instalado, entre no painel local com o token administrativo. Em **Estações**, informe o acesso WinRM HTTPS ao Windows piloto e use **Testar DNS**, **Preparar alteração**, **Aplicar DNS** e **Restaurar DNS**. Se o WinRM ainda precisar ser preparado, o Windows da TI pode usar **Preparar nesta estação** quando já houver WMI/DCOM autorizado com Kerberos no domínio. Informe o IPv4 e o FQDN canônico da estação e a conta de domínio. A TI também pode usar **Preparar acesso remoto** e distribuir o script pela GPO ou pelo MDM. Os certificados e os passos de implantação estão no capítulo 11 do [manual completo](https://perabru.github.io/LabGuard/manual2/index.html).
 
-Depois de iniciar, abra **3. Testar**, clique **Verificar neste PC** para conferir UDP/TCP locais e anote o código `LabGuard-...` exibido.
+Em Linux, a conexão SSH oferece os testes. Quando a estação não tiver um canal de administração disponível, a TI pode configurar DNS no DHCP/LAN do Vivo caso o modelo permita, ou usar a política de domínio/GPO ou outra gestão institucional já autorizada. Anote as configurações anteriores antes de alterar a política e restrinja o primeiro teste a uma estação ou a um escopo piloto.
 
-Execute, substituindo o IP pelo valor real:
+## 3. Interpretar os dois testes
 
-```text
-nslookup -type=TXT labguard-check.invalid 192.168.15.10
-```
+**Direto ao filtro** consulta `labguard-check.invalid.` como TXT no endereço IPv4 onde o LabGuard está ativo. **DNS padrão da estação** faz a mesma consulta pelo caminho que a estação usa normalmente. Compare os dois resultados com o código `LabGuard-...` da sessão atual. Cada reinício do filtro gera um código novo.
 
-Deve retornar o mesmo código do painel. Isso confirma que a estação alcançou este filtro em uma consulta explícita, sem depender de um site externo.
+Em **Atividade**, localize o nome do teste, a origem e o horário. Se existir um encaminhador DNS, a origem registrada pode ser o próprio encaminhador. O contador geral de consultas e o teste **Verificar neste PC** não identificam qual estação recebeu o código.
 
-Depois de configurar o DNS da estação, teste também **sem informar servidor**:
+### Domínio inexistente (NXDOMAIN), tempo esgotado ou código diferente
 
-```text
-nslookup -type=TXT labguard-check.invalid
-```
+- Se o teste direto passar e o padrão retornar **domínio inexistente**, a estação alcança o filtro. Revise o DNS efetivamente usado pelo adaptador. Um endereço `fe80::…` no campo de servidor do CMD é um endereço IPv6 do enlace. Confira os resolvedores recebidos por IPv4 e IPv6, inclusive via DHCP e anúncios do roteador. Mantenha IPv6 habilitado e distribua apenas os resolvedores aprovados para a rede do laboratório.
+- Se o teste direto expirar, confira o IP do filtro ativo, a rede autorizada, a permissão UDP/TCP 53 no firewall e o isolamento de VLAN ou Wi-Fi. Um erro de WinRM ou SSH indica falha de administração anterior ao teste DNS.
+- Se o teste direto retornar NXDOMAIN ou um texto diferente, confira o destino e o código de sessão no painel. Repita os dois testes. Uma resposta diferente continua exigindo verificação mesmo que outra consulta apareça em Atividade.
 
-O código deve continuar igual. Se o primeiro teste funciona e o segundo não, o DNS padrão da estação ainda não está usando este filtro. Cada teste valida aquele caminho naquele momento; não garante cobertura de todo o laboratório nem bloqueia DNS criptografado do navegador.
+Em **3. Testar → Diagnóstico manual**, os botões **Copiar teste direto** e **Copiar teste padrão** ficam disponíveis para suporte opcional. No primeiro comando, o painel inclui o IPv4 real do serviço ativo. No segundo, o comando `nslookup -type=TXT labguard-check.invalid.` consulta o resolvedor padrão. Mantenha o ponto final para consultar o nome completo. Ambos devem retornar o código esperado.
 
 ## 4. Aplicar um domínio e conferir
 
+**Proteger laboratório** aplica uma lista inicial de domínios de jogos e adultos após a revisão da TI. Para usar o resolvedor familiar da Cloudflare, escolha a opção correspondente antes de ligar o filtro. O endereço `1.1.1.3` recebe consultas encaminhadas e filtra malware e conteúdo adulto. Avalie a resolução de nomes internos do domínio escolar. No serviço já ativo, aplicar a lista preserva o DNS de saída. As regras de IA são preparadas e aplicadas separadamente pelo Banco de sites.
+
+Com ao menos um domínio aplicado, use **Testar estação** para observar o campo **Domínio aplicado**. A estação consulta aquele domínio pelo resolvedor padrão. Confira o código da sessão, o domínio exato e o horário do registro de bloqueio recebido pelo LabGuard. O resultado se refere ao domínio consultado pela estação naquele momento.
+
 1. Em **Sites**, cadastre, por exemplo, `roblox.com`, categoria Jogos. Essa regra cobre o domínio e seus subdomínios. Outros serviços/CDNs do aplicativo podem exigir entradas adicionais; isso não desinstala o jogo.
 2. Para uma lista maior, use **Banco de sites**, revise os registros e clique **Aplicar lista**. O catálogo de IA pode ser preparado nesse banco e aplicado explicitamente.
-3. Na estação de teste, consulte `nslookup roblox.com` usando o DNS configurado. Uma consulta recebida e bloqueada fica em **Atividade** com **Bloqueio DNS confirmado**.
+3. No PC da TI, abra **Atividade**. Busque o domínio cadastrado, a origem e o horário da consulta. A indicação **Bloqueio DNS confirmado** registra o bloqueio da consulta recebida. Se a escola dispõe de uma ferramenta de execução remota, a TI pode gerar uma consulta de teste por esse console.
 4. Confira também um domínio permitido. Resposta negativa ou falha no DNS de saída não é exibida como bloqueio confirmado.
 5. Cache, conexões já abertas e endereços embutidos nos aplicativos podem continuar funcionando. Se necessário, limpe o cache da estação conforme a política da TI e faça um novo teste.
 
@@ -94,6 +94,8 @@ Não há promessa de controle universal ou de funcionamento infalível. O modelo
 
 ## Referências
 
+- [Microsoft, comando nslookup e seleção do servidor DNS](https://learn.microsoft.com/pt-br/windows-server/administration/windows-commands/nslookup).
+- [Microsoft, configuração de IPv6 no Windows](https://learn.microsoft.com/pt-br/troubleshoot/windows-server/networking/configure-ipv6-in-windows).
 - MERCUSYS MS108G (exemplo de switch sem configuração): https://www.mercusys.com.br/product/switch/ms108g/
 - Vivo, acesso ao roteador e lista de clientes: https://vivo.com.br/para-voce/ajuda/duvidas/internet/internet-vivo-wi-fi
 - Configuração DNS por cliente e limitações de equipamentos de operadora: https://developers.google.com/speed/public-dns/docs/using?hl=pt-br

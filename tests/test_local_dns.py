@@ -57,6 +57,23 @@ class FilterTests(unittest.TestCase):
         self.assertEqual(str(answer.rr[0].rdata).strip('"'),self.filter.check_token)
         self.assertEqual(self.query('blocked.'+CHECK_DOMAIN).header.rcode,RCODE.NXDOMAIN)
 
+    def test_network_diagnostic_is_visible_and_secondary_host_address_is_local(self):
+        service = DNSFilter('192.168.15.10', '192.168.15.0/24', rules={CHECK_DOMAIN: 'Outros'})
+        try:
+            service.update_local_ips(['192.168.15.11'])
+            question = DNSRecord.question(CHECK_DOMAIN + '.', 'TXT').pack()
+            for source in ('192.168.15.10', '192.168.15.11', '192.168.15.32'):
+                response = DNSRecord.parse(service.resolve(question, source))
+                self.assertEqual(str(response.rr[0].rdata).strip('"'), service.check_token)
+            activity = service.activity()
+            self.assertEqual(activity['local_diagnostic_queries'], 2)
+            self.assertEqual(activity['queries'], 1)
+            self.assertEqual(list(activity['clients']), ['192.168.15.32'])
+            self.assertEqual(activity['blocked'], 0)
+            self.assertEqual([e['status'] for e in activity['events']], ['Consulta de diagnóstico'])
+        finally:
+            service.close()
+
     def test_outside_subnet_malformed_and_response_packets_are_not_forwarded(self):
         with patch.object(self.filter,'_forward') as forward:
             self.assertIsNone(self.query('roblox.com',client='192.168.15.1'))
@@ -133,6 +150,45 @@ class UpstreamTests(unittest.TestCase):
 
 
 class TransportTests(unittest.TestCase):
+    def test_real_self_test_does_not_create_station_or_activity_and_normal_queries_remain(self):
+        observation = {
+            'devices': [],
+            'interfaces': [
+                {'ipv4': '192.168.15.10', 'prefixlen': 24},
+                {'ipv4': '192.168.15.11/24'},
+            ],
+            'gateway': {'ip': '192.168.15.1'},
+            'discovery': {'interfaces_read': True, 'routes_read': True},
+        }
+        with tempfile.TemporaryDirectory() as directory, patch(
+            'labguard.discovery.LocalObservationTransport.request', return_value=observation
+        ):
+            transport = LocalDNSTransport(host='127.0.0.1', lab_cidr='127.0.0.0/8',
+                port=free_port(), manage_rules=True, data_dir=Path(directory) / 'private')
+            try:
+                self.assertTrue(transport.verify_dns()['ok'])
+                snapshot = transport.request('snapshot')
+                self.assertEqual(snapshot['dns_service']['local_diagnostic_queries'], 2)
+                self.assertEqual(snapshot['dns_service']['received_clients'], 0)
+                self.assertEqual(snapshot['dns_service']['queries_received'], 0)
+                self.assertEqual(snapshot['metrics']['queries_window'], 0)
+                self.assertFalse(snapshot['dns_service']['network_scope_verified'])
+                self.assertEqual(snapshot['devices'], [])
+                self.assertEqual(snapshot['events'], [])
+                self.assertEqual(snapshot['local'], {
+                    'default_gateway': '192.168.15.1', 'interface_ips': ['192.168.15.10', '192.168.15.11'],
+                    'routes_read': True, 'interfaces_read': True})
+                question = DNSRecord.question('blocked.' + CHECK_DOMAIN)
+                response = DNSRecord.parse(question.send('127.0.0.1', transport.port, timeout=2))
+                self.assertEqual(response.header.rcode, RCODE.NXDOMAIN)
+                snapshot = transport.request('snapshot')
+                self.assertEqual(snapshot['dns_service']['received_clients'], 1)
+                self.assertEqual(snapshot['dns_service']['queries_received'], 1)
+                self.assertEqual(snapshot['metrics']['blocked_events_window'], 1)
+                self.assertEqual(snapshot['events'][0]['client_ip'], '127.0.0.1')
+            finally:
+                transport.close()
+
     def test_explicit_consent_required_before_any_listener_or_database(self):
         with patch('labguard.local_dns.DNSFilter.start') as start,self.assertRaises(DNSError):
             LocalDNSTransport(host='127.0.0.1',lab_cidr='127.0.0.0/8',manage_rules=False)

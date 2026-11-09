@@ -69,6 +69,8 @@ class DNSFilter:
         self._slots = threading.BoundedSemaphore(32)
         self._sockets = []; self._selector = None; self._thread = None; self._pool = None
         self._queries = self._blocked = 0
+        self._local_diagnostic_queries = 0
+        self._local_ips = frozenset((self.listen,))
         self.check_token = 'LabGuard-'+secrets.token_hex(8)
         self.replace_rules(rules or {})
 
@@ -80,6 +82,10 @@ class DNSFilter:
     @property
     def running(self):
         return bool(self._thread and self._thread.is_alive() and not self._stop.is_set())
+
+    def update_local_ips(self, interface_ips):
+        with self._lock:
+            self._local_ips = frozenset((self.listen, *interface_ips))
 
     def start(self):
         if self.running:return
@@ -206,9 +212,15 @@ class DNSFilter:
             labels = query.q.qname.label
             if any(not label or len(label)>63 or any(c<33 or c>126 for c in label) for label in labels):return None
             name = str(query.q.qname).lower().rstrip('.')
-            blocked = self._matches(name)
-            if name == CHECK_DOMAIN and query.q.qtype == QTYPE.TXT:
+            diagnostic = name == CHECK_DOMAIN and query.q.qtype == QTYPE.TXT
+            blocked = not diagnostic and self._matches(name)
+            if diagnostic:
                 reply.add_answer(RR(CHECK_DOMAIN, QTYPE.TXT, ttl=0, rdata=TXT(self.check_token)))
+                # Local UDP/TCP checks reach the real listener without creating network activity.
+                with self._lock:
+                    if client in self._local_ips or ipaddress.IPv4Address(client).is_loopback:
+                        self._local_diagnostic_queries += 1
+                        return reply.pack()
             elif blocked:reply.header.rcode = RCODE.NXDOMAIN
             else:
                 try:
@@ -218,6 +230,8 @@ class DNSFilter:
                 except Exception:
                     reply = query.reply(); reply.header.aa = 0; reply.header.ad = 0; reply.header.rcode = RCODE.SERVFAIL
             status = 'Bloqueio DNS confirmado' if blocked else 'Resposta DNS' if reply.header.rcode == 0 else 'Falha DNS' if reply.header.rcode == RCODE.SERVFAIL else 'Resposta DNS negativa'
+            if diagnostic:
+                status = 'Consulta de diagnóstico'
             with self._lock:
                 self._queries += 1; self._blocked += int(blocked)
                 self._clients.pop(client, None); self._clients[client] = stamp()
@@ -233,7 +247,8 @@ class DNSFilter:
 
     def activity(self):
         with self._lock:
-            return {'events':list(self._events), 'clients':dict(self._clients), 'queries':self._queries, 'blocked':self._blocked}
+            return {'events':list(self._events), 'clients':dict(self._clients), 'queries':self._queries,
+                    'blocked':self._blocked, 'local_diagnostic_queries':self._local_diagnostic_queries}
 
     def close(self):
         self._stop.set()
@@ -293,9 +308,41 @@ class LocalDNSTransport:
             return {**results, 'ok': all(results.values()), 'scope': 'this_computer',
                     'network_scope_verified': False}
 
+    def _install_school_policy(self, params):
+        from .banlist import BanlistError
+        from .school_policy import SCHOOL_POLICY
+
+        if (set(params) != {"authorized", "expected_token"} or params["authorized"] is not True
+                or params["expected_token"] != self.filter.check_token or not self.filter.running):
+            raise DNSError("DNS_LOCAL_STATE: confirme a autorização e a sessão ativa do filtro.")
+        added = []
+        # Existing rows, including manual exclusions, stay untouched. Install each
+        # committed addition before continuing so a later failure stays recoverable.
+        for domain, category in SCHOOL_POLICY:
+            if len(self._rules) >= MAX_RULES:
+                break
+            if domain in self._rules:
+                continue
+            try:
+                result = self.database.import_domains([domain], category=category)
+            except BanlistError:
+                break
+            if domain in result["added"]:
+                self._rules[domain] = category
+                self.filter.replace_rules(self._rules)
+                added.append(domain)
+        if added:
+            self._audit.appendleft({"time": stamp(), "action": "apply_school_policy", "target": ", ".join(added),
+                                    "outcome": "Regras escolares adicionadas ao filtro"})
+        snapshot = self._snapshot()
+        snapshot["school_policy_added"] = added
+        return snapshot
+
     def request(self, action, **params):
         with self._lock:
             if self._closed:raise DNSError('DNS_LOCAL_PORT: filtro encerrado; configure novamente.')
+            if action == "apply_school_policy":
+                return self._install_school_policy(params)
             if action == 'add_domain':
                 domain = normalize_domain(params.get('domain', ''))
                 if len(self._rules)>=MAX_RULES and domain not in self._rules:raise DNSError('DNS_LOCAL_STATE: limite de regras excedido.')
@@ -310,9 +357,11 @@ class LocalDNSTransport:
             return self._snapshot()
 
     def _snapshot(self):
-        activity = self.filter.activity()
         try:local = self._observation.request('snapshot')
         except Exception:local = {'devices':[], 'interfaces':[]}
+        topology = self._local_topology(local)
+        self.filter.update_local_ips(topology['interface_ips'])
+        activity = self.filter.activity()
         devices = []
         for row in local.get('devices', []):
             try:inside = ipaddress.IPv4Address(row.get('ip','')) in self.filter.network
@@ -325,7 +374,7 @@ class LocalDNSTransport:
                     'last_seen':last, 'state':'Consulta DNS recebida · presença atual não confirmada'})
         running = self.filter.running
         return {'mode':'equipment', 'source_type':'local_dns', 'timestamp':stamp(), 'interfaces':[row for row in local.get('interfaces', []) if self._interface_in_scope(row)],
-            'local':{}, 'gateway':{'hostname':'LabGuard DNS', 'vendor':'LabGuard', 'model':'Filtro DNS local',
+            'local':topology, 'gateway':{'hostname':'LabGuard DNS', 'vendor':'LabGuard', 'model':'Filtro DNS local',
                 'lab_cidr':str(self.filter.network), 'management_host':self.filter.listen},
             'capabilities':{'inventory':True, 'domain_filtering':running, 'dns_history':True, 'device_internet_cut':False,
                 'address_blocking':False, 'ai_block':False, 'port_control':False},
@@ -336,11 +385,31 @@ class LocalDNSTransport:
                 'observed_devices':len(devices), 'blocked_devices':0},
             'dns_service':{'listen':self.filter.listen, 'port':self.port, 'network':str(self.filter.network),
                 'upstream':self.filter.upstream, 'service_running':running, 'received_clients':len(activity['clients']),
+                'local_diagnostic_queries':activity['local_diagnostic_queries'],
                 'network_scope_verified':False, 'queries_received':activity['queries'], 'check_domain':CHECK_DOMAIN, 'check_token':self.filter.check_token},
             'warnings':['Somente clientes configurados para usar este DNS são filtrados. Não há confirmação de cobertura de toda a rede.',
                 'Consultas DNS não comprovam visitas. HTTPS, VPN, DoH, DNS alternativo e cache podem contornar o filtro.',
                 'O computador e este filtro precisam permanecer ligados. Ao encerrar, restaure o DNS nos clientes para preservar a navegação.',
                 'Este modo não altera o roteador Vivo nem o switch e não oferece corte de internet por IP/MAC.']}
+
+    @staticmethod
+    def _local_topology(observation):
+        from .discovery import _private_ipv4
+        interface_ips = set()
+        for row in observation.get('interfaces', []):
+            if not isinstance(row, dict):
+                continue
+            try:
+                address = ipaddress.IPv4Interface(row.get('ipv4', '')).ip
+            except (TypeError, ValueError):
+                continue
+            interface_ips.add(str(address))
+        gateway = _private_ipv4(observation.get('gateway', {}).get('ip'))
+        discovery = observation.get('discovery', {})
+        return {'interface_ips': sorted(interface_ips, key=ipaddress.IPv4Address),
+                'interfaces_read': discovery.get('interfaces_read') is True,
+                'routes_read': discovery.get('routes_read') is True,
+                'default_gateway': str(gateway) if gateway is not None else ''}
 
     def _interface_in_scope(self,row):
         try:return ipaddress.IPv4Interface(row.get('ipv4','')).ip in self.filter.network

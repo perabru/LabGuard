@@ -22,6 +22,146 @@
   const activeControllers = new Set();
   let lastActivity = Date.now();
 
+  let stationBusy = false;
+  let stationPreview = null;
+  let stationHosts = '';
+
+  function forgetStation() {
+    stationPreview = null;
+    el('station-result').textContent = '';
+    el('station-apply').hidden = true;
+  }
+  function stationIdentity() {
+    const service = snapshot?.dns_service;
+    if (snapshot?.source_type !== 'local_dns' || service?.service_running !== true) return '';
+    return JSON.stringify([service.listen, service.network, service.port, service.check_token]);
+  }
+  function invalidateStationPreview() {
+    if (!stationPreview || (Date.now() < stationPreview.deadline && stationPreview.source === stationIdentity())) return false;
+    forgetStation();
+    el('station-result').textContent = 'Prepare outra prévia. O prazo terminou ou a conexão do filtro mudou.';
+    return true;
+  }
+  function syncStation() {
+    invalidateStationPreview();
+    const admin = role === 'admin' && !!token;
+    el('station-panel').hidden = !admin; el('station-nav').hidden = !admin;
+    const service = snapshot?.dns_service;
+    const ready = admin && snapshot?.source_type === 'local_dns' && service?.service_running === true && sourceRecent() && Date.now() - lastSuccess <= 20000;
+    el('station-state').textContent = ready ? `Filtro em ${service.listen}. Selecione o IP de uma estação com WinRM HTTPS autorizado.` : 'Ligue o filtro DNS e atualize a leitura para administrar as estações. A preparação do acesso fica disponível abaixo.';
+    if (!el('access-ip').value && service?.listen) el('access-ip').value = service.listen;
+    const hosts = (snapshot?.devices || []).filter(row => row.ip && !row.protected && !row.identity_conflict).map(row => row.ip);
+    if (JSON.stringify(hosts) !== stationHosts) {
+      stationHosts = JSON.stringify(hosts);
+      el('station-hosts').replaceChildren(...hosts.map(host => { const option = document.createElement('option'); option.value = host; return option; }));
+    }
+    for (const id of ['station-host','station-user','station-password']) el(id).disabled = !admin || stationBusy;
+    for (const id of ['station-test','station-preview','station-restore']) el(id).disabled = !ready || stationBusy;
+    el('station-apply').disabled = !stationPreview || !ready || stationBusy;
+    el('access-download').disabled = !admin || stationBusy;
+    el('access-push').disabled = !ready || stationBusy;
+    el('school-panel').hidden = !admin;
+    el('school-protect').disabled = !ready || stationBusy || dbSyncing || gatewayWriting;
+  }
+  const testLabels = {ok:'Código da sessão confirmado', nxdomain:'Domínio inexistente', timeout:'Sem resposta no prazo', different:'Código de outra sessão ou servidor', failed:'Consulta inconclusiva'};
+  async function stationAction(action) {
+    if (stationBusy || !token || role !== 'admin') return;
+    const host = el('station-host').value.trim();
+    const user = el('station-user').value.trim();
+    const password = el('station-password').value;
+    if (!host || !user || !password) { el('station-result').textContent = 'Preencha o IP, a conta e a senha da estação.'; return; }
+    const body = {host, user, password};
+    if (action === 'apply') {
+      if (!stationPreview || stationPreview.host !== host || stationPreview.user !== user) return;
+      if (!window.confirm(`Aplicar o DNS previsto na estação ${host}? O DNS da escola pode atender nomes internos.`)) return;
+      body.id = stationPreview.id; body.confirm = true;
+    }
+    if (action === 'restore') {
+      if (!window.confirm(`Restaurar o DNS guardado para a estação ${host}?`)) return;
+      body.confirm = true;
+    }
+    if (action === 'apply' && invalidateStationPreview()) return;
+    const current = generation;
+    const source = stationIdentity();
+    const deadline = Date.now() + 60000;
+    forgetStation(); stationBusy = true; syncStation();
+    el('station-result').textContent = `Comunicando com ${host}…`;
+    try {
+      const result = await api(`/api/station/${action}`, body, false);
+      if (current !== generation) return;
+      if (source !== stationIdentity()) {
+        el('station-result').textContent = 'A conexão do filtro mudou durante a operação. Confira a estação antes de continuar.';
+        return;
+      }
+      const data = result.data;
+      let resultText = data.message || 'Operação concluída.';
+      if (data.direct && data.default) resultText = `Direto ao filtro: ${testLabels[data.direct] || data.direct}. DNS padrão: ${testLabels[data.default] || data.default}. ${resultText}`;
+      if (action === 'preview' && data.id) {
+        stationPreview = {host,user,id:data.id,source,deadline}; el('station-apply').hidden = false;
+        resultText = `Estação ${host} · adaptador ${data.adapter}. ${resultText}`;
+      }
+      el('station-result').textContent = resultText;
+    } catch (error) {
+      if (current === generation) el('station-result').textContent = error.name === 'AbortError' ? 'Tempo de resposta excedido. Consulte a estação antes de repetir uma alteração.' : error.message;
+    } finally { stationBusy = false; syncStation(); }
+  }
+  async function protectSchool() {
+    if (el('school-protect').disabled) return;
+    const current = generation;
+    stationBusy = true; syncStation();
+    try {
+      const catalog = await api('/api/school/policy', undefined, false);
+      if (current !== generation) return;
+      const domains = catalog.data.domains;
+      if (!Array.isArray(domains) || !domains.length) throw new Error('O catálogo escolar está indisponível.');
+      if (!window.confirm(`Aplicar a lista de ${domains.length} domínios ao filtro ativo?\n\n${domains.join(', ')}`)) return;
+      const response = await api('/api/school/protect', {confirm:true},false);
+      if (current !== generation) return;
+      el('school-status').textContent = response.data.message;
+      refresh();
+    } catch (error) { if (current === generation) el('school-status').textContent = error.message; }
+    finally { stationBusy = false; syncStation(); }
+  }
+  async function pushAccess() {
+    if (stationBusy || !token || role !== 'admin') return;
+    const host = el('station-host').value.trim();
+    const hostname = el('access-hostname').value.trim();
+    const user = el('station-user').value.trim();
+    const password = el('station-password').value;
+    if (!host || !hostname || !user || !password) { el('access-push-result').textContent='Preencha IP, nome no domínio, conta e senha da estação.'; return; }
+    if (!window.confirm(`Preparar WinRM HTTPS e a regra de firewall na estação ${hostname} (${host})?`)) return;
+    const current = generation;
+    stationBusy = true; syncStation();
+    el('access-push-result').textContent = `Preparando a conexão com ${hostname}…`;
+    try {
+      const response = await api('/api/station/prepare-access', {host,hostname,user,password,confirm:true}, false);
+      if (current === generation) el('access-push-result').textContent = response.data.message;
+    } catch (error) {
+      if (current === generation) el('access-push-result').textContent = error.name === 'AbortError' ? 'Resultado pendente. Verifique a conexão antes de repetir.' : error.message;
+    } finally { stationBusy=false; syncStation(); }
+  }
+  async function prepareAccess() {
+    if (stationBusy || !token || role !== 'admin') return;
+    const current = generation;
+    stationBusy = true; syncStation();
+    try {
+      const result = await api('/api/access/prepare', {management_ip:el('access-ip').value.trim()},false);
+      if (current !== generation) return;
+      const blob = new Blob(['\uFEFF', result.data.script.replace(/\r?\n/g,'\r\n')], {type:'application/octet-stream'});
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = result.data.name;
+      document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+      el('access-result').textContent = 'Script gerado. Distribua pela gestão da escola e depois use Testar DNS.';
+    } catch (error) { if (current === generation) el('access-result').textContent = error.message; }
+    finally { stationBusy = false; syncStation(); }
+  }
+  for (const action of ['test','preview','apply','restore']) el(`station-${action}`).addEventListener('click', () => stationAction(action));
+  for (const id of ['station-host','station-user']) el(id).addEventListener('input', () => { forgetStation(); el('station-password').value=''; });
+  el('station-password').addEventListener('input', forgetStation);
+  el('access-download').addEventListener('click',prepareAccess);
+  el('access-push').addEventListener('click',pushAccess);
+  el('school-protect').addEventListener('click',protectSchool);
+
   function text(tag, value, className) {
     const item = document.createElement(tag);
     item.textContent = String(value ?? "");
@@ -60,6 +200,7 @@
     return ["set_device_block", "set_address_block"].includes(action) ? health.firewall === true && health.forwarding === true : health.dns === true;
   }
   function syncControls() {
+    syncStation();
     el("refresh").disabled = busy || dbBusy || !token;
     el("login-button").disabled = busy || dbBusy;
     el("add-domain").disabled = !canWrite("add_domain");
@@ -88,6 +229,7 @@
   }
   function canEditDB() { return !!token && role === "admin" && !gatewayWriting && !dbBusy && !dbSyncing; }
   function logout() {
+    forgetStation(); el('school-status').textContent=''; el('access-push-result').textContent=''; el("station-password").value = ""; el("station-user").value = ""; el("access-result").textContent = "";
     generation += 1;
     controller?.abort();
     activeControllers.forEach(item => item.abort()); activeControllers.clear();
@@ -118,7 +260,7 @@
     const requestController = new AbortController();
     controller = requestController;
     activeControllers.add(requestController);
-    const timeout = setTimeout(() => requestController.abort(), 45000);
+    const timeout = setTimeout(() => requestController.abort(), path.startsWith("/api/station/") ? 150000 : 45000);
     try {
       const response = await fetch(path, {
         method: body ? "POST" : "GET", credentials: "omit", cache: "no-store",
@@ -605,7 +747,7 @@
     if (!domain) return;
     mutate("add_domain", {domain, category: "Outros"}, `Cadastrar o bloqueio de ${domain} no equipamento configurado? ${domainImpact()}`);
   });
-  window.addEventListener("pagehide", () => { token = ""; activeControllers.forEach(item => item.abort()); activeControllers.clear(); clearMap(); downloadObjectURLs.forEach(url => URL.revokeObjectURL(url)); downloadObjectURLs.clear(); });
+  window.addEventListener("pagehide", () => { el("station-password").value = ""; token = ""; activeControllers.forEach(item => item.abort()); activeControllers.clear(); clearMap(); downloadObjectURLs.forEach(url => URL.revokeObjectURL(url)); downloadObjectURLs.clear(); });
   ["pointerdown", "keydown"].forEach(name => document.addEventListener(name, () => { lastActivity = Date.now(); }, {passive: true}));
   setInterval(() => {
     if (token && Date.now() - lastActivity > 600000) {

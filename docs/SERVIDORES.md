@@ -49,6 +49,18 @@ LabGuardServer run --directory /CAMINHO/PRIVADO --demo
 
 O painel identifica a demonstração. As regras de rede simuladas ficam na memória; os cadastros do banco de sites são persistentes no diretório privado, inclusive em demonstração. Use um diretório de configuração separado para testes, pois a primeira aplicação vincula o banco à fonte correspondente.
 
+## Estações no painel web local
+
+Com o filtro DNS ativo e o acesso administrativo do LabGuard, abra **Estações** no navegador da TI. Para Windows, informe o IPv4 privado do alvo no segmento autorizado e a conta que tem acesso WinRM HTTPS ao computador. O certificado da estação precisa ser confiável e apresentar o IPv4 usado no SAN. Se necessário, disponibilize a CA institucional em `station-ca.pem` na pasta privada de configuração do servidor.
+
+1. Em **Testar DNS**, confira os resultados direto e padrão da estação para o código TXT atual.
+2. Se o direto passar e o padrão divergir, use **Preparar alteração**. Confira o alvo, o adaptador, os DNS IPv4 e IPv6 e o efeito nos nomes internos.
+3. Confirme **Aplicar DNS**. A configuração anterior fica na estação Windows. A verificação usa o caminho DNS padrão da estação após a alteração. Para reverter a mudança correspondente, confirme **Restaurar DNS** no mesmo alvo.
+
+Em um PC de TI com Windows, **Preparar nesta estação** usa um canal WMI/DCOM já autorizado com Kerberos e privacidade de pacotes para preparar WinRM HTTPS no alvo. Informe IPv4, FQDN canônico e conta de domínio, confirme o equipamento e confira o resultado do teste HTTPS. O processo exige um computador membro do domínio com o certificado de máquina descrito abaixo.
+
+**Preparar acesso remoto** fornece um script PowerShell personalizado com o IP de gestão. A TI o distribui a uma estação Windows piloto pela GPO ou MDM em contexto de computador. Antes da implantação, prepare no repositório pessoal de certificados da máquina um certificado confiável com chave privada, autenticação de servidor, nome do host e SAN que inclua o IPv4 do alvo. A interface precisa ter perfil Domínio ou Privado. O script prepara o serviço WinRM HTTPS e a permissão de firewall TCP 5986 para o IP da TI. Consulte o [capítulo 11 do manual](MANUAL_DO_USUARIO_V2.md) para a sequência completa.
+
 ## Equipamento RouterOS por HTTPS
 
 Prepare previamente REST HTTPS no RouterOS compatível, uma conta autorizada e um certificado válido para o nome/IP usado. Use a rede de gestão da escola e restrinja o acesso. Não desative a validação TLS nem exponha a administração à internet. O programa não habilita o serviço remoto, não descobre credenciais e não troca o firmware.

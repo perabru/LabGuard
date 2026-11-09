@@ -13,7 +13,7 @@ class ControllerError(RuntimeError):
 
 CAPABILITY_NAMES = ("inventory", "domain_filtering", "device_internet_cut", "address_blocking",
                     "ai_block", "dns_history", "port_control")
-ACTION_CAPABILITY = {"add_domain": "domain_filtering", "remove_domain": "domain_filtering",
+ACTION_CAPABILITY = {"apply_school_policy": "domain_filtering", "add_domain": "domain_filtering", "remove_domain": "domain_filtering",
                      "set_device_block": "device_internet_cut", "set_address_block": "address_blocking",
                      "set_ai_block": "ai_block"}
 
@@ -75,6 +75,8 @@ class ControllerTransport:
         with self._lock:
             if self._closed:
                 raise ControllerError("A conexão foi encerrada. Conecte novamente.")
+            if action == "apply_school_policy" and self.kind != "local_dns":
+                raise ControllerError("O pacote escolar exige o filtro DNS local.")
             if action != "snapshot":
                 capability = ACTION_CAPABILITY.get(action)
                 if capability is None:

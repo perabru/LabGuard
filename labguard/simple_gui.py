@@ -160,7 +160,7 @@ def home_status(snapshot, *, stale=False, busy=False):
     if snapshot.get("source_type") == "local_dns":
         service = snapshot.get("dns_service", {})
         if service.get("service_running") is True:
-            return "Filtro ligado neste PC", "DNS: " + str(service.get("listen", "")) + ". Configure esse DNS nos computadores e teste cada estação."
+            return "Filtro ligado neste PC", "DNS: " + str(service.get("listen", "")) + ". Em Administrar estações, configure o DNS pelo painel e teste cada estação."
         return "Filtro parado", "Abra Configurar para conferir o endereço e iniciar o filtro."
     if snapshot_capabilities(snapshot).get("domain_filtering"):
         return "Conexão de controle disponível", "Gerencie os sites. As ações disponíveis seguem os recursos e a autorização desta conexão."
@@ -480,7 +480,8 @@ class App(tk.Tk):
             self._set_startup_message('Preferências indisponíveis; o início automático do DNS não foi salvo.');return False
         from .preferences import normalize_dns_profile
         try:
-            profile = normalize_dns_profile({key:settings.get(key) for key in ('host','lab_cidr','upstream')} | {'start_on_open':start_on_open})
+            values = {key:settings[key] for key in ('host','lab_cidr','upstream','custom_upstream') if key in settings}
+            profile = normalize_dns_profile(dict(values, start_on_open=start_on_open))
             self._preferences = self._preference_store.save(dict(self._preferences,local_dns=profile))
         except Exception:
             self._set_startup_message('O início automático do DNS não pôde ser salvo. Confira as permissões com a TI.');return False
@@ -565,6 +566,7 @@ class App(tk.Tk):
         self._label(brand, "LabGuard", bg=PANEL, fg=TEXT, font=(self.font_family, 19, "bold")).pack(anchor="w")
         self._label(brand, "CONTROLE ESCOLAR · 2.4", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
         ActionButton(header, text="Configurar", command=self._open_primary_setup, height=38).pack(side="right")
+        ActionButton(header, text="Painel web", command=self._open_desktop_web, height=38).pack(side="right", padx=(8, 4))
         ActionButton(header, text="Mapa e relatórios", command=self._open_network_map, style="Yellow.TButton", height=38).pack(side="right", padx=9)
         nav = tk.Frame(self, bg=BG, padx=23, pady=12); nav.grid(row=1, column=0, sticky="ew")
         for col, (key, name) in enumerate((("home", "Início"), ("devices", "Dispositivos"), ("sites", "Sites"), ("activity", "Atividade"))):
@@ -629,14 +631,14 @@ class App(tk.Tk):
         self._label(status.body, textvariable=self.overview_hint, bg=PANEL).pack(fill="x", pady=(7, 0))
         cards = tk.Frame(parent, bg=BG); cards.grid(row=3, column=0, sticky="ew", pady=16)
         for n, (title, hint, action, color) in enumerate((
-            ("1. Configurar", "Escolha a rede e ligue o filtro com um passo a passo.", self._open_primary_setup, PURPLE),
+            ("Proteger laboratório", "Ligue o filtro e aplique a lista escolar de jogos e sites adultos.", self._open_school_protection, PURPLE),
             ("2. Gerenciar sites", "Adicione bloqueios ou revise seu banco de sites e IA.", lambda:self.show_page("sites"), BLUE),
             ("3. Testar conexão", "Verifique o filtro e veja como testar uma estação.", self._open_connection_test, AMBER))):
             cards.columnconfigure(n, weight=1, uniform="actions")
             card = RoundCard(cards, padding=17); card.grid(row=0, column=n, sticky="nsew", padx=(0, 12) if n<2 else 0)
             self._label(card.body, title, bg=PANEL, fg=color, font=(self.font_family, 13, "bold")).pack(fill="x")
             self._label(card.body, hint, bg=PANEL).pack(fill="x", pady=(9, 14))
-            ActionButton(card.body, text=("Abrir configuração", "Abrir sites", "Abrir teste")[n], command=action,
+            ActionButton(card.body, text=("Proteger laboratório", "Abrir sites", "Abrir teste")[n], command=action,
                 style="Accent.TButton" if n==0 else "TButton", height=39).pack(anchor="w")
         links = tk.Frame(parent, bg=BG); links.grid(row=4, column=0, sticky="ew", pady=(0, 12))
         ActionButton(links, text="Dispositivos", command=lambda:self.show_page("devices"), height=37).pack(side="left")
@@ -654,6 +656,72 @@ class App(tk.Tk):
     def _open_connection_test(self):
         if getattr(self.transport, "kind", "") in {"routeros", "legacy"}:return self._open_diagnostics()
         return self._open_dns_setup(step=2)
+
+    def _open_school_protection(self):
+        if self.snapshot.get('mode') == 'demo':
+            self.status.set('Em Opções avançadas, escolha Observar esta rede para proteger o laboratório real.')
+            return False
+        if getattr(self.transport, 'kind', '') == 'local_dns':
+            return self._apply_school_protection()
+        return self._open_dns_setup(step=0)
+
+    def _confirm_school_protection(self, address):
+        if self.snapshot.get('mode') == 'demo':
+            return False
+        from .school_policy import SCHOOL_POLICY
+        message = (f'Aplicar a lista de {len(SCHOOL_POLICY)} domínios de jogos e sites adultos ao filtro DNS '
+                   f'{address}? As estações que usarem esse DNS receberão os bloqueios. '
+                   'As regras existentes e suas categorias serão preservadas.')
+        return messagebox.askyesno('Proteger laboratório', message, parent=self, default='no')
+
+    def _apply_school_protection(self, *, confirmed=False):
+        from .school_policy import apply_school_policy
+        source = self.transport
+        service = self.snapshot.get('dns_service', {})
+        token = service.get('check_token')
+        if (getattr(source, 'kind', '') != 'local_dns' or self.snapshot.get('mode') != 'equipment'
+                or self.snapshot.get('source_type') != 'local_dns' or service.get('service_running') is not True or not token):
+            self.status.set('Ligue o filtro DNS local antes de aplicar a lista escolar.')
+            return False
+        if not self._mutation_allowed(('dns',), capability='domain_filtering'):
+            return False
+        if not confirmed and not self._confirm_school_protection(service.get('listen', '')):
+            return False
+        if (self.transport is not source or self.snapshot.get('dns_service', {}).get('check_token') != token
+                or not self._mutation_allowed(('dns',), capability='domain_filtering')):
+            return False
+
+        def apply():
+            result = apply_school_policy(source, authorized=True, expected_token=token)
+            try:
+                snapshot = source.request('snapshot')
+            except Exception:
+                snapshot = None
+            return {'result': result, 'snapshot': snapshot}
+
+        def show(message):
+            if self.transport is source:
+                self.status.set(message)
+                window = self.__dict__.get('_dns_setup_window')
+                if window is not None and not window._closed:
+                    window.protection_report.set(message)
+
+        def finished(value):
+            if self.transport is not source:
+                return
+            result, snapshot = value['result'], value['snapshot']
+            if snapshot and snapshot.get('dns_service', {}).get('check_token') == token:
+                self._apply_snapshot(snapshot)
+                show(result['message'])
+            else:
+                self._snapshot_stale = True
+                show('Atualize Sites para conferir as regras. A leitura final desta sessão ficou indisponível.')
+
+        def failed(_error):
+            self._snapshot_stale = True
+            show('A aplicação da lista escolar ficou sem confirmação. Atualize Sites e confira o resultado.')
+
+        return self._run_job(apply, label='Aplicando e conferindo a lista escolar', on_success=finished, on_error=failed)
 
     def _open_primary_setup(self):
         if getattr(self.transport, "kind", "") in {"routeros", "legacy"}:
@@ -965,6 +1033,7 @@ class App(tk.Tk):
     def _start_transport(self, kind, settings, *, authorized=False, remember_options=None, on_error=None):
         if self._busy:return False
         if getattr(self.transport, 'kind', '') == 'local_dns' and not self._confirm_dns_shutdown():return False
+        self._close_desktop_web()
         def connect():
             transport = create_transport(kind, **settings)
             try:return transport, transport.request("snapshot")
@@ -980,7 +1049,12 @@ class App(tk.Tk):
                 except tk.TclError:pass
             self._map_windows.clear(); self._apply_snapshot(snapshot)
             if kind == 'local_dns' and not self._snapshot_stale and remember_options is not None:
-                self._remember_local_dns(settings,remember_options.get('dns_start_on_open') is True)
+                profile = dict(settings)
+                if 'custom_upstream' in remember_options:
+                    profile['custom_upstream'] = remember_options['custom_upstream']
+                self._remember_local_dns(profile, remember_options.get('dns_start_on_open') is True)
+                if authorized and remember_options.get('apply_school_policy') is True:
+                    self._apply_school_protection(confirmed=True)
             if kind == "routeros" and not self._snapshot_stale:
                 if on_error is not None:self._set_startup_message("Perfil salvo conectado somente para consulta. Nenhuma lista ou regra foi aplicada.")
                 else:self._remember_successful_router(settings, remember_options)
@@ -1355,6 +1429,15 @@ class App(tk.Tk):
             return self._open_banlist()
         except (BanlistError, OSError, ValueError) as error:messagebox.showerror("Catálogo de IA", str(error), parent=self)
 
+    def _open_desktop_web(self):
+        from .desktop_web import open_desktop_web
+        return open_desktop_web(self)
+
+    def _close_desktop_web(self):
+        window = self.__dict__.get('_desktop_web_window')
+        if window is not None:
+            window.close()
+
     def _open_network_map(self):
         from .network_map_gui import NetworkMapWindow
         callback = self._set_address_block if snapshot_capabilities(self.snapshot)["address_blocking"] and self._management_authorized else None
@@ -1427,6 +1510,7 @@ class App(tk.Tk):
     def close(self):
         if self._closed:return
         if getattr(self.transport, 'kind', '') == 'local_dns' and not self._confirm_dns_shutdown():return
+        self._close_desktop_web()
         self._drain_update_results()
         self._schedule_update_on_close()
         self._closed = True; self._generation += 1; self.password_var.set("")

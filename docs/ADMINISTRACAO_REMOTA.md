@@ -13,6 +13,12 @@ Restrinja as portas de administração à máquina/sub-rede de gestão. A implan
 
 Na instalação Python do painel, o suporte Windows utiliza `pywinrm>=0.5,<0.6`. Essa biblioteca fica no computador do administrador. No Linux remoto, os scripts transitórios usam apenas a biblioteca padrão do Python já disponível e não criam serviço ou arquivo de agente. O executável Windows do painel inclui a biblioteca WinRM quando gerado com as dependências de build do projeto.
 
+## DNS da estação pelo PC da TI
+
+Em **Configurar → Administrar estações**, selecione o IPv4 de uma estação autorizada. **Testar estação** consulta o filtro pelo IP e depois pelo DNS padrão do alvo. O teste Windows utiliza WinRM HTTPS. No Linux, requer SSH com chave, Python 3 e `dig`. Para Windows, **Preparar alteração**, **Aplicar DNS** e **Restaurar DNS** permitem ajustar o adaptador da estação com prévia e confirmação.
+
+O navegador local da TI também oferece **Estações → Testar DNS** para Windows. Para preparar WinRM HTTPS pelo domínio ou MDM, consulte **Preparar acesso remoto** e o [capítulo 11 do manual](MANUAL_DO_USUARIO_V2.md). O script é distribuído pelo canal institucional de gestão do computador.
+
 ## O que o inventário mostra
 
 A consulta retorna horário UTC, alvo, processos reconhecidos e instalações do catálogo. Roblox, Minecraft, Fortnite, Valorant, League of Legends, Counter-Strike 2 e Genshin Impact possuem nomes reconhecidos; Steam, Epic e outros launchers são identificados como **launchers**. Um launcher aberto não comprova que uma partida esteja em andamento. Nomes podem ser alterados e não equivalem à verificação da integridade do executável.

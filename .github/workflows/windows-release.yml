@@ -25,7 +25,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "2.4.1"
+  LABGUARD_VERSION: "2.4.2"
 
 jobs:
   test:
@@ -74,11 +74,13 @@ jobs:
       - name: Testar componentes compatíveis com Windows
         shell: pwsh
         run: |
-          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_updater.py", "test_preferences.py", "test_credential_store.py", "test_update_manifest.py", "test_local_dns.py", "test_simple_setup.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_updater.py", "test_preferences.py", "test_credential_store.py", "test_update_manifest.py", "test_local_dns.py", "test_simple_setup.py", "test_station*.py", "test_access_setup.py", "test_access_push.py", "test_school_policy.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
           foreach ($pattern in $patterns) {
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
           }
+      - name: Validar diagnóstico e transação de estação no Windows PowerShell 5.1
+        run: python packaging/validate_station_dns_windows.py
       - name: Disponibilizar Inno Setup
         shell: pwsh
         run: |
@@ -91,7 +93,7 @@ jobs:
       - name: Gerar painel e servidor Windows
         shell: pwsh
         run: ./scripts/build_windows.ps1 -Version $env:LABGUARD_VERSION
-      - name: Validar atualização real isolada da 2.4 para a 2.4.1
+      - name: Validar atualização real isolada da 2.4.1 para a 2.4.2
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -99,7 +101,7 @@ jobs:
         run: |
           $oldDirectory = Join-Path $env:RUNNER_TEMP "LabGuardPreviousRelease"
           New-Item -ItemType Directory -Path $oldDirectory | Out-Null
-          gh release download v2.4.0 --pattern LabGuard-Setup.exe --dir $oldDirectory
+          gh release download v2.4.1 --pattern LabGuard-Setup.exe --dir $oldDirectory
           if ($LASTEXITCODE -ne 0) { throw "Não foi possível obter o instalador anterior para validação." }
           $oldSetup = Join-Path $oldDirectory "LabGuard-Setup.exe"
           $installDir = Join-Path $env:LOCALAPPDATA "LabGuardUpdateSmoke\Installed App"
@@ -269,14 +271,14 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          LabGuard 2.4.1: três ações para configurar, gerenciar sites e testar; assistente DNS em três etapas para Vivo e switch simples.
+          No LabGuard 2.4.2 a TI administra estações pelo desktop ou pelo painel web no computador de gestão.
 
-          Assistente com Ligar filtro, Usar nos computadores e Testar, seleção de interface real e diagnóstico local UDP/TCP por botão. O assistente acompanha o término da leitura inicial sem manter o botão de início desativado. O próprio computador atende DNS UDP/TCP e filtra os domínios aplicados pelo banco de sites. Somente consultas recebidas são registradas; não há inspeção de HTTPS nem garantia de cobertura de toda a rede.
+          Proteger laboratório instala a lista inicial de domínios de jogos e sites adultos, preserva regras existentes e confere o resultado no filtro. Cloudflare Families é uma opção ao ligar o DNS. O diagnóstico da estação pode confirmar uma consulta bloqueada de uma regra aplicada.
 
-          É necessário configurar o DNS no DHCP/LAN do roteador, se o modelo permitir, ou nas estações. O programa não altera o Vivo, o switch, o firewall ou o DNS dos computadores sozinho. O PC do filtro precisa permanecer ligado; o aplicativo avisa antes de parar. VPN, DoH, DNS alternativo/IPv6 e cache exigem políticas complementares.
+          Com o filtro ativo, escolha a estação Windows e compare os testes direto e padrão executados nela por WinRM HTTPS. O painel oferece prévia, aplicação e restauração do DNS do adaptador. A configuração é verificada depois da alteração. Linux pode executar o diagnóstico pelo desktop usando SSH.
 
-          O novo modo não corta internet por IP/MAC nem controla portas de switch não gerenciável. A integração direta RouterOS e o gateway anterior continuam opcionais. A versão preserva atualização Windows por usuário, credenciais no cofre e autorização explícita.
+          Em Estações → Preparar acesso remoto, gere um script para distribuir por GPO/MDM. No Windows da TI, o preparo direto também pode usar WMI/DCOM com Kerberos já autorizado. O preparo usa certificado de máquina confiável e limita a nova regra de firewall ao IPv4 da TI. Uma estação isolada, sem canal administrativo, precisa de provisionamento autorizado para receber comandos. O painel web abre no navegador da TI em loopback e usa autenticação por token.
 
-          Os pacotes passam por testes de DNS real no loopback UDP/TCP, instaladores e serviços Windows/Linux e atualização real isolada 2.4 → 2.4.1. Nenhum equipamento da escola foi acessado ou homologado.
+          O filtro distingue autotestes locais de consultas das estações. Os pacotes passam por testes Windows/Linux, incluindo atualização do Windows 2.4.1 → 2.4.2. A rede física da escola precisa ser validada pela TI.
           EOF
           gh release create "$tag" ./* --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard $LABGUARD_VERSION" --notes-file /tmp/release-notes.txt --latest

@@ -1,18 +1,18 @@
-# LabGuard 2.4.1 - Manual do usuário
+# LabGuard 2.4.2 - Manual do usuário
 
 Começar na rede existente, conectar um controlador e conferir cada resultado.
 
-Edição 2.4.1 | 9 de novembro de 2026
+Edição 2.4.2 | 9 de novembro de 2026
 
-Este manual acompanha a interface 2.4.1, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
+Este manual acompanha a interface 2.4.2, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
 
 ## 1. Primeiro uso em três ações
 
-Instale o pacote 2.4.1 da [página de versões](https://github.com/perabru/LabGuard/releases) e abra o LabGuard. Na primeira abertura, a leitura começa em Observação, sem alterar a rede. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`.
+Instale o pacote 2.4.2 da [página de versões](https://github.com/perabru/LabGuard/releases) e abra o LabGuard. Na primeira abertura, a leitura começa em Observação, sem alterar a rede. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`.
 
-1. **Configurar:** abra o primeiro card. Na etapa **1. Ligar filtro**, escolha a conexão, confira o IP deste PC e autorize o início. A opção de ligar ao abrir é salva somente após sucesso. Na etapa **2. Usar nos computadores**, copie o IP e configure-o como DNS pelo DHCP/LAN do Vivo, se permitido, ou em uma estação de teste. O capítulo 16 detalha IP fixo, firewall e Linux.
+1. **Configurar:** abra o primeiro card. Na etapa **1. Ligar filtro**, escolha a conexão, confira o IP deste PC e autorize o início. A opção de ligar ao abrir é salva somente após sucesso. Na etapa **2. Usar nos computadores**, abra **Administrar estações** para selecionar um computador gerenciado a partir do PC da TI. O capítulo 16 detalha IP fixo, firewall e Linux.
 2. **Gerenciar sites:** adicione um domínio ou abra o Banco de sites. Revise e aplique a lista explicitamente. Preparar o catálogo de IA apenas adiciona cadastros ao banco; ainda é necessário aplicá-los.
-3. **Testar conexão:** em **3. Testar**, use **Verificar neste PC**. Depois, execute o comando TXT em OUTRO computador e compare o código. Confira um domínio permitido, um bloqueado e as consultas em Atividade antes de expandir.
+3. **Testar conexão:** em **3. Testar → Administrar estações**, clique em **Testar estação** e confira os resultados do acesso direto e do DNS padrão. O teste **Verificar neste PC** confere o serviço local. Confira um domínio permitido, um bloqueado e as consultas em Atividade antes de expandir.
 
 O teste neste PC verifica UDP e TCP do filtro, sem confirmar o DNS das estações. O filtro alcança apenas os clientes configurados para usá-lo. Mantenha este PC ligado e restaure o DNS anterior antes de parar o serviço.
 
@@ -201,7 +201,7 @@ Ao exportar, mantenha o arquivo sob acesso dos responsáveis e adote a retençã
 | Windows | WinRM HTTPS, certificado válido e conta autorizada |
 | Linux | OpenSSH, Python remoto, chave e host verificado |
 
-A TI precisa preparar os serviços antes. O programa não habilita WinRM/SSH remotamente, não descobre senhas e não instala um agente permanente nas estações.
+A TI prepara os serviços e contas antes da conexão. Para preparar WinRM HTTPS por GPO ou MDM a partir do PC da TI, consulte o capítulo 11.
 
 ### Consultar e avisar
 
@@ -239,7 +239,7 @@ Para modem Vivo sem API compatível documentada, mantenha Observação e use adm
 
 O servidor roda sem Tk e oferece painel web local em `http://127.0.0.1:8765/`. O padrão é observação/controlador, sem exigir gateway Linux no caminho do tráfego.
 
-A CLI mantém `init` e `run` com diretório de configuração. O arquivo de configuração seleciona `controller.kind`: `observation` para consulta local ou `routeros` para API compatível. No servidor, a senha fica somente no arquivo privado de segredos, no campo `controller_password`; não deve ser inserida no JSON público de configuração. Esse é um fluxo separado das preferências do desktop e de seu cofre opcional.
+A CLI mantém `init` e `run` com diretório de configuração. O campo `controller.kind` seleciona o controlador. Use `observation` para inventário, `routeros` para a API compatível ou `local_dns` para o filtro DNS no servidor. No servidor, a senha fica somente no arquivo privado de segredos, no campo `controller_password`; não deve ser inserida no JSON público de configuração. Esse é um fluxo separado das preferências do desktop e de seu cofre opcional.
 
 Pelo código-fonte, inicialize e execute em um diretório privado:
 
@@ -251,6 +251,23 @@ python3 server_main.py run --directory ./labguard-servidor
 O padrão de `manage_rules` é `false`. Configurar o controlador não autoriza alterações. Tokens de consulta e administração permanecem separados. Preserve as permissões privadas definidas pelo instalador.
 
 O HTTP é local. Para acesso remoto, use canal administrativo autenticado preparado pela TI; não publique a porta 8765 diretamente na internet.
+
+### Acessar as estações pelo navegador da TI
+
+No desktop, abra **Painel web → Copiar chave e abrir**. Cole a chave no login do navegador no PC da TI e mantenha a janela do painel aberta. Em **Selecionar CA do WinRM**, você pode indicar o PEM público da CA institucional. Uma conexão de consulta fornece acesso de leitura. No servidor instalado como serviço, use o endereço local configurado e o token administrativo da instalação. Com o filtro DNS ativo, abra **Estações**, selecione um Windows autorizado e informe o acesso WinRM HTTPS.
+
+**Testar DNS** executa os testes direto e padrão na estação escolhida. Para ajustar o DNS, selecione **Preparar alteração**, confira a prévia e confirme **Aplicar DNS**. Repita o teste. **Restaurar DNS** recupera a configuração do adaptador registrada na estação.
+
+### Preparar WinRM HTTPS para uma estação
+
+Em um Windows da TI, abra **Estações → Preparar nesta estação** quando o computador escolar já fizer parte do domínio e permitir WMI/DCOM administrativo com Kerberos e privacidade de pacotes. Informe o IPv4 autorizado, o FQDN canônico da estação e a conta no formato `DOMÍNIO\usuário`. O FQDN deve resolver para o IPv4 selecionado. Confira o alvo antes de confirmar. A preparação verifica identidade, certificado e resultado e depois testa a conexão WinRM HTTPS na porta 5986. Se o resultado for incerto, confira o acesso antes de repetir.
+
+### Preparar WinRM HTTPS por GPO ou MDM
+
+1. Tanto o preparo direto quanto a implantação por política exigem no alvo um certificado válido no repositório Pessoal do computador, com chave privada, finalidade de autenticação de servidor, nome da máquina e seu IPv4 no SAN. Use uma CA confiável para a estação e para o PC da TI. A interface do laboratório deve ter perfil Domínio ou Privado e uma rota identificável até o IP de gestão.
+2. No painel web, abra **Preparar acesso remoto** e baixe o script PowerShell gerado para o IP de gestão. O download prepara o arquivo para distribuição pela equipe responsável.
+3. Pelo console de gestão da TI, vincule o script a uma política de inicialização de **computador** no domínio, ou distribua-o pela plataforma MDM em contexto de sistema. Restrinja o escopo ao equipamento piloto. Aguarde a aplicação da política e, para o script de inicialização, o próximo início do Windows.
+4. No painel local, conecte ao Windows piloto por WinRM HTTPS e use **Testar DNS**. Se a escola usar uma CA própria para essa conexão, consulte o arquivo `station-ca.pem` na pasta de configuração do servidor. Para uma máquina sem gestão institucional, é preciso estabelecer esse canal antes da implantação remota.
 
 Consulte [Servidores](SERVIDORES.md) para instalação como serviço e configuração completa.
 
@@ -382,34 +399,47 @@ A Observação lê a rede do computador; não é uma conexão de controle com o 
 1. Em Início, clique **Configurar**. O assistente abre as etapas **1. Ligar filtro**, **2. Usar nos computadores** e **3. Testar**.
 2. Escolha a conexão observada. Use **Ajustar IP / DNS** para conferir o **IP deste PC**, a **Rede autorizada (CIDR)** e o **DNS de saída**. O IP do filtro é o IP do PC, não o do roteador. Uma sugestão aparece apenas quando há dados reais da interface. Exemplo didático: `192.168.15.10`, rede `192.168.15.0/24`.
 3. Combine um IP reservado/fixo com a TI. A opção **Ligar este filtro ao abrir o LabGuard** é opcional e salva após uma ativação bem-sucedida; use **Salvar início automático** para alterar a escolha com o filtro ativo. Marque a autorização e clique **Iniciar filtro DNS**. O programa abre UDP e TCP 53 no endereço escolhido e carrega apenas políticas já aplicadas. Não altera DHCP, firewall ou DNS das estações.
-4. Se o Vivo oferecer DNS no DHCP/LAN, anuncie o IP do LabGuard para a rede do laboratório. Se não oferecer, altere somente o DNS de uma estação de teste, preservando o IP atual. A TI pode distribuir essa opção por política de domínio ou administração remota já autorizada. Não é necessário instalar cliente LabGuard.
+4. Selecione uma estação em **Administrar estações** no PC da TI. No Windows, a conexão exige WinRM HTTPS previamente habilitado, certificado confiável para o endereço usado e conta autorizada. No Linux, o teste usa SSH com chave e identidade do host previamente conferida. Para distribuição central, a TI também pode usar DHCP/LAN do Vivo quando disponível ou uma política institucional de DNS.
 5. Autorize UDP e TCP 53 no firewall do PC, somente para a rede necessária. No Linux, a conta/serviço também precisa de permissão para a porta 53. Se houver conflito, o programa não encerra o outro serviço nem solicita elevação automática.
 
 Não use um DNS público como alternativa, pois ele pode contornar o filtro. Para redundância, use outro resolvedor com a mesma política. Wi-Fi de convidados, VLANs, IPv6, VPN e DNS seguro do navegador exigem avaliação da TI.
 
-### Confirmar uma estação antes de expandir
+### Testar e ajustar a estação pelo PC da TI
 
-Abra **3. Testar** e clique **Verificar neste PC** para conferir UDP e TCP com o código desta sessão. Sucesso local não confirma acesso por outro computador. A seguir, teste uma estação.
+1. Abra **Administrar estações** na etapa 2 ou 3. Escolha uma estação autorizada, informe o acesso e clique em **Testar estação**. Os dois testes consultam o nome completo `labguard-check.invalid.` a partir da estação.
+2. **Direto ao filtro** consulta o IPv4 do serviço ativo. **DNS padrão da estação** consulta o resolvedor usado normalmente pela estação. Cada teste precisa retornar o código TXT `LabGuard-...` da sessão atual. Confira o resultado por estação e horário. Reiniciar o filtro gera outro código.
+3. No Windows gerenciado, use **Preparar alteração**. Confira o alvo, o adaptador que possui o IP escolhido, o DNS anterior e a proposta na prévia. Confirme **Aplicar DNS** para alterar o DNS desse adaptador. Execute **Testar estação** novamente. Para desfazer, confira o mesmo alvo e confirme **Restaurar DNS**. No Linux, o teste usa SSH com Python 3 e a ferramenta `dig` disponíveis na estação.
+4. Em **Atividade**, procure o nome consultado, o IP de origem e o horário correspondente. Um encaminhador pode aparecer com o próprio IP. **Verificar neste PC** testa o serviço no computador da TI. Confirme o código recebido pela estação antes de considerar o teste concluído.
 
-Depois de iniciar, abra **3. Testar**. Em outro computador, execute a consulta abaixo com o IP real do filtro:
+No Windows, a prévia propõe usar o IPv4 do filtro e retirar os servidores DNS IPv6 alternativos daquele adaptador. IPv6 continua habilitado. O LabGuard registra a configuração anterior no Registro da estação, vinculada ao adaptador e ao filtro. A restauração também pode ser iniciada após reabrir o painel e conectar ao mesmo alvo. Uma prévia recusada indica que a origem da configuração ou o adaptador não puderam ser determinados com segurança.
 
-```text
-nslookup -type=TXT labguard-check.invalid 192.168.15.10
-```
+Ao aplicar, o LabGuard confere primeiro o caminho direto. Após a escrita verifica o DNS padrão e tenta restaurar a configuração anterior se o código esperado não for confirmado. Se a conexão de gestão cair durante a operação, o resultado fica incerto. Reconecte, consulte o estado e restaure quando necessário. Em um domínio escolar, confira também se o DNS de saída escolhido resolve os nomes dos serviços internos.
 
-Compare com o código `LabGuard-...` mostrado no assistente. Em seguida, teste sem indicar servidor, para verificar o DNS padrão da estação:
+### Interpretar o resultado
 
-```text
-nslookup -type=TXT labguard-check.invalid
-```
+| Resultado | Próxima ação |
+|---|---|
+| Direto e padrão retornam o código atual | Confira um domínio permitido e um bloqueado com a política aplicada. |
+| Direto passa, padrão retorna domínio inexistente (NXDOMAIN) | A resolução padrão seguiu outro caminho. Confira os DNS do adaptador ativo, inclusive IPv6, e a política DHCP ou de domínio. Repita os dois testes. |
+| Direto retorna NXDOMAIN ou outro código | Confira o IPv4 do serviço ativo e o código atual no painel. Repita a consulta após qualquer reinício. |
+| Direto expira | Confira o serviço e o IP do filtro, o segmento permitido, o acesso entre VLANs ou Wi-Fi e a permissão UDP/TCP 53 no firewall do PC da TI. |
+| A conexão de administração falha | Confira o acesso WinRM HTTPS ou SSH, o certificado ou a identidade do host e as permissões da conta. |
 
-Se só o primeiro funciona, a estação ainda usa outro DNS. O código é um diagnóstico de caminho, não uma senha e não uma garantia de cobertura de todas as máquinas. Teste também um domínio permitido antes de ampliar a instalação.
+Um resolvedor IPv6 pode aparecer como `fe80::…`. Mantenha IPv6 habilitado. Se o teste direto passar e o padrão continuar falhando, revise na administração da rede o DNS anunciado aos clientes IPv6. Distribua resolvedores aprovados que encaminhem as consultas ao filtro e repita os testes. Quando a gestão remota estiver indisponível, use o DHCP ou a política de domínio da escola e valide pela ferramenta de gestão existente.
+
+**Diagnóstico manual** é um recurso opcional de suporte na etapa 3. **Copiar teste direto** gera o comando com o IPv4 real do serviço ativo. **Copiar teste padrão** gera o comando `nslookup -type=TXT labguard-check.invalid.` usando o DNS padrão da estação. O ponto final mantém o nome completo durante a consulta.
 
 ### Aplicar sites, jogos e IA
 
+Para ativar a política inicial, escolha **Proteger laboratório**. Confira os domínios de jogos e adultos apresentados e confirme a aplicação. O botão **Iniciar filtro DNS** permite ligar o serviço sem essa lista. No filtro já ativo, a proteção acrescenta os domínios que faltam e confere o resultado. Para incluir IA, revise e aplique o catálogo existente no **Banco de sites**.
+
+Antes de ligar, a opção **Filtrar conteúdo adulto e malware com Cloudflare Families** permite escolher o DNS de saída `1.1.1.3`. Isso encaminha consultas permitidas ao serviço de filtragem da Cloudflare. Se a escola usa nomes de domínio internos, confirme que o resolvedor de saída escolhido consegue atendê-los. A lista de domínios pode ser aplicada ao filtro ativo sem trocar o DNS de saída da sessão.
+
+Em **Administrar estações → Testar estação**, confira também **Domínio aplicado**. Quando existir uma regra aplicada, o teste consulta um desses domínios pelo DNS padrão da estação e apresenta o resultado junto com o diagnóstico da sessão. Confira qual nome foi usado, o IP e o horário em **Atividade**. Um domínio bloqueado em DNS e o código correto verificam aquelas consultas. Jogos offline e serviços com outros domínios exigem controles próprios.
+
 Em **Sites**, cadastre um domínio, por exemplo `roblox.com`. O filtro cobre esse domínio e subdomínios nas consultas que recebe; outros serviços e CDNs podem exigir entradas adicionais. No **Banco de sites**, organize listas, prepare o catálogo de IA e aplique explicitamente. O botão de perfil global de IA pode ficar desabilitado: neste modo, a aplicação é pelo banco de domínios.
 
-Na estação configurada, teste `nslookup roblox.com`. **Atividade** mostra somente consultas recebidas e distingue bloqueios confirmados de falhas do DNS de saída. Consultas não comprovam visitas nem revelam conteúdo HTTPS. Um roteador que encaminha DNS em nome dos clientes pode ocultar os IPs individuais.
+No PC da TI, abra **Atividade** e procure as consultas recebidas para o domínio aplicado. Confira o IP de origem, o horário e o resultado **Bloqueio DNS confirmado**. Se já houver uma ferramenta de execução remota da escola, a TI também pode gerar uma consulta de teste pelo console de gestão. Consultas não comprovam visitas nem revelam conteúdo HTTPS. Um roteador que encaminha DNS em nome dos clientes pode ocultar os IPs individuais.
 
 Este modo não corta internet por IP/MAC, controla portas de switch ou remove jogos. Por isso esses controles permanecem desabilitados. Cache, aplicações com IP embutido, IA local, VPN e DoH não são eliminados por cadastrar um domínio.
 

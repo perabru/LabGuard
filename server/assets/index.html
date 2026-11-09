@@ -21,11 +21,27 @@
 
     <section id="workspace" hidden aria-labelledby="dashboard-title">
       <div class="page-heading"><div><span class="eyebrow">CENTRAL DO LABORATÓRIO</span><h1 id="dashboard-title">Visão operacional</h1><p id="gateway-label">Aguardando dados da fonte configurada.</p></div><div class="header-actions"><span id="role" class="role-badge">Consulta</span><button id="refresh" class="button secondary" type="button">Atualizar</button><button id="logout" class="button quiet" type="button">Sair</button></div></div>
-      <nav class="workspace-nav" aria-label="Áreas do painel"><a href="#network-panel">Mapa e relatórios</a><a href="#machines-panel">Máquinas</a><a href="#banco-sites">Banco de sites</a><a href="#domains-panel">Regras no equipamento</a><a href="#audit-panel">Auditoria</a></nav>
+      <nav class="workspace-nav" aria-label="Áreas do painel"><a href="#network-panel">Mapa e relatórios</a><a href="#machines-panel">Máquinas</a><a href="#station-panel" id="station-nav" hidden>Estações</a><a href="#banco-sites">Banco de sites</a><a href="#domains-panel">Regras no equipamento</a><a href="#audit-panel">Auditoria</a></nav>
       <div id="mode-banner" class="mode-banner" role="status"></div>
       <p id="capability-summary" class="capability-summary">Aguardando os recursos informados pela fonte.</p>
       <div class="freshness"><span id="fresh-dot" class="status-dot"></span><span id="updated">Ainda sem atualização.</span><span id="request-status" aria-live="polite"></span></div>
       <p id="action-error" class="message error" role="alert" hidden></p>
+<section id="school-panel" class="panel station-panel" hidden aria-labelledby="school-title"><div class="panel-heading"><div><h2 id="school-title">Proteção do laboratório</h2><p>Aplique a lista inicial de jogos e sites adultos ao filtro. Confira o efeito em uma estação e edite os domínios em Regras no equipamento.</p></div></div><button id="school-protect" class="button primary" type="button">Proteger laboratório</button><p role="status" id="school-status"></p></section>
+<section id="station-panel" class="panel station-panel" hidden aria-labelledby="station-title">
+  <div class="panel-heading"><div><h2 id="station-title">Estações</h2><p>Teste e configure o DNS de uma estação Windows pelo painel da TI.</p></div></div>
+  <p id="station-state" class="small-note"></p>
+  <div class="station-fields"><label>Estação<input id="station-host" list="station-hosts" placeholder="IPv4 da estação" autocomplete="off" spellcheck="false"></label><datalist id="station-hosts"></datalist>
+  <label>Conta Windows<input id="station-user" placeholder="DOMÍNIO\usuário" autocomplete="off" spellcheck="false"></label><label>Senha<input id="station-password" type="password" autocomplete="new-password"></label></div>
+  <div class="station-actions"><button class="button primary" id="station-test" type="button">Testar DNS</button><button class="button secondary" id="station-preview" type="button">Preparar alteração</button><button class="button secondary" id="station-restore" type="button">Restaurar DNS</button></div>
+  <div id="station-result" role="status" class="station-result"></div>
+  <button class="button primary" id="station-apply" hidden type="button">Aplicar DNS</button>
+  <details class="station-setup"><summary>Preparar acesso remoto</summary>
+    <label>Nome completo da estação no domínio<input id="access-hostname" autocomplete="off" spellcheck="false" placeholder="computador.dominio.da.escola"></label>
+    <p>No Windows da TI, use o IP e a conta informados acima para preparar WinRM HTTPS em uma estação com WMI/DCOM e Kerberos autorizados.</p>
+    <button class="button primary" id="access-push" type="button">Preparar nesta estação</button><p id="access-push-result" role="status"></p>
+    <p>Para estações Windows gerenciadas, baixe o script e distribua-o por GPO ou MDM como administrador. Ele prepara WinRM HTTPS com um certificado de máquina confiável e uma regra de firewall para o IP da TI.</p><label>IPv4 fixo do PC da TI<input id="access-ip" placeholder="IP de gerenciamento" autocomplete="off" spellcheck="false"></label><button class="button secondary" id="access-download" type="button">Baixar preparação do Windows</button><p id="access-result" role="status"></p></details>
+</section>
+
       <section class="panel inventory-overview" aria-labelledby="inventory-title">
         <div class="panel-heading"><div><span class="eyebrow">IDENTIFICAÇÃO DA REDE</span><h2 id="inventory-title">O que foi identificado</h2></div><span id="inventory-state" class="state-badge">Aguardando leitura</span></div>
         <p id="inventory-summary">A identificação será apresentada conforme as evidências da fonte, sem garantia de inventário completo.</p>

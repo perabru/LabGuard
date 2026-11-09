@@ -26,9 +26,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-OLD_SHA256 = "502cde192861f9d659180c7bd3390800ec3e6223d2a8a9c8fda44bc4063ed289"
-OLD_VERSION = "2.4.0"
-NEW_VERSION = "2.4.1"
+OLD_SHA256 = "46def7cd1d133bfad66cbbb2a953dbbb13bc78234ee164282d179c1d1cf419fe"
+OLD_VERSION = "2.4.1"
+NEW_VERSION = "2.4.2"
 MAX_PACKAGE = 150 * 1024 * 1024
 
 

@@ -89,7 +89,7 @@ def normalize_router_profile(profile):
 
 
 def normalize_dns_profile(value):
-    if not isinstance(value, dict) or set(value)-{'host','lab_cidr','upstream','start_on_open'}:
+    if not isinstance(value, dict) or set(value)-{'host','lab_cidr','upstream','start_on_open','custom_upstream'}:
         raise PreferenceError(_INVALID)
     if type(value.get('start_on_open', False)) is not bool:raise PreferenceError(_INVALID)
     from .local_dns import validate_config, DNSError
@@ -97,7 +97,14 @@ def normalize_dns_profile(value):
         host, net, upstream, _, _ = validate_config(_text(value.get('host'),128,allow_empty=False),
             _text(value.get('lab_cidr'),64,allow_empty=False), _text(value.get('upstream','1.1.1.1'),128,allow_empty=False))
     except DNSError:raise PreferenceError(_INVALID) from None
-    return {'host':host,'lab_cidr':str(net),'upstream':upstream,'start_on_open':value.get('start_on_open',False)}
+    profile = {'host':host,'lab_cidr':str(net),'upstream':upstream,'start_on_open':value.get('start_on_open',False)}
+    if 'custom_upstream' in value:
+        try:
+            _, _, custom, _, _ = validate_config(host, str(net), _text(value['custom_upstream'], 128, allow_empty=False))
+        except DNSError:
+            raise PreferenceError(_INVALID) from None
+        profile['custom_upstream'] = custom
+    return profile
 
 
 def normalize_preferences(data):

@@ -1,6 +1,6 @@
-# LabGuard 2.4.1
+# LabGuard 2.4.2
 
-**Configurar → Gerenciar sites → Testar conexão.** O início mostra três ações; integrações, preferências e treinamento ficam em Opções avançadas. O assistente DNS escolhe uma interface real, orienta o DNS das estações e oferece um teste local por botão.
+No PC da TI, escolha **Proteger laboratório** para aplicar a lista inicial de jogos e sites adultos. Use **Administrar estações** ou **Painel web → Estações** para conferir o resultado em um PC do laboratório. O LabGuard testa o DNS diretamente na estação Windows por WinRM HTTPS e permite revisar, aplicar e restaurar o ajuste. A opção **Preparar acesso remoto** no painel web gera um script para a TI distribuir por GPO ou MDM a computadores com certificado de máquina confiável. No Windows da TI, **Preparar nesta estação** usa WMI/DCOM com Kerberos quando esse canal está disponível. Sem WinRM, WMI, domínio, MDM ou outro canal autorizado, a estação precisa de um primeiro provisionamento para receber comandos.
 
 Painel em Python para conhecer a rede do laboratório e administrar os equipamentos compatíveis que já estão nela. A nova interface reúne **Início, Dispositivos, Sites e Atividade**.
 
@@ -12,7 +12,7 @@ Painel em Python para conhecer a rede do laboratório e administrar os equipamen
 
 Abra **Configurar → 1. Ligar filtro**. O computador passa a responder DNS UDP/TCP e a filtrar os domínios aplicados. É necessário apontar as estações para esse DNS, pelo DHCP/LAN do Vivo se o modelo permitir, ou na configuração das estações. O switch continua no lugar e não precisa de configuração.
 
-O assistente orienta IP/rede, firewall e teste com código TXT; não altera a rede sozinho. Só consultas recebidas são registradas. Corte por IP/MAC continua indisponível nesse modo. Mantenha o PC ligado e restaure o DNS anterior antes de parar o filtro. Veja o [passo a passo completo](docs/VIVO_MERCUSYS.md).
+Selecione uma estação gerenciada e use **Testar DNS** para comparar a resposta direta do filtro com a resposta do DNS padrão da estação. O painel mostra se a consulta direta funcionou e a padrão recebeu domínio inexistente, inclusive quando o Windows seleciona outro DNS em IPv6. O autoteste do próprio PC possui contador separado. Mantenha o filtro ligado e restaure os clientes antes de parar o DNS. [Guia Vivo e Mercusys](docs/VIVO_MERCUSYS.md).
 
 ## Início e atualizações
 
@@ -42,6 +42,7 @@ Poucos vizinhos e o MAC vazio do próprio PC podem ser limitações da amostra. 
 | Modo | Uso |
 |---|---|
 | Observar esta rede | Inventário local limitado à rota e aos vizinhos conhecidos; não aplica bloqueios |
+| Filtro DNS local | Regras de jogos, adultos e IA, diagnóstico de estações gerenciadas e consultas recebidas |
 | Controlar MikroTik via HTTPS | API REST RouterOS 7, com ações condicionadas às permissões e configuração compatível |
 | Outros equipamentos | Perfis com capacidades específicas por modelo e protocolo |
 | Abrir demonstração | Dados fictícios identificados para aprender |
@@ -75,7 +76,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A [versão 2.4.1 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.4.1): três ações, assistente DNS em etapas e controles atualizados após a leitura inicial, preservando edições manuais. Passaram 442 testes no Linux, 398 no Windows, instaladores, serviços e atualização isolada 2.4 → 2.4.1. Consulte a [validação](docs/VALIDACAO.md).
+A versão 2.4.2 oferece aplicação da lista escolar, diagnóstico remoto de bloqueio e controles no painel web. A validação de instaladores, serviços e atualização é executada em Windows e Linux. [Resultados de validação](docs/VALIDACAO.md).
 
 ## Documentação e legado
 

@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>LabGuard 2.4.1 · Manual do usuário</title>
+<title>LabGuard 2.4.2 · Manual do usuário</title>
 <style>
 :root{--purple:#6938c9;--deep:#2f195b;--blue:#1364d8;--yellow:#f9cc45;--ink:#1e293b;--muted:#596477;--line:#dfe5ee;--paper:#fff;--wash:#f5f6fb;--lavender:#f0eafd}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--wash);color:var(--ink);font-family:Arial,"Liberation Sans",sans-serif;font-size:16px;line-height:1.68}a{color:var(--blue);text-decoration-thickness:1px;text-underline-offset:3px}a:hover{color:var(--purple)}a:focus-visible{outline:3px solid var(--yellow);outline-offset:4px}p,ul,ol,dl,blockquote,pre,table{margin:0 0 1.15em}h1,h2,h3,h4{line-height:1.22;color:var(--deep);font-weight:750}h1{font-size:2.5rem;letter-spacing:-.035em;margin:0 0 .5em}h2{font-size:1.85rem;letter-spacing:-.025em;margin:2.1em 0 .7em;padding-top:.5em;border-top:3px solid var(--purple)}h3{font-size:1.2rem;margin:1.6em 0 .65em;color:var(--blue)}h4{font-size:1.05rem;margin:1.4em 0 .55em}li{padding-left:.15em;margin:.35em 0}li>p{margin-bottom:.6em}strong{color:#302248}hr{border:0;border-top:1px solid var(--line);margin:2em 0}code,kbd{font-family:"DejaVu Sans Mono","Liberation Mono",monospace;font-size:.88em;background:#edf1f8;border-radius:4px;padding:.12em .3em;overflow-wrap:anywhere}pre{background:#f1f4fa;border:1px solid #d7dfec;border-left:4px solid var(--blue);border-radius:8px;padding:16px 18px;overflow-x:auto;line-height:1.5;font-size:.91rem;white-space:pre-wrap;overflow-wrap:anywhere}pre code{background:none;padding:0;border-radius:0;font-size:inherit}blockquote{margin-left:0;padding:16px 20px;border-left:5px solid var(--yellow);background:#fff9e5;border-radius:0 8px 8px 0;color:#4b4228}blockquote p:last-child{margin-bottom:0}table{width:100%;border-collapse:collapse;font-size:.92rem;line-height:1.5;overflow-wrap:anywhere}th,td{border:1px solid var(--line);padding:11px 13px;text-align:left;vertical-align:top}th{background:var(--lavender);color:var(--deep);font-weight:700}tbody tr:nth-child(even){background:#f8faff}img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:10px;margin:1.5em auto}svg{display:block;max-width:100%;height:auto;margin:1.5em auto}figure{margin:1.5em 0}figcaption{font-size:.86rem;color:var(--muted);text-align:center;margin-top:.5em}.document{max-width:1120px;margin:36px auto 60px;background:var(--paper);box-shadow:0 15px 65px #25285410;border:1px solid #e2e6ef;border-radius:18px;overflow:hidden}.cover{position:relative;padding:68px 68px 56px;background:linear-gradient(135deg,#251147 0%,#5936b0 57%,#1863bf 100%);color:#fff}.cover:before{content:"";position:absolute;left:0;top:0;width:100%;height:9px;background:var(--yellow)}.brand{font-weight:800;font-size:1.15rem;letter-spacing:.08em;margin-bottom:45px}.brand-mark{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;background:var(--yellow);color:var(--deep);border-radius:11px;margin-right:12px;letter-spacing:0}.eyebrow{font-size:.8rem;letter-spacing:.15em;text-transform:uppercase;font-weight:700;color:#f9d96f;margin-bottom:15px}.cover h1{font-size:3.9rem;max-width:730px;color:#fff;font-weight:750;line-height:1.05;letter-spacing:-.05em;margin:0 0 24px}.subtitle{font-size:1.14rem;max-width:690px;line-height:1.65;color:#ecedff;margin:0 0 35px}.cover-meta{display:flex;gap:14px;flex-wrap:wrap}.cover-meta span{display:inline-block;border:1px solid #ffffff44;border-radius:50px;padding:7px 14px;font-size:.83rem;color:#fff}.cover-meta span:first-child{background:var(--yellow);border-color:var(--yellow);color:var(--deep);font-weight:700}.reading-note{padding:18px 68px;background:#fff7d9;border-bottom:1px solid #f0e0a8;font-size:.88rem;color:#594a1d}.reading-note strong{color:#493b18}#TOC{margin:0 68px;padding:44px 0 26px;border-bottom:1px solid var(--line)}#TOC h2{border:0;margin:0 0 20px;padding:0;font-size:1.55rem}#TOC>ul{columns:2;column-gap:42px;font-size:.9rem;line-height:1.5;padding-left:20px}#TOC li{break-inside:avoid;margin:0 0 11px}#TOC li ul{list-style:circle;padding-left:19px;margin:.5em 0 .9em;font-size:.88em}#TOC a{text-decoration:none;color:#3a3761}#TOC a:hover{text-decoration:underline;color:var(--blue)}main{padding:25px 68px 52px}main>h1:first-child{font-size:2rem;margin-top:1.1em}main>:first-child{margin-top:1.1em}.doc-footer{padding:22px 68px;background:#f0eafd;border-top:1px solid #ded3f7;color:#5b4b78;font-size:.83rem;display:flex;justify-content:space-between;gap:20px}.doc-footer a{color:var(--purple)}.footnotes{font-size:.88em;color:var(--muted)}.sourceCode .co{color:#586676}.sourceCode .st{color:#146442}.sourceCode .kw,.sourceCode .cf{color:#6938c9}.sourceCode .fu{color:#1458ac}
 @media(max-width:900px){.document{margin:0;border-radius:0;border:0;box-shadow:none}.cover{padding:55px 28px 40px}.cover h1{font-size:3rem}.brand{margin-bottom:36px}.reading-note{padding:18px 28px}#TOC{margin:0 28px;padding-top:30px}#TOC>ul{columns:1}main{padding:20px 28px 40px}.doc-footer{padding:20px 28px}table{font-size:.85rem}th,td{padding:9px}h2{font-size:1.6rem}}
 @media print{
-@page{size:A4;margin:17mm 16mm 19mm;@bottom-left{content:"LabGuard 2.4.1 · Manual do usuário";font-family:Arial,sans-serif;font-size:8pt;color:#687082}@bottom-right{content:counter(page);font-family:Arial,sans-serif;font-size:8pt;color:#687082}}
+@page{size:A4;margin:17mm 16mm 19mm;@bottom-left{content:"LabGuard 2.4.2 · Manual do usuário";font-family:Arial,sans-serif;font-size:8pt;color:#687082}@bottom-right{content:counter(page);font-family:Arial,sans-serif;font-size:8pt;color:#687082}}
 html{scroll-behavior:auto}body{background:#fff;font-size:10.2pt;line-height:1.54;color:#202b3a;-webkit-print-color-adjust:exact;print-color-adjust:exact}.document{max-width:none;margin:0;background:#fff;border:0;border-radius:0;box-shadow:none;overflow:visible}.cover{padding:28mm 14mm 22mm;min-height:238mm;break-after:page;background:linear-gradient(140deg,#29134e,#5631a9 65%,#2364ba)}.cover:before{height:3mm}.brand{font-size:14pt;margin-bottom:25mm}.brand-mark{width:10mm;height:10mm;border-radius:3mm}.eyebrow{font-size:8.4pt;letter-spacing:.12em;margin-bottom:6mm}.cover h1{font-size:43pt;max-width:140mm;margin-bottom:10mm;line-height:1.08}.subtitle{font-size:13pt;line-height:1.7;margin-bottom:14mm;max-width:140mm}.cover-meta{gap:3mm}.cover-meta span{font-size:8.5pt;padding:2mm 4mm}.reading-note{padding:5mm 0;font-size:9pt;border:0;background:none;color:#4b4f5b}.reading-note strong{color:#2f195b}#TOC{margin:0;padding:7mm 0 3mm;border:0;break-after:page}#TOC h2{font-size:21pt;break-before:auto;padding:0;border:0}#TOC>ul{columns:1;column-gap:0;font-size:9.8pt;line-height:1.45;padding-left:6mm}#TOC li{margin-bottom:2.2mm}#TOC li ul{margin:1mm 0 2mm;font-size:8.8pt}main{padding:0}main>h1:first-child{font-size:23pt;margin-top:3mm;break-before:auto}h2{font-size:21pt;margin:0 0 6mm;padding-top:4mm;border-top:1mm solid var(--purple);break-before:page}h3{font-size:13pt;margin:6mm 0 3mm}h4{font-size:11pt}h1,h2,h3,h4{break-after:avoid}p,li{orphans:3;widows:3}p,ul,ol,dl,blockquote,pre,table{margin-bottom:3.8mm}li{margin:1.4mm 0}table{font-size:8.7pt;line-height:1.42;break-inside:auto}th,td{padding:2.5mm 3mm}thead{display:table-header-group}tr{break-inside:avoid}pre{font-size:8.4pt;line-height:1.45;padding:3.5mm 4mm;border-radius:2mm;break-inside:avoid}blockquote{padding:4mm 5mm;break-inside:avoid}svg{width:100%;max-height:70mm;height:auto;break-inside:avoid}img{max-height:70mm;object-fit:contain;break-inside:avoid;border-radius:2mm}a{color:#164c9f;text-decoration:none}main a[href^="https://"]{overflow-wrap:anywhere}.doc-footer{margin-top:9mm;padding:5mm 0;background:none;border-top:1px solid var(--line);font-size:8pt;color:#596477}.doc-footer a[href="#inicio"]{display:none}.footnotes{font-size:8.5pt}}
 </style>
 </head>
@@ -18,17 +18,17 @@ html{scroll-behavior:auto}body{background:#fff;font-size:10.2pt;line-height:1.54
 <div class="document">
 <header class="cover" id="inicio">
 <div class="brand"><span class="brand-mark" aria-hidden="true">L</span>LABGUARD</div>
-<p class="eyebrow">Laboratório escolar · Guia da interface 2.4.1</p>
+<p class="eyebrow">Laboratório escolar · Guia da interface 2.4.2</p>
 <h1>Manual do<br>usuário</h1>
 <p class="subtitle">Comece pela rede existente. Consulte dispositivos, conecte um controlador compatível e acompanhe sites e ações em quatro telas.</p>
-<div class="cover-meta"><span>Versão 2.4.1</span><span>Observação como padrão</span><span>9 de novembro de 2026</span></div>
+<div class="cover-meta"><span>Versão 2.4.2</span><span>Observação como padrão</span><span>9 de novembro de 2026</span></div>
 </header>
 <div class="reading-note"><a href="Manual_LabGuard_2.pdf"><strong>Baixar manual em PDF</strong></a> · <strong>Como usar:</strong> escolha um capítulo no sumário. Este arquivo funciona sem conexão à internet; os links externos precisam de acesso à rede. Para imprimir ou salvar em PDF, use <strong>Ctrl+P</strong> e papel A4.</div>
 <nav id="TOC" role="doc-toc" aria-label="Sumário">
 <h2>Sumário</h2>
 <ul>
-<li><a href="#labguard-2.4.1---manual-do-usuário"
-id="toc-labguard-2.4.1---manual-do-usuário">LabGuard 2.4.1 - Manual do
+<li><a href="#labguard-2.4.2---manual-do-usuário"
+id="toc-labguard-2.4.2---manual-do-usuário">LabGuard 2.4.2 - Manual do
 usuário</a>
 <ul>
 <li><a href="#primeiro-uso-em-três-ações"
@@ -121,6 +121,15 @@ legado</a>
 <ul>
 <li><a href="#servidor-administrativo"
 id="toc-servidor-administrativo">Servidor administrativo</a></li>
+<li><a href="#acessar-as-estações-pelo-navegador-da-ti"
+id="toc-acessar-as-estações-pelo-navegador-da-ti">Acessar as estações
+pelo navegador da TI</a></li>
+<li><a href="#preparar-winrm-https-para-uma-estação"
+id="toc-preparar-winrm-https-para-uma-estação">Preparar WinRM HTTPS para
+uma estação</a></li>
+<li><a href="#preparar-winrm-https-por-gpo-ou-mdm"
+id="toc-preparar-winrm-https-por-gpo-ou-mdm">Preparar WinRM HTTPS por
+GPO ou MDM</a></li>
 <li><a href="#gateway-existente-é-opcional"
 id="toc-gateway-existente-é-opcional">Gateway existente é
 opcional</a></li>
@@ -175,9 +184,11 @@ visualização?</a></li>
 <li><a href="#configurar-sem-trocar-os-cabos"
 id="toc-configurar-sem-trocar-os-cabos">Configurar sem trocar os
 cabos</a></li>
-<li><a href="#confirmar-uma-estação-antes-de-expandir"
-id="toc-confirmar-uma-estação-antes-de-expandir">Confirmar uma estação
-antes de expandir</a></li>
+<li><a href="#testar-e-ajustar-a-estação-pelo-pc-da-ti"
+id="toc-testar-e-ajustar-a-estação-pelo-pc-da-ti">Testar e ajustar a
+estação pelo PC da TI</a></li>
+<li><a href="#interpretar-o-resultado"
+id="toc-interpretar-o-resultado">Interpretar o resultado</a></li>
 <li><a href="#aplicar-sites-jogos-e-ia"
 id="toc-aplicar-sites-jogos-e-ia">Aplicar sites, jogos e IA</a></li>
 <li><a href="#parar-sem-interromper-a-escola"
@@ -188,18 +199,18 @@ escola</a></li>
 </ul>
 </nav>
 <main id="conteudo">
-<h1 id="labguard-2.4.1---manual-do-usuário">LabGuard 2.4.1 - Manual do
+<h1 id="labguard-2.4.2---manual-do-usuário">LabGuard 2.4.2 - Manual do
 usuário</h1>
 <p>Começar na rede existente, conectar um controlador e conferir cada
 resultado.</p>
-<p>Edição 2.4.1 | 9 de novembro de 2026</p>
-<p>Este manual acompanha a interface 2.4.1, com identificação orientada
+<p>Edição 2.4.2 | 9 de novembro de 2026</p>
+<p>Este manual acompanha a interface 2.4.2, com identificação orientada
 pelas fontes disponíveis, preferências de início e atualização do
 aplicativo. A disponibilidade dos instaladores depende da publicação
 correspondente na página de versões. Um pacote anterior não contém
 automaticamente as funções descritas aqui.</p>
 <h2 id="primeiro-uso-em-três-ações">1. Primeiro uso em três ações</h2>
-<p>Instale o pacote 2.4.1 da <a
+<p>Instale o pacote 2.4.2 da <a
 href="https://github.com/perabru/LabGuard/releases">página de
 versões</a> e abra o LabGuard. Na primeira abertura, a leitura começa em
 Observação, sem alterar a rede. Pelo código-fonte, use Python 3.10 ou
@@ -208,17 +219,20 @@ superior com Tcl/Tk e execute <code>python3 main.py</code>.</p>
 <li><strong>Configurar:</strong> abra o primeiro card. Na etapa
 <strong>1. Ligar filtro</strong>, escolha a conexão, confira o IP deste
 PC e autorize o início. A opção de ligar ao abrir é salva somente após
-sucesso. Na etapa <strong>2. Usar nos computadores</strong>, copie o IP
-e configure-o como DNS pelo DHCP/LAN do Vivo, se permitido, ou em uma
-estação de teste. O capítulo 16 detalha IP fixo, firewall e Linux.</li>
+sucesso. Na etapa <strong>2. Usar nos computadores</strong>, abra
+<strong>Administrar estações</strong> para selecionar um computador
+gerenciado a partir do PC da TI. O capítulo 16 detalha IP fixo, firewall
+e Linux.</li>
 <li><strong>Gerenciar sites:</strong> adicione um domínio ou abra o
 Banco de sites. Revise e aplique a lista explicitamente. Preparar o
 catálogo de IA apenas adiciona cadastros ao banco; ainda é necessário
 aplicá-los.</li>
-<li><strong>Testar conexão:</strong> em <strong>3. Testar</strong>, use
-<strong>Verificar neste PC</strong>. Depois, execute o comando TXT em
-OUTRO computador e compare o código. Confira um domínio permitido, um
-bloqueado e as consultas em Atividade antes de expandir.</li>
+<li><strong>Testar conexão:</strong> em <strong>3. Testar → Administrar
+estações</strong>, clique em <strong>Testar estação</strong> e confira
+os resultados do acesso direto e do DNS padrão. O teste
+<strong>Verificar neste PC</strong> confere o serviço local. Confira um
+domínio permitido, um bloqueado e as consultas em Atividade antes de
+expandir.</li>
 </ol>
 <p>O teste neste PC verifica UDP e TCP do filtro, sem confirmar o DNS
 das estações. O filtro alcança apenas os clientes configurados para
@@ -625,9 +639,9 @@ independente da marca do roteador.</p>
 </tr>
 </tbody>
 </table>
-<p>A TI precisa preparar os serviços antes. O programa não habilita
-WinRM/SSH remotamente, não descobre senhas e não instala um agente
-permanente nas estações.</p>
+<p>A TI prepara os serviços e contas antes da conexão. Para preparar
+WinRM HTTPS por GPO ou MDM a partir do PC da TI, consulte o capítulo
+11.</p>
 <h3 id="consultar-e-avisar">Consultar e avisar</h3>
 <p>O inventário é pontual e reconhece nomes do catálogo. Launcher aberto
 não comprova uma partida. A consulta não oferece leitura de páginas,
@@ -642,7 +656,7 @@ confirmação explícita. Nem todo jogo tem remoção remota. Dados locais
 podem ser afetados pelo gerenciador do sistema. Falha de rede durante a
 execução pode deixar o resultado incerto: consulte a estação antes de
 repetir.</p>
-<p>Consulte <a href="ADMINISTRACAO_REMOTA.md">Administração remota</a>
+<p>Consulte <a href="https://github.com/perabru/LabGuard/blob/main/docs/ADMINISTRACAO_REMOTA.md">Administração remota</a>
 para catálogo e permissões. As operações limitadas não exigem liberar
 execução arbitrária ou um shell root.</p>
 <h2 id="mapa-relatórios-e-outros-equipamentos">10. Mapa, relatórios e
@@ -680,13 +694,13 @@ legado</h2>
 <code>http://127.0.0.1:8765/</code>. O padrão é observação/controlador,
 sem exigir gateway Linux no caminho do tráfego.</p>
 <p>A CLI mantém <code>init</code> e <code>run</code> com diretório de
-configuração. O arquivo de configuração seleciona
-<code>controller.kind</code>: <code>observation</code> para consulta
-local ou <code>routeros</code> para API compatível. No servidor, a senha
-fica somente no arquivo privado de segredos, no campo
-<code>controller_password</code>; não deve ser inserida no JSON público
-de configuração. Esse é um fluxo separado das preferências do desktop e
-de seu cofre opcional.</p>
+configuração. O campo <code>controller.kind</code> seleciona o
+controlador. Use <code>observation</code> para inventário,
+<code>routeros</code> para a API compatível ou <code>local_dns</code>
+para o filtro DNS no servidor. No servidor, a senha fica somente no
+arquivo privado de segredos, no campo <code>controller_password</code>;
+não deve ser inserida no JSON público de configuração. Esse é um fluxo
+separado das preferências do desktop e de seu cofre opcional.</p>
 <p>Pelo código-fonte, inicialize e execute em um diretório privado:</p>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> server_main.py init <span class="at">--directory</span> ./labguard-servidor</span>
@@ -698,15 +712,64 @@ definidas pelo instalador.</p>
 <p>O HTTP é local. Para acesso remoto, use canal administrativo
 autenticado preparado pela TI; não publique a porta 8765 diretamente na
 internet.</p>
-<p>Consulte <a href="SERVIDORES.md">Servidores</a> para instalação como
+<h3 id="acessar-as-estações-pelo-navegador-da-ti">Acessar as estações
+pelo navegador da TI</h3>
+<p>No desktop, abra <strong>Painel web → Copiar chave e abrir</strong>.
+Cole a chave no login do navegador no PC da TI e mantenha a janela do
+painel aberta. Em <strong>Selecionar CA do WinRM</strong>, você pode
+indicar o PEM público da CA institucional. Uma conexão de consulta
+fornece acesso de leitura. No servidor instalado como serviço, use o
+endereço local configurado e o token administrativo da instalação. Com o
+filtro DNS ativo, abra <strong>Estações</strong>, selecione um Windows
+autorizado e informe o acesso WinRM HTTPS.</p>
+<p><strong>Testar DNS</strong> executa os testes direto e padrão na
+estação escolhida. Para ajustar o DNS, selecione <strong>Preparar
+alteração</strong>, confira a prévia e confirme <strong>Aplicar
+DNS</strong>. Repita o teste. <strong>Restaurar DNS</strong> recupera a
+configuração do adaptador registrada na estação.</p>
+<h3 id="preparar-winrm-https-para-uma-estação">Preparar WinRM HTTPS para
+uma estação</h3>
+<p>Em um Windows da TI, abra <strong>Estações → Preparar nesta
+estação</strong> quando o computador escolar já fizer parte do domínio e
+permitir WMI/DCOM administrativo com Kerberos e privacidade de pacotes.
+Informe o IPv4 autorizado, o FQDN canônico da estação e a conta no
+formato <code>DOMÍNIO\usuário</code>. O FQDN deve resolver para o IPv4
+selecionado. Confira o alvo antes de confirmar. A preparação verifica
+identidade, certificado e resultado e depois testa a conexão WinRM HTTPS
+na porta 5986. Se o resultado for incerto, confira o acesso antes de
+repetir.</p>
+<h3 id="preparar-winrm-https-por-gpo-ou-mdm">Preparar WinRM HTTPS por
+GPO ou MDM</h3>
+<ol type="1">
+<li>Tanto o preparo direto quanto a implantação por política exigem no
+alvo um certificado válido no repositório Pessoal do computador, com
+chave privada, finalidade de autenticação de servidor, nome da máquina e
+seu IPv4 no SAN. Use uma CA confiável para a estação e para o PC da TI.
+A interface do laboratório deve ter perfil Domínio ou Privado e uma rota
+identificável até o IP de gestão.</li>
+<li>No painel web, abra <strong>Preparar acesso remoto</strong> e baixe
+o script PowerShell gerado para o IP de gestão. O download prepara o
+arquivo para distribuição pela equipe responsável.</li>
+<li>Pelo console de gestão da TI, vincule o script a uma política de
+inicialização de <strong>computador</strong> no domínio, ou distribua-o
+pela plataforma MDM em contexto de sistema. Restrinja o escopo ao
+equipamento piloto. Aguarde a aplicação da política e, para o script de
+inicialização, o próximo início do Windows.</li>
+<li>No painel local, conecte ao Windows piloto por WinRM HTTPS e use
+<strong>Testar DNS</strong>. Se a escola usar uma CA própria para essa
+conexão, consulte o arquivo <code>station-ca.pem</code> na pasta de
+configuração do servidor. Para uma máquina sem gestão institucional, é
+preciso estabelecer esse canal antes da implantação remota.</li>
+</ol>
+<p>Consulte <a href="https://github.com/perabru/LabGuard/blob/main/docs/SERVIDORES.md">Servidores</a> para instalação como
 serviço e configuração completa.</p>
 <h3 id="gateway-existente-é-opcional">Gateway existente é opcional</h3>
 <p>Quem usa o agente SSH anterior pode manter o modo avançado. Ele tem
 requisitos próprios de duas interfaces, DNS/DHCP, regras e chave SSH
 preparada.</p>
 <p>Esses requisitos do legado não se aplicam ao início em Observação nem
-à consulta por API. O <a href="MANUAL_DO_USUARIO.md">manual 1.4</a> e o
-<a href="Manual_LabGuard_1.4.pdf">PDF 1.4</a> permanecem como referência
+à consulta por API. O <a href="https://github.com/perabru/LabGuard/blob/main/docs/MANUAL_DO_USUARIO.md">manual 1.4</a> e o
+<a href="../manual/Manual_LabGuard_1.4.pdf">PDF 1.4</a> permanecem como referência
 desse caminho.</p>
 <h2 id="erro-de-identificacao">12. Erro de identificação: passo a
 passo</h2>
@@ -848,7 +911,7 @@ capacidades de bloqueio.</p>
 etapa realizada e modelo/firmware confirmados. Revise IPs e capturas
 antes de compartilhar. <strong>Nunca inclua senha, token, chave privada
 ou saída bruta com credenciais.</strong></p>
-<p>O <a href="DIAGNOSTICO_DA_REDE.md">guia completo de diagnóstico</a>
+<p>O <a href="https://github.com/perabru/LabGuard/blob/main/docs/DIAGNOSTICO_DA_REDE.md">guia completo de diagnóstico</a>
 detalha os comandos e cada caso do assistente.</p>
 <h2 id="teste-de-aceitação-e-suporte">14. Teste de aceitação e
 suporte</h2>
@@ -1000,11 +1063,12 @@ a escolha com o filtro ativo. Marque a autorização e clique
 <strong>Iniciar filtro DNS</strong>. O programa abre UDP e TCP 53 no
 endereço escolhido e carrega apenas políticas já aplicadas. Não altera
 DHCP, firewall ou DNS das estações.</li>
-<li>Se o Vivo oferecer DNS no DHCP/LAN, anuncie o IP do LabGuard para a
-rede do laboratório. Se não oferecer, altere somente o DNS de uma
-estação de teste, preservando o IP atual. A TI pode distribuir essa
-opção por política de domínio ou administração remota já autorizada. Não
-é necessário instalar cliente LabGuard.</li>
+<li>Selecione uma estação em <strong>Administrar estações</strong> no PC
+da TI. No Windows, a conexão exige WinRM HTTPS previamente habilitado,
+certificado confiável para o endereço usado e conta autorizada. No
+Linux, o teste usa SSH com chave e identidade do host previamente
+conferida. Para distribuição central, a TI também pode usar DHCP/LAN do
+Vivo quando disponível ou uma política institucional de DNS.</li>
 <li>Autorize UDP e TCP 53 no firewall do PC, somente para a rede
 necessária. No Linux, a conta/serviço também precisa de permissão para a
 porta 53. Se houver conflito, o programa não encerra o outro serviço nem
@@ -1014,24 +1078,123 @@ solicita elevação automática.</li>
 filtro. Para redundância, use outro resolvedor com a mesma política.
 Wi-Fi de convidados, VLANs, IPv6, VPN e DNS seguro do navegador exigem
 avaliação da TI.</p>
-<h3 id="confirmar-uma-estação-antes-de-expandir">Confirmar uma estação
-antes de expandir</h3>
-<p>Abra <strong>3. Testar</strong> e clique <strong>Verificar neste
-PC</strong> para conferir UDP e TCP com o código desta sessão. Sucesso
-local não confirma acesso por outro computador. A seguir, teste uma
-estação.</p>
-<p>Depois de iniciar, abra <strong>3. Testar</strong>. Em outro
-computador, execute a consulta abaixo com o IP real do filtro:</p>
-<pre class="text"><code>nslookup -type=TXT labguard-check.invalid 192.168.15.10</code></pre>
-<p>Compare com o código <code>LabGuard-...</code> mostrado no
-assistente. Em seguida, teste sem indicar servidor, para verificar o DNS
-padrão da estação:</p>
-<pre class="text"><code>nslookup -type=TXT labguard-check.invalid</code></pre>
-<p>Se só o primeiro funciona, a estação ainda usa outro DNS. O código é
-um diagnóstico de caminho, não uma senha e não uma garantia de cobertura
-de todas as máquinas. Teste também um domínio permitido antes de ampliar
-a instalação.</p>
+<h3 id="testar-e-ajustar-a-estação-pelo-pc-da-ti">Testar e ajustar a
+estação pelo PC da TI</h3>
+<ol type="1">
+<li>Abra <strong>Administrar estações</strong> na etapa 2 ou 3. Escolha
+uma estação autorizada, informe o acesso e clique em <strong>Testar
+estação</strong>. Os dois testes consultam o nome completo
+<code>labguard-check.invalid.</code> a partir da estação.</li>
+<li><strong>Direto ao filtro</strong> consulta o IPv4 do serviço ativo.
+<strong>DNS padrão da estação</strong> consulta o resolvedor usado
+normalmente pela estação. Cada teste precisa retornar o código TXT
+<code>LabGuard-...</code> da sessão atual. Confira o resultado por
+estação e horário. Reiniciar o filtro gera outro código.</li>
+<li>No Windows gerenciado, use <strong>Preparar alteração</strong>.
+Confira o alvo, o adaptador que possui o IP escolhido, o DNS anterior e
+a proposta na prévia. Confirme <strong>Aplicar DNS</strong> para alterar
+o DNS desse adaptador. Execute <strong>Testar estação</strong>
+novamente. Para desfazer, confira o mesmo alvo e confirme
+<strong>Restaurar DNS</strong>. No Linux, o teste usa SSH com Python 3 e
+a ferramenta <code>dig</code> disponíveis na estação.</li>
+<li>Em <strong>Atividade</strong>, procure o nome consultado, o IP de
+origem e o horário correspondente. Um encaminhador pode aparecer com o
+próprio IP. <strong>Verificar neste PC</strong> testa o serviço no
+computador da TI. Confirme o código recebido pela estação antes de
+considerar o teste concluído.</li>
+</ol>
+<p>No Windows, a prévia propõe usar o IPv4 do filtro e retirar os
+servidores DNS IPv6 alternativos daquele adaptador. IPv6 continua
+habilitado. O LabGuard registra a configuração anterior no Registro da
+estação, vinculada ao adaptador e ao filtro. A restauração também pode
+ser iniciada após reabrir o painel e conectar ao mesmo alvo. Uma prévia
+recusada indica que a origem da configuração ou o adaptador não puderam
+ser determinados com segurança.</p>
+<p>Ao aplicar, o LabGuard confere primeiro o caminho direto. Após a
+escrita verifica o DNS padrão e tenta restaurar a configuração anterior
+se o código esperado não for confirmado. Se a conexão de gestão cair
+durante a operação, o resultado fica incerto. Reconecte, consulte o
+estado e restaure quando necessário. Em um domínio escolar, confira
+também se o DNS de saída escolhido resolve os nomes dos serviços
+internos.</p>
+<h3 id="interpretar-o-resultado">Interpretar o resultado</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Resultado</th>
+<th>Próxima ação</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Direto e padrão retornam o código atual</td>
+<td>Confira um domínio permitido e um bloqueado com a política
+aplicada.</td>
+</tr>
+<tr class="even">
+<td>Direto passa, padrão retorna domínio inexistente (NXDOMAIN)</td>
+<td>A resolução padrão seguiu outro caminho. Confira os DNS do adaptador
+ativo, inclusive IPv6, e a política DHCP ou de domínio. Repita os dois
+testes.</td>
+</tr>
+<tr class="odd">
+<td>Direto retorna NXDOMAIN ou outro código</td>
+<td>Confira o IPv4 do serviço ativo e o código atual no painel. Repita a
+consulta após qualquer reinício.</td>
+</tr>
+<tr class="even">
+<td>Direto expira</td>
+<td>Confira o serviço e o IP do filtro, o segmento permitido, o acesso
+entre VLANs ou Wi-Fi e a permissão UDP/TCP 53 no firewall do PC da
+TI.</td>
+</tr>
+<tr class="odd">
+<td>A conexão de administração falha</td>
+<td>Confira o acesso WinRM HTTPS ou SSH, o certificado ou a identidade
+do host e as permissões da conta.</td>
+</tr>
+</tbody>
+</table>
+<p>Um resolvedor IPv6 pode aparecer como <code>fe80::…</code>. Mantenha
+IPv6 habilitado. Se o teste direto passar e o padrão continuar falhando,
+revise na administração da rede o DNS anunciado aos clientes IPv6.
+Distribua resolvedores aprovados que encaminhem as consultas ao filtro e
+repita os testes. Quando a gestão remota estiver indisponível, use o
+DHCP ou a política de domínio da escola e valide pela ferramenta de
+gestão existente.</p>
+<p><strong>Diagnóstico manual</strong> é um recurso opcional de suporte
+na etapa 3. <strong>Copiar teste direto</strong> gera o comando com o
+IPv4 real do serviço ativo. <strong>Copiar teste padrão</strong> gera o
+comando <code>nslookup -type=TXT labguard-check.invalid.</code> usando o
+DNS padrão da estação. O ponto final mantém o nome completo durante a
+consulta.</p>
 <h3 id="aplicar-sites-jogos-e-ia">Aplicar sites, jogos e IA</h3>
+<p>Para ativar a política inicial, escolha <strong>Proteger
+laboratório</strong>. Confira os domínios de jogos e adultos
+apresentados e confirme a aplicação. O botão <strong>Iniciar filtro
+DNS</strong> permite ligar o serviço sem essa lista. No filtro já ativo,
+a proteção acrescenta os domínios que faltam e confere o resultado. Para
+incluir IA, revise e aplique o catálogo existente no <strong>Banco de
+sites</strong>.</p>
+<p>Antes de ligar, a opção <strong>Filtrar conteúdo adulto e malware com
+Cloudflare Families</strong> permite escolher o DNS de saída
+<code>1.1.1.3</code>. Isso encaminha consultas permitidas ao serviço de
+filtragem da Cloudflare. Se a escola usa nomes de domínio internos,
+confirme que o resolvedor de saída escolhido consegue atendê-los. A
+lista de domínios pode ser aplicada ao filtro ativo sem trocar o DNS de
+saída da sessão.</p>
+<p>Em <strong>Administrar estações → Testar estação</strong>, confira
+também <strong>Domínio aplicado</strong>. Quando existir uma regra
+aplicada, o teste consulta um desses domínios pelo DNS padrão da estação
+e apresenta o resultado junto com o diagnóstico da sessão. Confira qual
+nome foi usado, o IP e o horário em <strong>Atividade</strong>. Um
+domínio bloqueado em DNS e o código correto verificam aquelas consultas.
+Jogos offline e serviços com outros domínios exigem controles
+próprios.</p>
 <p>Em <strong>Sites</strong>, cadastre um domínio, por exemplo
 <code>roblox.com</code>. O filtro cobre esse domínio e subdomínios nas
 consultas que recebe; outros serviços e CDNs podem exigir entradas
@@ -1039,11 +1202,13 @@ adicionais. No <strong>Banco de sites</strong>, organize listas, prepare
 o catálogo de IA e aplique explicitamente. O botão de perfil global de
 IA pode ficar desabilitado: neste modo, a aplicação é pelo banco de
 domínios.</p>
-<p>Na estação configurada, teste <code>nslookup roblox.com</code>.
-<strong>Atividade</strong> mostra somente consultas recebidas e
-distingue bloqueios confirmados de falhas do DNS de saída. Consultas não
-comprovam visitas nem revelam conteúdo HTTPS. Um roteador que encaminha
-DNS em nome dos clientes pode ocultar os IPs individuais.</p>
+<p>No PC da TI, abra <strong>Atividade</strong> e procure as consultas
+recebidas para o domínio aplicado. Confira o IP de origem, o horário e o
+resultado <strong>Bloqueio DNS confirmado</strong>. Se já houver uma
+ferramenta de execução remota da escola, a TI também pode gerar uma
+consulta de teste pelo console de gestão. Consultas não comprovam
+visitas nem revelam conteúdo HTTPS. Um roteador que encaminha DNS em
+nome dos clientes pode ocultar os IPs individuais.</p>
 <p>Este modo não corta internet por IP/MAC, controla portas de switch ou
 remove jogos. Por isso esses controles permanecem desabilitados. Cache,
 aplicações com IP embutido, IA local, VPN e DoH não são eliminados por
@@ -1060,7 +1225,7 @@ href="https://github.com/perabru/LabGuard/blob/main/docs/VIVO_MERCUSYS.md">Vivo
 + Mercusys</a>. O teste de laboratório do pacote usa somente loopback; o
 ambiente do colégio ainda precisa de homologação.</p>
 </main>
-<footer class="doc-footer"><span>LabGuard 2.4.1 · Manual do usuário · Consulte a validação da versão antes da implantação.</span><a href="#inicio">Voltar ao início ↑</a></footer>
+<footer class="doc-footer"><span>LabGuard 2.4.2 · Manual do usuário · Consulte a validação da versão antes da implantação.</span><a href="#inicio">Voltar ao início ↑</a></footer>
 </div>
 </body>
 </html>

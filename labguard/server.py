@@ -303,10 +303,12 @@ class Limits:
 
 
 class Application:
-    def __init__(self, config: ServerConfig, transport=None, *, logging_enabled=True):
+    def __init__(self, config: ServerConfig, transport=None, *, logging_enabled=True, banlist_path=None):
         self.config = config
         self.transport = transport or create_controller_transport(config)
         self._closed = False
+        from .station_web import StationOperations
+        self.stations = StationOperations()
         self.limits = Limits()
         self.network_lock = threading.Lock()
         self.report_lock = threading.Lock()
@@ -315,7 +317,7 @@ class Application:
         self.sync_thread = None
         self.sync_job = {"running": False, "job_id": None, "report": None, "error": None}
         try:
-            self.banlist = BanlistDatabase(config.directory / "data" / "banlist.sqlite3")
+            self.banlist = BanlistDatabase(banlist_path if banlist_path is not None else config.directory / "data" / "banlist.sqlite3")
         except BanlistError as error:
             close = getattr(self.transport, "close", None)
             if callable(close):
@@ -344,6 +346,7 @@ class Application:
         if self._closed:
             return
         self._closed = True
+        self.stations.close()
         self.cancel_sync.set()
         close = getattr(self.transport, "close", None)
         if callable(close):
@@ -443,6 +446,22 @@ class Application:
     def sync_status(self):
         with self.job_lock:
             return dict(self.sync_job)
+
+    def protect_school(self, payload):
+        from .school_policy import apply_school_policy
+        if not isinstance(payload, dict) or set(payload) != {'confirm'} or payload['confirm'] is not True:
+            raise ServerError('Confirme a lista de domínios da escola antes de aplicar.')
+        if not self.network_lock.acquire(timeout=0.1):
+            raise ServerError('Há uma operação em andamento. Aguarde antes de aplicar a lista.')
+        try:
+            snapshot = self.stations.current_dns_snapshot(self)
+            if snapshot.get('capabilities', {}).get('domain_filtering') is not True:
+                raise ServerError('A fonte atual não oferece bloqueio de domínios.')
+            token = snapshot['dns_service']['check_token']
+            self.stale = True
+            return apply_school_policy(self.transport, authorized=True, expected_token=token)
+        finally:
+            self.network_lock.release()
 
     def report(self, format):
         if format not in {"svg", "html", "csv", "pdf"}:
@@ -757,11 +776,17 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send(200, body, mime)
             return
-        if path not in {"/api/snapshot", "/api/banlist", "/api/banlist/export", "/api/banlist/sync-status", "/api/network-map", "/api/report"}:
+        if path not in {"/api/school/policy", "/api/snapshot", "/api/banlist", "/api/banlist/export", "/api/banlist/sync-status", "/api/network-map", "/api/report"}:
             self._error(404, "Recurso não encontrado.")
             return
         role = self._authenticate()
         if not role:
+            return
+        if path == "/api/school/policy":
+            from .school_policy import SCHOOL_POLICY
+            data = {"domains": [domain for domain, category in SCHOOL_POLICY],
+                    "categories": list(dict.fromkeys(category for domain, category in SCHOOL_POLICY))}
+            self._send(200, {"ok": True, "data": data, "role": role})
             return
         if path in {"/api/network-map", "/api/report"}:
             try:
@@ -818,7 +843,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._request_allowed():
             return
-        if self.path not in {"/api/action", "/api/banlist/upsert", "/api/banlist/delete", "/api/banlist/import", "/api/banlist/sync"}:
+        from .station_web import STATION_ROUTES
+        if self.path not in STATION_ROUTES and self.path not in {"/api/school/protect", "/api/access/prepare", "/api/action", "/api/banlist/upsert", "/api/banlist/delete", "/api/banlist/import", "/api/banlist/sync"}:
             self._error(404, "Recurso não encontrado.")
             return
         role = self._authenticate(admin=True)
@@ -837,8 +863,38 @@ class Handler(BaseHTTPRequestHandler):
         if not 0 < size <= MAX_BODY:
             self._error(413, "Corpo ausente ou maior que 8 KiB.")
             return
+        audit_action = "mutation"
+        if self.path in STATION_ROUTES:
+            audit_action = "station_" + self.path.rsplit("/", 1)[-1]
+        elif self.path == "/api/access/prepare":
+            audit_action = "access_prepare"
+        elif self.path == "/api/school/protect":
+            audit_action = "school_protect"
         try:
             payload = json.loads(self.rfile.read(size).decode("utf-8"))
+            if self.path == "/api/school/protect":
+                data = self.app.protect_school(payload)
+                self.app.audit(audit_action, role, "confirmed" if data.get("ok") is True else "partial")
+                self._send(200, {"ok": True, "data": data, "role": role})
+                return
+            if self.path == "/api/access/prepare":
+                from .access_setup import prepare_access
+                data = prepare_access(payload, asset_directory())
+                self.app.audit(audit_action, role, "unconfirmed" if data.get("ok") is False else "generated")
+                self._send(200, {"ok": True, "role": role, "data": data})
+                return
+            if self.path in STATION_ROUTES:
+                operation = self.path.rsplit("/", 1)[-1]
+                operator = hashlib.sha256(self.headers["Authorization"][7:].encode("ascii")).hexdigest()
+                data = self.app.stations.run(self.app, operation, payload, operator)
+                outcome = "unconfirmed"
+                if data.get("ok") is True and data.get("block_confirmed") is not False:
+                    outcome = "confirmed"
+                elif operation == "preview" and data.get("id") and data.get("ok") is not False:
+                    outcome = "preview_ready"
+                self.app.audit(audit_action, role, outcome)
+                self._send(200, {"ok": True, "data": data, "role": role})
+                return
             if self.path.startswith("/api/banlist/"):
                 operation = self.path.rsplit("/", 1)[-1]
                 data = self.app.start_sync(payload, role) if operation == "sync" else self.app.edit_banlist(operation, payload)
@@ -850,11 +906,11 @@ class Handler(BaseHTTPRequestHandler):
             action, params = validate_action(payload["action"], payload["params"])
             data = self.app.execute(action, params)
         except (ValueError, UnicodeError, ServerError, BanlistError) as error:
-            self.app.audit("mutation", role, "rejected")
+            self.app.audit(audit_action, role, "rejected")
             self._error(400, str(error)[:250])
             return
         except Exception:
-            self.app.audit("mutation", role, "controller_failed")
+            self.app.audit(audit_action, role, "unconfirmed" if audit_action != "mutation" else "controller_failed")
             self._error(502, "A operação não foi confirmada. Atualize o estado antes de tentar novamente.")
             return
         self.app.audit(action, role, "applied_" + data.get("mode", "controller"))
