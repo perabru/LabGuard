@@ -679,3 +679,24 @@ class StartupAndUpdateUiTests(unittest.TestCase):
 
 
 if __name__ == "__main__":unittest.main()
+
+class LocalDNSStartupTests(unittest.TestCase):
+    def test_dns_startup_is_optin_and_precedes_saved_router_without_using_credentials(self):
+        app=App.__new__(App);app._startup_observation_pending=True;app._demo_requested=False
+        app._preferences={'auto_connect':True,'local_dns':{'host':'192.168.15.10','lab_cidr':'192.168.15.0/24','upstream':'1.1.1.1','start_on_open':True}}
+        app.after_idle=Mock(return_value='queued')
+        App._queue_saved_startup(app)
+        app.after_idle.assert_called_once_with(app._restore_saved_dns)
+        app.snapshot={'mode':'observation'};app._closed=app._busy=app._startup_attempted=False
+        app._start_transport=Mock(return_value=True);app._set_startup_message=Mock()
+        self.assertTrue(App._restore_saved_dns(app))
+        kind,settings=app._start_transport.call_args.args
+        self.assertEqual(kind,'local_dns');self.assertTrue(settings['manage_rules']);self.assertNotIn('password',settings)
+        self.assertFalse(App._restore_saved_dns(app))
+
+    def test_dns_autostart_cannot_start_in_demo_or_without_saved_optin(self):
+        app=App.__new__(App);app._closed=app._busy=app._startup_attempted=False;app._demo_requested=True
+        app.snapshot={'mode':'demo'};app._preferences={'local_dns':{'start_on_open':True}};app._start_transport=Mock()
+        self.assertFalse(App._restore_saved_dns(app));app._start_transport.assert_not_called()
+        app._startup_attempted=False;app._demo_requested=False;app.snapshot={'mode':'observation'};app._preferences={}
+        self.assertFalse(App._restore_saved_dns(app));app._start_transport.assert_not_called()

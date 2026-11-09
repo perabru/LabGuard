@@ -217,6 +217,7 @@
       gateway: "GATEWAY LEGADO — conexão opcional ao agente Linux. Ações administrativas afetam a rede configurada."
     };
     el("mode-banner").textContent = modes[data.mode];
+    if (data.source_type === "local_dns") el("mode-banner").textContent = "FILTRO DNS LOCAL — somente clientes configurados. Não corta internet por IP/MAC nem altera o roteador ou switch.";
     el("mode-banner").className = `mode-banner ${data.mode === "observation" ? "observation" : ["gateway", "equipment"].includes(data.mode) ? "live" : ""}`;
     const supported = Object.entries({inventory: "inventário", domain_filtering: "filtragem de sites", address_blocking: "regras por IP / MAC", device_internet_cut: "regras por máquina", ai_block: "bloqueio de IA", dns_history: "histórico DNS", port_control: "controle de portas"}).filter(([key]) => capabilities[key] === true).map(([, name]) => name);
     el("capability-summary").textContent = `Recursos informados pela fonte: ${supported.length ? supported.join(" · ") : "nenhum recurso confirmado"}. ${data.mode === "observation" ? "O banco de sites continua disponível para cadastro local." : "Os botões também exigem perfil administrativo, dados recentes e serviços ativos."}`;

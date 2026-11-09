@@ -66,7 +66,7 @@ class ControllerTransport:
 
     def _checked_snapshot(self, result):
         result = normalize_snapshot(result)
-        expected = {"observation": "observation", "demo": "demo", "routeros": "equipment", "legacy": "gateway"}
+        expected = {"observation": "observation", "demo": "demo", "routeros": "equipment", "legacy": "gateway", "local_dns": "equipment"}
         if self.kind in expected and result["mode"] != expected[self.kind]:
             raise ControllerError("A conexão retornou um modo diferente do equipamento selecionado.")
         return result
@@ -100,7 +100,7 @@ class ControllerTransport:
 
 def create_transport(kind="observation", *, host="", port=None, user="", password="", ca_file="",
                      key_path="", known_hosts="", protected_ips=None, protected_macs=None,
-                     lab_cidr="", manage_rules=False, wan_interface_list="WAN"):
+                     lab_cidr="", manage_rules=False, wan_interface_list="WAN", upstream="1.1.1.1", data_dir=None, upstream_port=53):
     if kind == "observation":
         from .discovery import LocalObservationTransport
         transport = LocalObservationTransport()
@@ -113,6 +113,10 @@ def create_transport(kind="observation", *, host="", port=None, user="", passwor
             user=user, password=password, ca_file=ca_file, protected_ips=protected_ips or [],
             protected_macs=protected_macs or [], lab_cidr=lab_cidr, manage_rules=manage_rules,
             wan_interface_list=wan_interface_list)
+    elif kind == "local_dns":
+        from .local_dns import LocalDNSTransport
+        transport = LocalDNSTransport(host=host, lab_cidr=lab_cidr, upstream=upstream,
+            port=53 if port is None else port, upstream_port=upstream_port, manage_rules=manage_rules, data_dir=data_dir)
     elif kind == "legacy":
         from .transport import SSHTransport
         transport = SSHTransport(host=host, port=22 if port is None else port, user=user or "labguard",

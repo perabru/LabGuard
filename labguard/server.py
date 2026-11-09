@@ -54,7 +54,7 @@ PARAMS = {"snapshot": set(), "add_domain": {"domain", "category"},
           "set_address_block": {"kind", "address", "blocked"}}
 PUBLIC_FIELDS = {"mode", "version", "timestamp", "gateway", "health", "devices", "domains",
                  "events", "connections", "audit", "metrics", "warnings", "policies", "address_blocks",
-                 "capabilities", "controller", "source"}
+                 "capabilities", "controller", "source", "source_type", "dns_service"}
 
 
 class ServerError(RuntimeError):
@@ -148,14 +148,22 @@ class ServerConfig:
         if type(self.gateway.get("port")) is not int or not 1 <= self.gateway["port"] <= 65535:
             raise ServerError("A porta SSH precisa estar entre 1 e 65535.")
         controller = data.get("controller", {"kind": "legacy" if "gateway" in data else "observation"})
-        fields = {"kind", "host", "port", "user", "ca_file", "protected_ips", "protected_macs", "manage_rules", "lab_cidr", "wan_interface_list"}
+        fields = {"kind", "host", "port", "user", "ca_file", "protected_ips", "protected_macs", "manage_rules", "lab_cidr", "wan_interface_list", "upstream"}
         if not isinstance(controller, dict) or set(controller) - fields:
             raise ServerError("Configuração de controlador incompatível; a senha pertence somente a secrets.json.")
         kind = controller.get("kind", "observation")
-        if kind not in ("observation", "routeros", "legacy"):
+        if kind not in ("observation", "routeros", "legacy", "local_dns"):
             raise ServerError("Use controlador observation, routeros ou legacy.")
+        if kind != "local_dns" and "upstream" in controller:raise ServerError("upstream pertence apenas ao filtro DNS local.")
         self.controller = {"kind": kind}
-        if kind != "legacy":
+        if kind == "local_dns":
+            from .local_dns import validate_config, DNSError
+            if set(controller) - {'kind','host','port','lab_cidr','upstream','manage_rules'} or controller.get('manage_rules') is not True:
+                raise ServerError('DNS local exige campos próprios e manage_rules=true explícito no arquivo privado.')
+            try:host, net, upstream, dns_port, _ = validate_config(controller.get('host'), controller.get('lab_cidr'), controller.get('upstream','1.1.1.1'), controller.get('port',53))
+            except DNSError as error:raise ServerError('IP, segmento ou DNS de saída inválidos para o filtro local.') from error
+            self.controller.update(host=host, lab_cidr=str(net), upstream=upstream, port=dns_port, manage_rules=True)
+        elif kind != "legacy":
             self.controller.update(host=controller.get("host", ""), port=controller.get("port", 443),
                                    user=controller.get("user", ""), ca_file=controller.get("ca_file", ""),
                                    protected_ips=controller.get("protected_ips", []), protected_macs=controller.get("protected_macs", []),
@@ -214,6 +222,7 @@ def create_controller_transport(config):
             options.update(config.gateway)
         elif options["kind"] == "routeros":
             options["password"] = config.controller_password
+        if options['kind'] == 'local_dns':options['data_dir'] = config.directory/'data'/'dns-policy'
         return create_transport(**options)
     except Exception as error:
         raise ServerError("Não foi possível preparar o controlador. Confira o tipo, endereço, certificado e credenciais nos arquivos privados.") from error
@@ -370,7 +379,7 @@ class Application:
     def public_snapshot(self, snapshot):
         if not isinstance(snapshot, dict) or snapshot.get("mode") not in {"observation", "equipment", "gateway", "demo"}:
             raise ServerError("Resposta incompatível do controlador.")
-        expected = "demo" if self.config.demo else {"observation": "observation", "routeros": "equipment", "legacy": "gateway"}[self.config.controller["kind"]]
+        expected = "demo" if self.config.demo else {"observation": "observation", "routeros": "equipment", "legacy": "gateway", "local_dns": "equipment"}[self.config.controller["kind"]]
         if snapshot["mode"] != expected:
             raise ServerError("O controlador retornou um modo diferente da configuração autorizada.")
         def clean(value):

@@ -17,8 +17,14 @@ CASE_LABELS = {
     "timeout": "Consulta demorou ou não respondeu",
     "connection_error": "Falha de conexão sem causa confirmada",
 }
-ERROR_CASES = {"tls", "authentication", "api_unavailable", "timeout", "connection_error"}
+CASE_LABELS.update({"dns_local_port":"DNS local: IP, porta ou permissão", "dns_local_config":"DNS local: configuração da rede", "dns_local_state":"DNS local: regras ou arquivos privados", "dns_local_dependency":"DNS local: pacote incompleto"})
+ERROR_CASES = {"dns_local_port", "dns_local_config", "dns_local_state", "dns_local_dependency", "tls", "authentication", "api_unavailable", "timeout", "connection_error"}
 ERROR_MESSAGES = {
+    "dns_local_port": "O filtro DNS local não abriu UDP e TCP 53. Confira se o IP pertence a este PC, se há outro serviço DNS e se a conta tem permissão. O roteador não foi alterado.",
+    "dns_local_config": "Confira o IP deste computador, a rede privada e o DNS de saída no assistente Sem MikroTik.",
+    "dns_local_state": "Não foi possível carregar ou salvar as regras locais com segurança. Confira a pasta privada e as permissões com a TI.",
+    "dns_local_dependency": "O pacote não contém o filtro DNS. Instale a versão 2.3 ou posterior completa.",
+
     "authentication": "Confira credenciais, permissões e restrições de origem com a TI.",
     "tls": "Confira endereço, certificado e confiança HTTPS com a TI.",
     "api_unavailable": "Confira perfil, disponibilidade da API e permissões com a TI.",
@@ -62,6 +68,8 @@ def classify_connection_error(error):
     """Retorna só um código conhecido. A mensagem bruta nunca integra a ajuda."""
     if not isinstance(error, str) or not error:return None
     if error in ERROR_CASES:return error
+    for code in ('dns_local_port', 'dns_local_config', 'dns_local_state', 'dns_local_dependency'):
+        if error.startswith(code.upper()+':'):return code
     text = error[:8192].casefold()
     if "não foi possível confirmar a resposta rest https" in text or "verifique endereço, certificado e conexão" in text:
         return "connection_error"
@@ -187,6 +195,11 @@ def build_diagnostic_plan(snapshot=None, last_error="", system=None, case=None):
             "Confira o perfil e os dados de conexão com a TI. Consulte a interface e a rota local sem modificar configurações.",
             "Uma ação de bloqueio pode ter resultado incerto. Faça uma leitura e confira o estado antes de repetir qualquer alteração."], commands["ip"] + commands["gateway"]),
     }
+    for key in ('dns_local_port','dns_local_config','dns_local_state','dns_local_dependency'):
+        templates[key] = _step(key,CASE_LABELS[key],[ERROR_MESSAGES[key],
+            'Abra Sem MikroTik e confira IP deste computador, rede autorizada, porta UDP/TCP 53 e a opção de iniciar o filtro.',
+            'Se o serviço iniciar, execute os dois testes TXT do assistente em uma estação. DNS do roteador ou cliente não é alterado automaticamente.',
+            'Para parar, restaure o DNS anterior dos clientes. Não encerre outro serviço DNS nem desative o firewall para contornar a falha.'], commands['ip'])
     steps.extend(templates[name] for name in cases)
     retry = "No perfil SSH legado, Atualizar consulta fica desabilitado: a consulta avançada pode reconciliar políticas existentes. Use o fluxo avançado ou escolha Observação em Início por sua própria decisão." if facts["mode"] == "gateway" else "Atualizar consulta relê somente a conexão atual; não bloqueia, não troca credenciais e não muda o perfil."
     steps.append(_step("finish", "Conferir o resultado", [retry,

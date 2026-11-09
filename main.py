@@ -20,6 +20,13 @@ def self_test(output: str | None = None) -> int:
         from labguard.discovery import LocalObservationTransport
         from labguard.direct_routeros import DirectRouterOSTransport
         from labguard.diagnostics import build_diagnostic_plan
+        from labguard.local_dns import DNSFilter, CHECK_DOMAIN
+        from dnslib import DNSRecord, RCODE
+        dns_check = DNSFilter('127.0.0.1', '127.0.0.0/8', port=53535, rules={'blocked.example':'Jogos'})
+        try:
+            wire = dns_check.resolve(DNSRecord.question('blocked.example').pack(), '127.0.0.1')
+            if DNSRecord.parse(wire).header.rcode != RCODE.NXDOMAIN:raise RuntimeError('Filtro DNS ausente.')
+        finally:dns_check.close()
         from labguard.inventory import summarize_inventory
         from labguard.preferences import default_preferences, normalize_preferences
         from labguard.credential_store import CredentialStore  # import only: no vault access
@@ -67,9 +74,9 @@ def self_test(output: str | None = None) -> int:
                    "reports": ["svg", "html", "csv", "pdf"],
                    "identification_help_steps": len(identification["steps"]),
                    "inventory_summary_check": "ok",
-                   "preferences_check": "ok", "update_helper_check": "ok",
+                   "local_dns_check": "ok", "preferences_check": "ok", "update_helper_check": "ok",
                    "credential_storage": "windows-vault-optional",
-                   "startup_mode": "observation", "controller_modes": ["observation", "routeros", "legacy", "demo"]}
+                   "startup_mode": "observation", "controller_modes": ["observation", "local_dns", "routeros", "legacy", "demo"]}
         code = 0
     except Exception as error:
         payload, code = {"ok": False, "error": str(error)}, 1
@@ -84,11 +91,20 @@ def self_test(output: str | None = None) -> int:
 def run() -> int:
     parser = argparse.ArgumentParser(description="LabGuard - controle do laboratório escolar")
     parser.add_argument("--self-test", action="store_true", help="Validar recursos do pacote sem abrir a interface")
+    parser.add_argument("--dns-self-test", action="store_true", help="Testar DNS por UDP e TCP somente no loopback")
     parser.add_argument("--demo", action="store_true", help="Abrir demonstração explícita com dados fictícios")
     parser.add_argument("--no-updates", action="store_true", help="Desativar consultas de atualização nesta execução")
     parser.add_argument("--legacy-ui", action="store_true", help="Abrir a interface avançada do gateway existente")
     parser.add_argument("--output", help="Gravar resultado do autoteste em JSON")
     args = parser.parse_args()
+    if args.dns_self_test:
+        from labguard.local_dns import smoke_test
+        from labguard import __version__
+        try:result=smoke_test();result['version']=__version__;code=0
+        except Exception:result={'ok':False,'error':'Teste DNS local não concluiu.'};code=1
+        if args.output:Path(args.output).write_text(json.dumps(result)+'\n',encoding='utf-8')
+        if sys.stdout is not None:print(json.dumps(result))
+        return code
     if args.self_test:
         return self_test(args.output)
     if args.legacy_ui:

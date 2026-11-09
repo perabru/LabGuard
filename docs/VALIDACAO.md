@@ -1,4 +1,8 @@
-# Validação da versão 2.2.0
+# Validação da versão 2.3.0
+
+Preparada em 9 de novembro de 2026. Novo filtro DNS local, assistente Vivo/switch simples e integração opcional ao servidor estão em teste. A liberação depende de DNS nativo UDP/TCP, instaladores, serviços e atualização 2.2 → 2.3. Nenhum equipamento do colégio foi acessado; não há homologação no Vivo/Mercusys real.
+
+## Evidência anterior: 2.2.0
 
 Publicada em 7 de novembro de 2026. O [fluxo completo Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/42387750673) passou para o commit `fe6ed9a221ea475ac00c6699e8a50060f369907b`. A [versão 2.2.0](https://github.com/perabru/LabGuard/releases/tag/v2.2.0) inclui seis pacotes desktop/servidor, manifesto de atualização, relatório de atualização real, autotestes e somas SHA-256.
 

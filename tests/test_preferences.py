@@ -128,3 +128,14 @@ class PreferenceTests(unittest.TestCase):
 
 
 if __name__ == "__main__":unittest.main()
+
+class DNSPreferenceTests(unittest.TestCase):
+    def test_local_dns_profile_is_optional_validated_and_has_no_remote_authority(self):
+        from labguard.preferences import normalize_dns_profile
+        profile={'host':'192.168.15.10','lab_cidr':'192.168.15.0/24','upstream':'1.1.1.1','start_on_open':True}
+        with tempfile.TemporaryDirectory() as directory:
+            store=PreferenceStore(Path(directory)/'private');saved=store.save(dict(default_preferences(),local_dns=profile))
+            self.assertEqual(store.load()['local_dns'],profile)
+            self.assertFalse(saved['auto_connect']);self.assertIsNone(saved['saved_router'])
+        for fields in (dict(profile,manage_rules=True),dict(profile,password='secret'),dict(profile,host='0.0.0.0'),dict(profile,start_on_open='true')):
+            with self.assertRaises(PreferenceError):normalize_dns_profile(fields)

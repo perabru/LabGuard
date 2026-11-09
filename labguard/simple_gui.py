@@ -27,6 +27,7 @@ CAPABILITY_NAMES = {
     "ai_block": "Perfil global de IA", "dns_history": "Consultar atividade DNS"}
 PROFILE_KINDS = {
     "Observar esta rede (qualquer roteador)": "observation",
+    "Vivo + switch simples (filtro DNS local)": "local_dns",
     "Controlar MikroTik via HTTPS": "routeros",
     "Outros equipamentos": "integration",
     "Gateway SSH existente (opcional)": "legacy"}
@@ -168,7 +169,7 @@ def mutation_reason(snapshot, *, capability=None, required_health=(), stale=Fals
     if busy:
         return "Aguarde a operação em andamento."
     if snapshot.get("mode") == "observation":
-        return "Modelo/API necessários para bloquear. A observação local é somente consulta."
+        return "A observação local é somente consulta. Para Vivo e switch simples, use Sem MikroTik · Configurar filtro DNS."
     if snapshot.get("mode") not in {"demo", "gateway", "equipment"}:
         return "Conecte um roteador compatível antes de alterar a rede."
     if stale or age > FRESH_SECONDS:
@@ -449,8 +450,42 @@ class App(tk.Tk):
     def _queue_saved_startup(self):
         if not self.__dict__.get("_startup_observation_pending", False):return
         self._startup_observation_pending = False
-        if self._demo_requested or not self._preferences.get("auto_connect"):return
+        if self._demo_requested:return
+        dns_profile = self._preferences.get('local_dns')
+        if isinstance(dns_profile,dict) and dns_profile.get('start_on_open') is True:
+            self._restore_id = self.after_idle(self._restore_saved_dns);return
+        if not self._preferences.get("auto_connect"):return
         self._restore_id = self.after_idle(self._restore_saved_connection)
+
+    def _remember_local_dns(self, settings, start_on_open):
+        if self._preference_store is None:
+            self._set_startup_message('Preferências indisponíveis; o início automático do DNS não foi salvo.');return False
+        from .preferences import normalize_dns_profile
+        try:
+            profile = normalize_dns_profile({key:settings.get(key) for key in ('host','lab_cidr','upstream')} | {'start_on_open':start_on_open})
+            self._preferences = self._preference_store.save(dict(self._preferences,local_dns=profile))
+        except Exception:
+            self._set_startup_message('O início automático do DNS não pôde ser salvo. Confira as permissões com a TI.');return False
+        self._set_startup_message('DNS local iniciará ao abrir, no IP/rede salvos. Mantenha o IP fixo e confira as estações.' if start_on_open else 'Início automático do DNS desligado. O filtro atual continua ativo até ser encerrado.')
+        return True
+
+    def _restore_saved_dns(self):
+        if self._closed or self._startup_attempted:return False
+        self._startup_attempted = True
+        if self._busy or self._demo_requested or self.snapshot.get('mode') != 'observation':return False
+        profile = self._preferences.get('local_dns')
+        if not isinstance(profile,dict) or profile.get('start_on_open') is not True:return False
+        from .preferences import normalize_dns_profile
+        try:profile = normalize_dns_profile(profile)
+        except Exception:return False
+        settings = {key:profile[key] for key in ('host','lab_cidr','upstream')};settings['manage_rules'] = True
+        self._auto_connect_in_progress = True
+        self._set_startup_message('Iniciando o DNS local conforme a opção salva. Somente regras locais já aplicadas serão carregadas.')
+        def failed(category):
+            from .diagnostics import safe_error_message
+            self._auto_connect_in_progress = False
+            self._set_startup_message('DNS automático não iniciou. '+safe_error_message(category));self.status.set(self._startup_message)
+        return self._start_transport('local_dns',settings,authorized=True,on_error=failed)
 
     def _restore_saved_connection(self):
         if self._closed or self._startup_attempted:return False
@@ -510,8 +545,8 @@ class App(tk.Tk):
         IconBadge(header, kind="shield", color=PURPLE, tint="#EEE7FD", size=40).pack(side="left", padx=(0, 10))
         brand = tk.Frame(header, bg=PANEL); brand.pack(side="left")
         self._label(brand, "LabGuard", bg=PANEL, fg=TEXT, font=(self.font_family, 19, "bold")).pack(anchor="w")
-        self._label(brand, "CONTROLE ESCOLAR · 2.2", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
-        ActionButton(header, text="Outros equipamentos", command=self._open_integrations, height=38).pack(side="right")
+        self._label(brand, "CONTROLE ESCOLAR · 2.3", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
+        ActionButton(header, text="Sem MikroTik", command=self._open_dns_setup, height=38).pack(side="right")
         ActionButton(header, text="Mapa e relatórios", command=self._open_network_map, style="Yellow.TButton", height=38).pack(side="right", padx=9)
         nav = tk.Frame(self, bg=BG, padx=23, pady=12); nav.grid(row=1, column=0, sticky="ew")
         for col, (key, name) in enumerate((("home", "Início"), ("devices", "Dispositivos"), ("sites", "Sites"), ("activity", "Atividade"))):
@@ -678,6 +713,8 @@ class App(tk.Tk):
         self.update_button.pack(anchor="w")
         self.startup_status = tk.StringVar(value=self._startup_message)
         self._label(options.body, textvariable=self.startup_status, bg=PANEL).pack(fill="x", pady=(11, 0))
+        self._label(action_card.body, "Vivo + switch simples? Não precisa de MikroTik para o filtro DNS.", bg=PANEL, fg=TEXT).pack(fill="x", pady=(13, 6))
+        ActionButton(action_card.body, text="Configurar filtro DNS · Vivo / switch simples", command=self._open_dns_setup, style="Accent.TButton", height=38).pack(anchor="w")
         panels = tk.Frame(action_card.body, bg=PANEL); panels.pack(fill="x", pady=(12, 0))
         self.admin_toggle_button = ActionButton(panels, text="Acesso ao equipamento", command=self._toggle_admin, height=37)
         self.admin_toggle_button.pack(side="left")
@@ -771,7 +808,8 @@ class App(tk.Tk):
         self.password_var.set(""); self.manage_var.set(False)
         self.fields_frame.pack_forget(); self.advanced_button.pack_forget()
         self.advanced_frame.pack_forget(); self.consent_row.pack_forget(); self.startup_frame.pack_forget()
-        hints = {"observation": "Funciona na rede atual, sem senha de roteador. Mostra vizinhos conhecidos e a rota padrão; não bloqueia a internet.",
+        hints = {"local_dns": "Assistente para Vivo e switch não gerenciável. O próprio PC filtra DNS; configurar o DNS dos clientes é obrigatório. Não oferece corte de internet.",
+            "observation": "Funciona na rede atual, sem senha de roteador. Mostra vizinhos conhecidos e a rota padrão; não bloqueia a internet.",
             "routeros": "Controle direto de MikroTik com API REST HTTPS já habilitada. Certificado validado; nenhuma configuração é ativada automaticamente.",
             "integration": "Consulte os perfis disponíveis para TP-Link, Cisco, OpenWrt e outros. Recursos variam por modelo e firmware.",
             "legacy": "Opção avançada para quem já possui um gateway LabGuard por SSH. Não é necessário instalar um para observar a rede."}
@@ -785,7 +823,7 @@ class App(tk.Tk):
             if kind == "routeros":self.advanced_button.pack(anchor="w", before=self.connect_bar, pady=(0, 8))
             self.consent_row.pack(fill="x", before=self.connect_bar)
             if kind == "routeros":self.startup_frame.pack(fill="x", before=self.connect_bar, pady=(7, 0))
-        self.connect_button.configure(text="Identificar minha rede" if kind == "observation" else "Ver equipamentos" if kind == "integration" else "Conectar")
+        self.connect_button.configure(text="Identificar minha rede" if kind == "observation" else "Configurar filtro DNS" if kind == "local_dns" else "Ver equipamentos" if kind == "integration" else "Conectar")
 
     def _toggle_home_panel(self, panel, button, label):
         if panel.winfo_manager():
@@ -813,6 +851,7 @@ class App(tk.Tk):
     def _connect(self):
         self._cancel_saved_startup()
         kind = PROFILE_KINDS[self.profile_var.get()]
+        if kind == "local_dns":return self._open_dns_setup()
         if kind == "integration":return self._open_integrations()
         if kind == "observation":return self._observe()
         try:
@@ -859,6 +898,7 @@ class App(tk.Tk):
 
     def _start_transport(self, kind, settings, *, authorized=False, remember_options=None, on_error=None):
         if self._busy:return False
+        if getattr(self.transport, 'kind', '') == 'local_dns' and not self._confirm_dns_shutdown():return False
         def connect():
             transport = create_transport(kind, **settings)
             try:return transport, transport.request("snapshot")
@@ -873,6 +913,8 @@ class App(tk.Tk):
                 try:window.close()
                 except tk.TclError:pass
             self._map_windows.clear(); self._apply_snapshot(snapshot)
+            if kind == 'local_dns' and not self._snapshot_stale and remember_options is not None:
+                self._remember_local_dns(settings,remember_options.get('dns_start_on_open') is True)
             if kind == "routeros" and not self._snapshot_stale:
                 if on_error is not None:self._set_startup_message("Perfil salvo conectado somente para consulta. Nenhuma lista ou regra foi aplicada.")
                 else:self._remember_successful_router(settings, remember_options)
@@ -1015,6 +1057,8 @@ class App(tk.Tk):
         mode = self.snapshot.get("mode", "observation"); stale = view["kind"] == "stale" or self._snapshot_stale
         labels = {"observation": "OBSERVAÇÃO LOCAL · somente consulta", "equipment": "ROTEADOR CONECTADO · recursos conforme a API",
                   "gateway": "GATEWAY SSH EXISTENTE · perfil avançado", "demo": "DEMONSTRAÇÃO · dados fictícios · nenhuma alteração real"}
+        dns_local = self.snapshot.get('source_type') == 'local_dns'
+        if dns_local:labels['equipment'] = 'FILTRO DNS LOCAL · somente clientes configurados'
         self.mode_text.set(labels.get(mode, "Aguardando conexão") + (" · dados desatualizados" if stale else ""))
         self.mode_banner.configure(bg="#FFF2C4" if mode == "demo" or stale else "#E8F0FF", fg="#77560D" if mode == "demo" or stale else "#2456A3")
         gateway = self.snapshot.get("gateway", {}); local = self.snapshot.get("local", {})
@@ -1036,6 +1080,11 @@ class App(tk.Tk):
                  "equipment": "Relê o inventário disponível na API conectada. Confirme a fonte e o horário antes de agir.",
                  "gateway": "Perfil avançado existente. A consulta pode reconciliar políticas configuradas; confira os detalhes.",
                  "demo": "Treinamento com dados fictícios. Use Acesso ao equipamento para escolher a Observação da rede real."}
+        if dns_local:
+            hints['equipment'] = 'O filtro está neste PC. Use Configurar filtro DNS para distribuir o DNS e testar uma estação. O roteador e o switch não foram alterados.'
+            self.identify_button.configure(text='Atualizar filtro e consultas')
+            service = self.snapshot.get('dns_service', {})
+            self.next_action_text.set('DNS: '+str(service.get('listen',''))+' · '+str(service.get('received_clients',0))+' IP(s) com consultas. Teste cada estação; não há cobertura total confirmada.')
         self.identification_hint.set(hints.get(mode, hints["observation"]))
         caps = snapshot_capabilities(self.snapshot)
         for key, label in self.capability_labels.items():
@@ -1045,6 +1094,7 @@ class App(tk.Tk):
         if mode in {"equipment", "gateway"}:note = "Recursos confirmados por este perfil. " + ("Alterações autorizadas nesta sessão." if self._management_authorized else "Sessão somente de consulta; autorize alterações ao reconectar.")
         elif mode == "demo":note = "Treinamento com dados fictícios. Volte à observação para consultar a sua rede real."
         methods = evidence["facts"].get("source_methods", [])
+        if dns_local:note = 'Filtro DNS local ativo. Bloqueios valem somente para consultas recebidas neste PC; não há controle do roteador nem corte por IP/MAC.'
         self.connection_note.set(note + "\n\n" + "\n".join(evidence["gaps"][:5]) +
             ("\n\nMétodos confirmados: " + ", ".join(methods) if methods else "") +
             "\n\nHorário da fonte: " + self._time(evidence["timestamp"]))
@@ -1080,6 +1130,7 @@ class App(tk.Tk):
         self._fill(self.devices_table, rows)
         self.devices_note.set("Dispositivos observados; uma entrada antiga não comprova presença atual. " +
             ("Modelo/API necessários para bloquear." if self.snapshot.get("mode") == "observation" else
+             "Filtro DNS local: corte por IP/MAC e portas do switch não estão disponíveis." if self.snapshot.get("source_type") == "local_dns" else
              "Esta tela controla a regra de IP. MAC e outros bloqueios são independentes; revise o mapa." if self.snapshot.get("mode") == "equipment" else
              "Selecione o alvo e confira as capacidades antes de agir."))
 
@@ -1269,6 +1320,15 @@ class App(tk.Tk):
         from .integration_gui import IntegrationWindow
         return IntegrationWindow(self)
 
+    def _confirm_dns_shutdown(self):
+        return messagebox.askyesno('Parar filtro DNS?',
+            'Clientes que usam este computador como DNS podem ficar sem navegação. '
+            'Restaure o DNS anterior nas estações ou no DHCP antes de parar. Continuar?', parent=self, default='no', icon='warning')
+
+    def _open_dns_setup(self):
+        from .dns_gui import DNSSetupWindow
+        return DNSSetupWindow(self)
+
     def _open_manual(self):
         import webbrowser
         docs = Path(__file__).resolve().parents[1]/"docs"
@@ -1287,6 +1347,7 @@ class App(tk.Tk):
 
     def close(self):
         if self._closed:return
+        if getattr(self.transport, 'kind', '') == 'local_dns' and not self._confirm_dns_shutdown():return
         self._drain_update_results()
         self._schedule_update_on_close()
         self._closed = True; self._generation += 1; self.password_var.set("")

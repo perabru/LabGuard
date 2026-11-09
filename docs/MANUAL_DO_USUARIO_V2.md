@@ -1,20 +1,20 @@
-# LabGuard 2.2.0 - Manual do usuário
+# LabGuard 2.3.0 - Manual do usuário
 
 Começar na rede existente, conectar um controlador e conferir cada resultado.
 
-Edição 2.2.0 | 7 de novembro de 2026
+Edição 2.3.0 | 9 de novembro de 2026
 
-Este manual acompanha a interface 2.2.0, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
+Este manual acompanha a interface 2.3.0, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
 
 ## 1. Primeiro uso em cinco passos
 
 Na primeira abertura, o LabGuard começa em **Observação**, com informações reais que o sistema local consegue consultar. Esse primeiro contato não pede senha do roteador e não altera o caminho da rede.
 
-1. Instale o pacote 2.2.0 na [página de versões](https://github.com/perabru/LabGuard/releases), conferindo versão e arquivo de verificação da mesma publicação. A primeira migração da 2.1 ou anterior é manual para obter o atualizador; depois, siga o capítulo 15.
+1. Instale o pacote 2.3.0 na [página de versões](https://github.com/perabru/LabGuard/releases), conferindo versão e arquivo de verificação da mesma publicação. A primeira migração da 2.1 ou anterior é manual para obter o atualizador; depois, siga o capítulo 15.
 2. Abra o programa. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`. No Windows, use também o inicializador do projeto. No Debian/Ubuntu, o Tk está no pacote `python3-tk`.
 3. Na tela **Início**, mantenha **Observação** e use **Identificar minha rede**. Não precisa instalar gateway Linux nem trocar cabos para consultar os dados locais.
 4. Abra **Dispositivos** e confira os endereços disponíveis. A lista reúne evidências do sistema; não garante descobrir todas as máquinas ligadas ao switch.
-5. Abra **Sites → Banco de sites** para organizar a política desejada. Cadastrar um domínio não modifica o firewall. A aplicação exige um controlador compatível conectado.
+5. Se usa Vivo com switch simples, escolha **Sem MikroTik** e siga o capítulo 16. Para as listas, abra **Sites → Banco de sites** para organizar a política desejada. Cadastrar um domínio não modifica o firewall. A aplicação exige uma fonte com controle: o novo filtro DNS local ou uma integração compatível conectada.
 
 Para aprender sem usar dados reais, escolha **Abrir demonstração** em Início. O modo fictício fica identificado e não altera a rede.
 
@@ -373,3 +373,50 @@ O pacote oficial é conferido por HTTPS, manifesto, tamanho e SHA256. Isso verif
 Na próxima abertura, a Observação começa primeiro; a opção salva tenta conectar uma vez em consulta. Se falhar, a Observação continua disponível. A senha fica no cofre do Windows, nunca no JSON de preferências. Sem cofre, conecte manualmente; não há armazenamento alternativo em texto simples.
 
 **Autorizar alterações neste roteador** vale somente para a sessão. Nenhuma lista de sites é aplicada ao abrir. Use **Esquecer acesso salvo** para remover perfil e credencial do cofre e confira o resultado; a conexão atual continua ativa. O servidor tem configuração própria, conforme o capítulo 11.
+
+
+## 16. Vivo e switch não gerenciável {#vivo-e-switch-simples}
+
+### Por que aparecia somente visualização?
+
+A Observação lê a rede do computador; não é uma conexão de controle com o roteador Vivo. Um switch Mercusys não gerenciável não fornece comandos administrativos. **Não é necessário ter MikroTik para o novo filtro DNS**, mas é necessário configurar os clientes para usá-lo. O programa não consegue criar uma API que o equipamento não oferece.
+
+### Configurar sem trocar os cabos
+
+1. Em Início, clique **Sem MikroTik** ou **Configurar filtro DNS · Vivo / switch simples**.
+2. Confira o **IP deste computador**, a **Rede autorizada** e o **DNS de saída**. O IP do filtro é o IP do PC, não o do roteador. Uma sugestão aparece apenas quando há dados reais da interface. Exemplo didático: `192.168.15.10`, rede `192.168.15.0/24`.
+3. Combine um IP reservado/fixo com a TI. A opção **Iniciar este filtro automaticamente ao abrir o LabGuard** é opcional e salva após uma ativação bem-sucedida; use **Salvar início** para alterar a escolha com o filtro ativo. Marque a autorização e clique **Iniciar filtro DNS**. O programa abre UDP e TCP 53 no endereço escolhido e carrega apenas políticas já aplicadas. Não altera DHCP, firewall ou DNS das estações.
+4. Se o Vivo oferecer DNS no DHCP/LAN, anuncie o IP do LabGuard para a rede do laboratório. Se não oferecer, altere somente o DNS de uma estação de teste, preservando o IP atual. A TI pode distribuir essa opção por política de domínio ou administração remota já autorizada. Não é necessário instalar cliente LabGuard.
+5. Autorize UDP e TCP 53 no firewall do PC, somente para a rede necessária. No Linux, a conta/serviço também precisa de permissão para a porta 53. Se houver conflito, o programa não encerra o outro serviço nem solicita elevação automática.
+
+Não use um DNS público como alternativa, pois ele pode contornar o filtro. Para redundância, use outro resolvedor com a mesma política. Wi-Fi de convidados, VLANs, IPv6, VPN e DNS seguro do navegador exigem avaliação da TI.
+
+### Confirmar uma estação antes de expandir
+
+Depois de iniciar, clique **Atualizar instruções**. Em outro computador, execute a consulta abaixo com o IP real do filtro:
+
+```text
+nslookup -type=TXT labguard-check.invalid 192.168.15.10
+```
+
+Compare com o código `LabGuard-...` mostrado no assistente. Em seguida, teste sem indicar servidor, para verificar o DNS padrão da estação:
+
+```text
+nslookup -type=TXT labguard-check.invalid
+```
+
+Se só o primeiro funciona, a estação ainda usa outro DNS. O código é um diagnóstico de caminho, não uma senha e não uma garantia de cobertura de todas as máquinas. Teste também um domínio permitido antes de ampliar a instalação.
+
+### Aplicar sites, jogos e IA
+
+Em **Sites**, cadastre um domínio, por exemplo `roblox.com`. O filtro cobre esse domínio e subdomínios nas consultas que recebe; outros serviços e CDNs podem exigir entradas adicionais. No **Banco de sites**, organize listas, prepare o catálogo de IA e aplique explicitamente. O botão de perfil global de IA pode ficar desabilitado: neste modo, a aplicação é pelo banco de domínios.
+
+Na estação configurada, teste `nslookup roblox.com`. **Atividade** mostra somente consultas recebidas e distingue bloqueios confirmados de falhas do DNS de saída. Consultas não comprovam visitas nem revelam conteúdo HTTPS. Um roteador que encaminha DNS em nome dos clientes pode ocultar os IPs individuais.
+
+Este modo não corta internet por IP/MAC, controla portas de switch ou remove jogos. Por isso esses controles permanecem desabilitados. Cache, aplicações com IP embutido, IA local, VPN e DoH não são eliminados por cadastrar um domínio.
+
+### Parar sem interromper a escola
+
+O PC e o aplicativo precisam continuar ligados para responder aos clientes. Antes de fechar, desconectar ou trocar a fonte, restaure o DNS anterior nas estações ou no DHCP. O programa avisa antes de parar; não muda a rede escondido para compensar um computador desligado.
+
+Para instruções específicas de erro, configuração de servidor e referências, consulte [Vivo + Mercusys](https://github.com/perabru/LabGuard/blob/main/docs/VIVO_MERCUSYS.md). O teste de laboratório do pacote usa somente loopback; o ambiente do colégio ainda precisa de homologação.

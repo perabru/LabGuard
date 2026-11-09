@@ -100,6 +100,8 @@ def summarize_inventory(snapshot, *, now=None, max_age_seconds=FRESH_SECONDS):
     mode = data.get("mode")
     mode = mode if isinstance(mode, str) and mode in MODES else "unknown"
     source, source_label = SOURCE.get(mode, ("unknown", "Fonte não confirmada"))
+    if mode == "equipment" and data.get("source_type") == "local_dns":
+        source, source_label = "local_dns", "Filtro DNS LabGuard neste computador"
     discovery = data.get("discovery") if isinstance(data.get("discovery"), dict) else {}
     metadata_valid = None if "discovery" not in data else isinstance(data.get("discovery"), dict)
     if metadata_valid:

@@ -1,4 +1,4 @@
-param([string]$Version = "2.2.0", [switch]$SkipInstaller)
+param([string]$Version = "2.3.0", [switch]$SkipInstaller)
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -35,7 +35,7 @@ if (Test-Path $portable) { Remove-Item $portable }
 Compress-Archive -Path $bundle -DestinationPath $portable -CompressionLevel Optimal
 
 # O servidor é um processo separado, sem inicialização da interface Tk.
-$serverArguments = @("--noconfirm", "--clean", "--onedir", "--console", "--noupx", "--name", "LabGuardServer", "--icon", "packaging/generated/LabGuard.ico", "--version-file", "packaging/windows-server-version.txt", "--add-data", "gateway/ai_services.json:gateway", "--add-data", "server/assets:server/assets", "--add-data", "docs:docs", "--collect-data", "reportlab", "--collect-submodules", "labguard", "--exclude-module", "labguard.gui", "--exclude-module", "labguard.simple_gui", "--exclude-module", "labguard.remote_gui", "--exclude-module", "labguard.banlist_gui", "--exclude-module", "labguard.network_map_gui", "--exclude-module", "labguard.integration_gui", "--exclude-module", "labguard.ui", "--exclude-module", "tkinter", "server_main.py")
+$serverArguments = @("--noconfirm", "--clean", "--onedir", "--console", "--noupx", "--name", "LabGuardServer", "--icon", "packaging/generated/LabGuard.ico", "--version-file", "packaging/windows-server-version.txt", "--add-data", "gateway/ai_services.json:gateway", "--add-data", "server/assets:server/assets", "--add-data", "docs:docs", "--collect-data", "reportlab", "--collect-submodules", "labguard", "--exclude-module", "labguard.gui", "--exclude-module", "labguard.simple_gui", "--exclude-module", "labguard.dns_gui", "--exclude-module", "labguard.remote_gui", "--exclude-module", "labguard.banlist_gui", "--exclude-module", "labguard.network_map_gui", "--exclude-module", "labguard.integration_gui", "--exclude-module", "labguard.ui", "--exclude-module", "tkinter", "server_main.py")
 python -m PyInstaller @serverArguments
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller falhou ao gerar o servidor." }
 $serverBundle = Join-Path $projectRoot "dist/LabGuardServer"

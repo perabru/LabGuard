@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Execute em Linux x86_64. CI usa Ubuntu 22.04 (glibc 2.35).
 set -euo pipefail
-version="${1:-2.2.0}"
+version="${1:-2.3.0}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Versão inválida.' >&2; exit 1; }
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Compile em Linux x86_64.' >&2; exit 1; }
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,7 +47,7 @@ dpkg-deb --root-owner-group --build "$package_root" dist/release/LabGuard-Linux-
 
 python3 -m PyInstaller --noconfirm --clean --onedir --console --noupx --name LabGuardServer \
   --add-data 'gateway/ai_services.json:gateway' --add-data 'server/assets:server/assets' --add-data 'docs:docs' \
-  --collect-data reportlab --collect-submodules labguard --exclude-module labguard.gui --exclude-module labguard.simple_gui --exclude-module labguard.integration_gui \
+  --collect-data reportlab --collect-submodules labguard --exclude-module labguard.gui --exclude-module labguard.simple_gui --exclude-module labguard.dns_gui --exclude-module labguard.integration_gui \
   --exclude-module labguard.network_map_gui --exclude-module labguard.remote_gui --exclude-module labguard.banlist_gui \
   --exclude-module labguard.ui --exclude-module tkinter server_main.py
 cp -R server dist/LabGuardServer/server

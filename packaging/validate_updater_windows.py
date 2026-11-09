@@ -26,9 +26,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-OLD_SHA256 = "fed1e22bbaec63dec05a6a5ce052c41f29b4975ffcc51d73fb4ee395879358aa"
-OLD_VERSION = "2.1.0"
-NEW_VERSION = "2.2.0"
+OLD_SHA256 = "c24b30741f6c4baf379e3ca640985fd05f86009e03971977deeb417ba3d6f8ec"
+OLD_VERSION = "2.2.0"
+NEW_VERSION = "2.3.0"
 MAX_PACKAGE = 150 * 1024 * 1024
 
 
@@ -247,7 +247,7 @@ def native_smoke(args):
     require(digest_file(old_setup)[0] == OLD_SHA256, "OLD_SETUP_HASH_MISMATCH")
     new_sha, new_size = digest_file(new_setup)
     require(new_sha != OLD_SHA256, "NEW_SETUP_EQUALS_OLD")
-    require(file_version(new_setup) == (2, 2, 0, 0), "NEW_SETUP_FILE_VERSION_MISMATCH")
+    require(file_version(new_setup) == tuple(map(int, NEW_VERSION.split("."))) + (0,), "NEW_SETUP_FILE_VERSION_MISMATCH")
     local = updater._safe_path(Path(os.environ["LOCALAPPDATA"]).absolute()).resolve()
     scope = (local / "LabGuardUpdateSmoke").resolve()
     install_dir = updater._safe_path(Path(args.install_dir).absolute()).resolve()
@@ -273,7 +273,7 @@ def native_smoke(args):
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
         installed_own = executable.is_file()
         require(old_run.returncode == 0 and executable.is_file(), "OLD_INSTALL_FAILED")
-        require(file_version(executable) == (2, 1, 0, 0), "OLD_EXE_VERSION_MISMATCH")
+        require(file_version(executable) == tuple(map(int, OLD_VERSION.split("."))) + (0,), "OLD_EXE_VERSION_MISMATCH")
         old_record = registry_record(updater)
         require(old_record and old_record["DisplayVersion"] == OLD_VERSION
                 and Path(old_record["InstallLocation"]).resolve() == install_dir.resolve(), "OLD_REGISTRY_MISMATCH")
@@ -308,7 +308,7 @@ def native_smoke(args):
         require(result["state"] == "pending" and result["code"] == "WAITING_FOR_EXIT",
                 "REAL_HELPER_" + (result["code"] or result["state"].upper()))
         require(old_process.poll() is None and helper_process.poll() is None
-                and file_version(executable) == (2, 1, 0, 0), "UPDATE_DID_NOT_WAIT_FOR_PARENT")
+                and file_version(executable) == tuple(map(int, OLD_VERSION.split("."))) + (0,), "UPDATE_DID_NOT_WAIT_FOR_PARENT")
         close_gracefully(old_process)
         deadline = time.monotonic() + 180
         result = manager.application_result(prepared)
@@ -317,7 +317,7 @@ def native_smoke(args):
             result = manager.application_result(prepared)
         require(result["state"] == "applied", "REAL_HELPER_" + (result["code"] or result["state"].upper()))
         require(helper_process.wait(timeout=15) == 0, "REAL_HELPER_EXIT_FAILED")
-        require(file_version(executable) == (2, 2, 0, 0), "NEW_EXE_VERSION_MISMATCH")
+        require(file_version(executable) == tuple(map(int, NEW_VERSION.split("."))) + (0,), "NEW_EXE_VERSION_MISMATCH")
         new_record = registry_record(updater)
         require(new_record and new_record["DisplayVersion"] == NEW_VERSION
                 and Path(new_record["InstallLocation"]).resolve() == install_dir.resolve(), "NEW_REGISTRY_MISMATCH")

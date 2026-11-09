@@ -1,10 +1,10 @@
-# Comece aqui - LabGuard 2.2.0
+# Comece aqui - LabGuard 2.3.0
 
-Por padrão, o LabGuard 2.2.0 abre em **Observação**, usando a rede existente. Não precisa trocar o roteador, mudar cabos, instalar um novo gateway nem informar senha para começar a consultar o computador e os vizinhos conhecidos da rede.
+Por padrão, o LabGuard 2.3.0 abre em **Observação**, usando a rede existente. Não precisa trocar o roteador, mudar cabos, instalar um novo gateway nem informar senha para começar a consultar o computador e os vizinhos conhecidos da rede.
 
 ## Primeiro uso
 
-1. Instale a versão 2.2.0 do seu sistema pela [página de versões](https://github.com/perabru/LabGuard/releases). Quem vem da 2.1 ou anterior precisa dessa primeira instalação manual para receber o atualizador. Os pacotes ficam disponíveis depois da publicação; confira o número do arquivo.
+1. Instale a versão 2.3.0 do seu sistema pela [página de versões](https://github.com/perabru/LabGuard/releases). Quem vem da 2.1 ou anterior precisa dessa primeira instalação manual para receber o atualizador. Os pacotes ficam disponíveis depois da publicação; confira o número do arquivo.
 2. Abra o programa. Pelo código-fonte, execute `python3 main.py` com Python 3.10 ou superior e Tcl/Tk instalado.
 3. Em **Início**, mantenha **Observação** e use **Identificar minha rede**. Abra **Dispositivos** para conferir os endereços locais, o roteador padrão e os vizinhos conhecidos pelo sistema.
 4. Use **Sites → Banco de sites** para organizar os domínios. O cadastro pode ser feito sem controlar o roteador.
@@ -51,3 +51,8 @@ A abertura começa em Observação e, se autorizado, tenta uma conexão de consu
 A tabela de vizinhos é parcial e pode estar vazia ou antiga. O MAC do próprio computador pode ficar vazio quando a fonte não o fornece; isso não é falha de identificação. Um IP fixo pode não aparecer no DHCP. Ausência de MAC, ARP ou concessão não comprova que a estação esteja desligada; um registro também não garante presença atual. Confira modelo na etiqueta ou no painel autorizado; o programa não o deduz pelo MAC. Um modem Vivo desconhecido continua podendo ser usado em Observação, sem selecionar MikroTik por tentativa.
 
 No Linux, `iproute2` é a fonte preferencial. Se ela falhar ou faltar, o programa tenta fontes locais alternativas, que podem fornecer menos dados, sem elevar privilégios ou instalar ferramentas. Para os comandos manuais, peça à TI a instalação de `iproute2` pela distribuição quando necessário. Não desative certificado/TLS ou firewall. Nunca inclua senhas em um relatório de suporte.
+
+
+## Vivo e switch simples
+
+Use **Sem MikroTik → Configurar filtro DNS**. A observação é somente consulta; o filtro DNS exige que as estações usem o IP do PC LabGuard como DNS. Confira IP/rede, autorização e os dois testes por código. [Passo a passo para Vivo + Mercusys](VIVO_MERCUSYS.md). Não há corte por IP/MAC neste modo.

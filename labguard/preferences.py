@@ -16,7 +16,7 @@ from .demo import normalize_mac
 MAX_SETTINGS_BYTES = 32768
 ROUTER_FIELDS = frozenset({"host", "port", "user", "ca_file", "lab_cidr",
                           "wan_interface_list", "protected_ips", "protected_macs"})
-_PREF_FIELDS = frozenset({"schema", "auto_updates", "auto_connect", "saved_router"})
+_PREF_FIELDS = frozenset({"schema", "auto_updates", "auto_connect", "saved_router", "local_dns"})
 _INVALID = "Preferências locais inválidas; confira as opções do aplicativo."
 _PRIVATE = "Não foi possível acessar as preferências com proteção local."
 
@@ -88,6 +88,18 @@ def normalize_router_profile(profile):
             "protected_ips": protected_ips, "protected_macs": protected_macs}
 
 
+def normalize_dns_profile(value):
+    if not isinstance(value, dict) or set(value)-{'host','lab_cidr','upstream','start_on_open'}:
+        raise PreferenceError(_INVALID)
+    if type(value.get('start_on_open', False)) is not bool:raise PreferenceError(_INVALID)
+    from .local_dns import validate_config, DNSError
+    try:
+        host, net, upstream, _, _ = validate_config(_text(value.get('host'),128,allow_empty=False),
+            _text(value.get('lab_cidr'),64,allow_empty=False), _text(value.get('upstream','1.1.1.1'),128,allow_empty=False))
+    except DNSError:raise PreferenceError(_INVALID) from None
+    return {'host':host,'lab_cidr':str(net),'upstream':upstream,'start_on_open':value.get('start_on_open',False)}
+
+
 def normalize_preferences(data):
     if not isinstance(data, dict) or set(data) - _PREF_FIELDS:
         raise PreferenceError(_INVALID)
@@ -103,6 +115,7 @@ def normalize_preferences(data):
         result["saved_router"] = normalize_router_profile(data["saved_router"])
     if result["auto_connect"] and result["saved_router"] is None:
         raise PreferenceError(_INVALID)
+    if 'local_dns' in data:result['local_dns'] = normalize_dns_profile(data['local_dns'])
     return result
 
 

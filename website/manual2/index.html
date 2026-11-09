@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>LabGuard 2.2.0 · Manual do usuário</title>
+<title>LabGuard 2.3.0 · Manual do usuário</title>
 <style>
 :root{--purple:#6938c9;--deep:#2f195b;--blue:#1364d8;--yellow:#f9cc45;--ink:#1e293b;--muted:#596477;--line:#dfe5ee;--paper:#fff;--wash:#f5f6fb;--lavender:#f0eafd}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--wash);color:var(--ink);font-family:Arial,"Liberation Sans",sans-serif;font-size:16px;line-height:1.68}a{color:var(--blue);text-decoration-thickness:1px;text-underline-offset:3px}a:hover{color:var(--purple)}a:focus-visible{outline:3px solid var(--yellow);outline-offset:4px}p,ul,ol,dl,blockquote,pre,table{margin:0 0 1.15em}h1,h2,h3,h4{line-height:1.22;color:var(--deep);font-weight:750}h1{font-size:2.5rem;letter-spacing:-.035em;margin:0 0 .5em}h2{font-size:1.85rem;letter-spacing:-.025em;margin:2.1em 0 .7em;padding-top:.5em;border-top:3px solid var(--purple)}h3{font-size:1.2rem;margin:1.6em 0 .65em;color:var(--blue)}h4{font-size:1.05rem;margin:1.4em 0 .55em}li{padding-left:.15em;margin:.35em 0}li>p{margin-bottom:.6em}strong{color:#302248}hr{border:0;border-top:1px solid var(--line);margin:2em 0}code,kbd{font-family:"DejaVu Sans Mono","Liberation Mono",monospace;font-size:.88em;background:#edf1f8;border-radius:4px;padding:.12em .3em;overflow-wrap:anywhere}pre{background:#f1f4fa;border:1px solid #d7dfec;border-left:4px solid var(--blue);border-radius:8px;padding:16px 18px;overflow-x:auto;line-height:1.5;font-size:.91rem;white-space:pre-wrap;overflow-wrap:anywhere}pre code{background:none;padding:0;border-radius:0;font-size:inherit}blockquote{margin-left:0;padding:16px 20px;border-left:5px solid var(--yellow);background:#fff9e5;border-radius:0 8px 8px 0;color:#4b4228}blockquote p:last-child{margin-bottom:0}table{width:100%;border-collapse:collapse;font-size:.92rem;line-height:1.5;overflow-wrap:anywhere}th,td{border:1px solid var(--line);padding:11px 13px;text-align:left;vertical-align:top}th{background:var(--lavender);color:var(--deep);font-weight:700}tbody tr:nth-child(even){background:#f8faff}img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:10px;margin:1.5em auto}svg{display:block;max-width:100%;height:auto;margin:1.5em auto}figure{margin:1.5em 0}figcaption{font-size:.86rem;color:var(--muted);text-align:center;margin-top:.5em}.document{max-width:1120px;margin:36px auto 60px;background:var(--paper);box-shadow:0 15px 65px #25285410;border:1px solid #e2e6ef;border-radius:18px;overflow:hidden}.cover{position:relative;padding:68px 68px 56px;background:linear-gradient(135deg,#251147 0%,#5936b0 57%,#1863bf 100%);color:#fff}.cover:before{content:"";position:absolute;left:0;top:0;width:100%;height:9px;background:var(--yellow)}.brand{font-weight:800;font-size:1.15rem;letter-spacing:.08em;margin-bottom:45px}.brand-mark{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;background:var(--yellow);color:var(--deep);border-radius:11px;margin-right:12px;letter-spacing:0}.eyebrow{font-size:.8rem;letter-spacing:.15em;text-transform:uppercase;font-weight:700;color:#f9d96f;margin-bottom:15px}.cover h1{font-size:3.9rem;max-width:730px;color:#fff;font-weight:750;line-height:1.05;letter-spacing:-.05em;margin:0 0 24px}.subtitle{font-size:1.14rem;max-width:690px;line-height:1.65;color:#ecedff;margin:0 0 35px}.cover-meta{display:flex;gap:14px;flex-wrap:wrap}.cover-meta span{display:inline-block;border:1px solid #ffffff44;border-radius:50px;padding:7px 14px;font-size:.83rem;color:#fff}.cover-meta span:first-child{background:var(--yellow);border-color:var(--yellow);color:var(--deep);font-weight:700}.reading-note{padding:18px 68px;background:#fff7d9;border-bottom:1px solid #f0e0a8;font-size:.88rem;color:#594a1d}.reading-note strong{color:#493b18}#TOC{margin:0 68px;padding:44px 0 26px;border-bottom:1px solid var(--line)}#TOC h2{border:0;margin:0 0 20px;padding:0;font-size:1.55rem}#TOC>ul{columns:2;column-gap:42px;font-size:.9rem;line-height:1.5;padding-left:20px}#TOC li{break-inside:avoid;margin:0 0 11px}#TOC li ul{list-style:circle;padding-left:19px;margin:.5em 0 .9em;font-size:.88em}#TOC a{text-decoration:none;color:#3a3761}#TOC a:hover{text-decoration:underline;color:var(--blue)}main{padding:25px 68px 52px}main>h1:first-child{font-size:2rem;margin-top:1.1em}main>:first-child{margin-top:1.1em}.doc-footer{padding:22px 68px;background:#f0eafd;border-top:1px solid #ded3f7;color:#5b4b78;font-size:.83rem;display:flex;justify-content:space-between;gap:20px}.doc-footer a{color:var(--purple)}.footnotes{font-size:.88em;color:var(--muted)}.sourceCode .co{color:#586676}.sourceCode .st{color:#146442}.sourceCode .kw,.sourceCode .cf{color:#6938c9}.sourceCode .fu{color:#1458ac}
 @media(max-width:900px){.document{margin:0;border-radius:0;border:0;box-shadow:none}.cover{padding:55px 28px 40px}.cover h1{font-size:3rem}.brand{margin-bottom:36px}.reading-note{padding:18px 28px}#TOC{margin:0 28px;padding-top:30px}#TOC>ul{columns:1}main{padding:20px 28px 40px}.doc-footer{padding:20px 28px}table{font-size:.85rem}th,td{padding:9px}h2{font-size:1.6rem}}
 @media print{
-@page{size:A4;margin:17mm 16mm 19mm;@bottom-left{content:"LabGuard 2.2.0 · Manual do usuário";font-family:Arial,sans-serif;font-size:8pt;color:#687082}@bottom-right{content:counter(page);font-family:Arial,sans-serif;font-size:8pt;color:#687082}}
+@page{size:A4;margin:17mm 16mm 19mm;@bottom-left{content:"LabGuard 2.3.0 · Manual do usuário";font-family:Arial,sans-serif;font-size:8pt;color:#687082}@bottom-right{content:counter(page);font-family:Arial,sans-serif;font-size:8pt;color:#687082}}
 html{scroll-behavior:auto}body{background:#fff;font-size:10.2pt;line-height:1.54;color:#202b3a;-webkit-print-color-adjust:exact;print-color-adjust:exact}.document{max-width:none;margin:0;background:#fff;border:0;border-radius:0;box-shadow:none;overflow:visible}.cover{padding:28mm 14mm 22mm;min-height:238mm;break-after:page;background:linear-gradient(140deg,#29134e,#5631a9 65%,#2364ba)}.cover:before{height:3mm}.brand{font-size:14pt;margin-bottom:25mm}.brand-mark{width:10mm;height:10mm;border-radius:3mm}.eyebrow{font-size:8.4pt;letter-spacing:.12em;margin-bottom:6mm}.cover h1{font-size:43pt;max-width:140mm;margin-bottom:10mm;line-height:1.08}.subtitle{font-size:13pt;line-height:1.7;margin-bottom:14mm;max-width:140mm}.cover-meta{gap:3mm}.cover-meta span{font-size:8.5pt;padding:2mm 4mm}.reading-note{padding:5mm 0;font-size:9pt;border:0;background:none;color:#4b4f5b}.reading-note strong{color:#2f195b}#TOC{margin:0;padding:7mm 0 3mm;border:0;break-after:page}#TOC h2{font-size:21pt;break-before:auto;padding:0;border:0}#TOC>ul{columns:1;column-gap:0;font-size:9.8pt;line-height:1.45;padding-left:6mm}#TOC li{margin-bottom:2.2mm}#TOC li ul{margin:1mm 0 2mm;font-size:8.8pt}main{padding:0}main>h1:first-child{font-size:23pt;margin-top:3mm;break-before:auto}h2{font-size:21pt;margin:0 0 6mm;padding-top:4mm;border-top:1mm solid var(--purple);break-before:page}h3{font-size:13pt;margin:6mm 0 3mm}h4{font-size:11pt}h1,h2,h3,h4{break-after:avoid}p,li{orphans:3;widows:3}p,ul,ol,dl,blockquote,pre,table{margin-bottom:3.8mm}li{margin:1.4mm 0}table{font-size:8.7pt;line-height:1.42;break-inside:auto}th,td{padding:2.5mm 3mm}thead{display:table-header-group}tr{break-inside:avoid}pre{font-size:8.4pt;line-height:1.45;padding:3.5mm 4mm;border-radius:2mm;break-inside:avoid}blockquote{padding:4mm 5mm;break-inside:avoid}svg{width:100%;max-height:70mm;height:auto;break-inside:avoid}img{max-height:70mm;object-fit:contain;break-inside:avoid;border-radius:2mm}a{color:#164c9f;text-decoration:none}main a[href^="https://"]{overflow-wrap:anywhere}.doc-footer{margin-top:9mm;padding:5mm 0;background:none;border-top:1px solid var(--line);font-size:8pt;color:#596477}.doc-footer a[href="#inicio"]{display:none}.footnotes{font-size:8.5pt}}
 </style>
 </head>
@@ -18,59 +18,190 @@ html{scroll-behavior:auto}body{background:#fff;font-size:10.2pt;line-height:1.54
 <div class="document">
 <header class="cover" id="inicio">
 <div class="brand"><span class="brand-mark" aria-hidden="true">L</span>LABGUARD</div>
-<p class="eyebrow">Laboratório escolar · Guia da interface 2.2.0</p>
+<p class="eyebrow">Laboratório escolar · Guia da interface 2.3.0</p>
 <h1>Manual do<br>usuário</h1>
 <p class="subtitle">Comece pela rede existente. Consulte dispositivos, conecte um controlador compatível e acompanhe sites e ações em quatro telas.</p>
-<div class="cover-meta"><span>Versão 2.2.0</span><span>Observação como padrão</span><span>7 de novembro de 2026</span></div>
+<div class="cover-meta"><span>Versão 2.3.0</span><span>Observação como padrão</span><span>9 de novembro de 2026</span></div>
 </header>
 <div class="reading-note"><a href="Manual_LabGuard_2.pdf"><strong>Baixar manual em PDF</strong></a> · <strong>Como usar:</strong> escolha um capítulo no sumário. Este arquivo funciona sem conexão à internet; os links externos precisam de acesso à rede. Para imprimir ou salvar em PDF, use <strong>Ctrl+P</strong> e papel A4.</div>
 <nav id="TOC" role="doc-toc" aria-label="Sumário">
 <h2>Sumário</h2>
 <ul>
+<li><a href="#labguard-2.3.0---manual-do-usuário"
+id="toc-labguard-2.3.0---manual-do-usuário">LabGuard 2.3.0 - Manual do
+usuário</a>
+<ul>
 <li><a href="#primeiro-uso-em-cinco-passos"
 id="toc-primeiro-uso-em-cinco-passos">1. Primeiro uso em cinco
-passos</a></li>
+passos</a>
+<ul>
+<li><a href="#antes-de-uma-aula" id="toc-antes-de-uma-aula">Antes de uma
+aula</a></li>
+</ul></li>
 <li><a href="#escolher-o-modo-certo" id="toc-escolher-o-modo-certo">2.
-Escolher o modo certo</a></li>
+Escolher o modo certo</a>
+<ul>
+<li><a href="#observação-é-o-padrão"
+id="toc-observação-é-o-padrão">Observação é o padrão</a></li>
+<li><a href="#vivo-e-outras-marcas" id="toc-vivo-e-outras-marcas">Vivo e
+outras marcas</a></li>
+</ul></li>
 <li><a href="#conhecer-as-quatro-telas"
-id="toc-conhecer-as-quatro-telas">3. Conhecer as quatro telas</a></li>
+id="toc-conhecer-as-quatro-telas">3. Conhecer as quatro telas</a>
+<ul>
+<li><a href="#ler-a-identificação" id="toc-ler-a-identificação">Ler a
+identificação</a></li>
+<li><a href="#ação-indisponível" id="toc-ação-indisponível">Ação
+indisponível</a></li>
+</ul></li>
 <li><a href="#conectar-um-mikrotik-existente"
 id="toc-conectar-um-mikrotik-existente">4. Conectar um MikroTik
-existente</a></li>
+existente</a>
+<ul>
+<li><a href="#certificado-e-alcance"
+id="toc-certificado-e-alcance">Certificado e alcance</a></li>
+</ul></li>
 <li><a href="#habilitar-controle-corretamente"
 id="toc-habilitar-controle-corretamente">5. Habilitar controle
-corretamente</a></li>
+corretamente</a>
+<ul>
+<li><a href="#dns-do-laboratório" id="toc-dns-do-laboratório">DNS do
+laboratório</a></li>
+</ul></li>
 <li><a href="#dispositivos-consultar-e-controlar"
 id="toc-dispositivos-consultar-e-controlar">6. Dispositivos: consultar e
-controlar</a></li>
+controlar</a>
+<ul>
+<li><a href="#consultar-primeiro" id="toc-consultar-primeiro">Consultar
+primeiro</a></li>
+<li><a href="#bloquear-e-desbloquear-ip"
+id="toc-bloquear-e-desbloquear-ip">Bloquear e desbloquear IP</a></li>
+<li><a href="#ip-mac-e-proteção" id="toc-ip-mac-e-proteção">IP, MAC e
+proteção</a></li>
+</ul></li>
 <li><a href="#sites-jogos-e-serviços-de-ia"
 id="toc-sites-jogos-e-serviços-de-ia">7. Sites, jogos e serviços de
-IA</a></li>
+IA</a>
+<ul>
+<li><a href="#banco-de-sites" id="toc-banco-de-sites">Banco de
+sites</a></li>
+<li><a href="#perfil-de-ia" id="toc-perfil-de-ia">Perfil de IA</a></li>
+<li><a href="#testar-um-domínio" id="toc-testar-um-domínio">Testar um
+domínio</a></li>
+</ul></li>
 <li><a href="#atividade-interpretar-os-registros"
 id="toc-atividade-interpretar-os-registros">8. Atividade: interpretar os
-registros</a></li>
+registros</a>
+<ul>
+<li><a href="#observação-não-intercepta-a-rede"
+id="toc-observação-não-intercepta-a-rede">Observação não intercepta a
+rede</a></li>
+<li><a href="#cache-não-é-histórico-por-aluno"
+id="toc-cache-não-é-histórico-por-aluno">Cache não é histórico por
+aluno</a></li>
+</ul></li>
 <li><a href="#programas-e-avisos-nas-estações"
 id="toc-programas-e-avisos-nas-estações">9. Programas e avisos nas
-estações</a></li>
+estações</a>
+<ul>
+<li><a href="#consultar-e-avisar" id="toc-consultar-e-avisar">Consultar
+e avisar</a></li>
+<li><a href="#remover-uma-instalação-suportada"
+id="toc-remover-uma-instalação-suportada">Remover uma instalação
+suportada</a></li>
+</ul></li>
 <li><a href="#mapa-relatórios-e-outros-equipamentos"
 id="toc-mapa-relatórios-e-outros-equipamentos">10. Mapa, relatórios e
-outros equipamentos</a></li>
+outros equipamentos</a>
+<ul>
+<li><a href="#mapa-e-relatórios" id="toc-mapa-e-relatórios">Mapa e
+relatórios</a></li>
+<li><a href="#perfis-de-equipamentos"
+id="toc-perfis-de-equipamentos">Perfis de equipamentos</a></li>
+</ul></li>
 <li><a href="#servidor-administrativo-e-legado"
 id="toc-servidor-administrativo-e-legado">11. Servidor administrativo e
-legado</a></li>
+legado</a>
+<ul>
+<li><a href="#servidor-administrativo"
+id="toc-servidor-administrativo">Servidor administrativo</a></li>
+<li><a href="#gateway-existente-é-opcional"
+id="toc-gateway-existente-é-opcional">Gateway existente é
+opcional</a></li>
+</ul></li>
 <li><a href="#erro-de-identificacao" id="toc-erro-de-identificacao">12.
-Erro de identificação: passo a passo</a></li>
+Erro de identificação: passo a passo</a>
+<ul>
+<li><a href="#abrir-o-assistente" id="toc-abrir-o-assistente">Abrir o
+assistente</a></li>
+<li><a href="#conferir-ip-e-rota" id="toc-conferir-ip-e-rota">Conferir
+IP e rota</a></li>
+<li><a href="#poucas-máquinas-ou-mac-vazio"
+id="toc-poucas-máquinas-ou-mac-vazio">Poucas máquinas ou MAC
+vazio</a></li>
+</ul></li>
 <li><a href="#modelo-desconhecido-e-falha-na-api"
 id="toc-modelo-desconhecido-e-falha-na-api">13. Modelo desconhecido e
-falha na API</a></li>
+falha na API</a>
+<ul>
+<li><a href="#confirmar-o-equipamento"
+id="toc-confirmar-o-equipamento">Confirmar o equipamento</a></li>
+<li><a href="#resolver-a-conexão-administrativa"
+id="toc-resolver-a-conexão-administrativa">Resolver a conexão
+administrativa</a></li>
+</ul></li>
 <li><a href="#teste-de-aceitação-e-suporte"
 id="toc-teste-de-aceitação-e-suporte">14. Teste de aceitação e
-suporte</a></li>
+suporte</a>
+<ul>
+<li><a href="#teste-com-uma-única-máquina"
+id="toc-teste-com-uma-única-máquina">Teste com uma única
+máquina</a></li>
+<li><a href="#referências-e-suporte"
+id="toc-referências-e-suporte">Referências e suporte</a></li>
+</ul></li>
 <li><a href="#atualizacoes-e-inicio" id="toc-atualizacoes-e-inicio">15.
-Atualizações e início automático</a></li>
+Atualizações e início automático</a>
+<ul>
+<li><a href="#atualizar-sem-interromper-a-aula"
+id="toc-atualizar-sem-interromper-a-aula">Atualizar sem interromper a
+aula</a></li>
+<li><a href="#lembrar-um-acesso-ao-roteador"
+id="toc-lembrar-um-acesso-ao-roteador">Lembrar um acesso ao
+roteador</a></li>
+</ul></li>
+<li><a href="#vivo-e-switch-simples" id="toc-vivo-e-switch-simples">16.
+Vivo e switch não gerenciável</a>
+<ul>
+<li><a href="#por-que-aparecia-somente-visualização"
+id="toc-por-que-aparecia-somente-visualização">Por que aparecia somente
+visualização?</a></li>
+<li><a href="#configurar-sem-trocar-os-cabos"
+id="toc-configurar-sem-trocar-os-cabos">Configurar sem trocar os
+cabos</a></li>
+<li><a href="#confirmar-uma-estação-antes-de-expandir"
+id="toc-confirmar-uma-estação-antes-de-expandir">Confirmar uma estação
+antes de expandir</a></li>
+<li><a href="#aplicar-sites-jogos-e-ia"
+id="toc-aplicar-sites-jogos-e-ia">Aplicar sites, jogos e IA</a></li>
+<li><a href="#parar-sem-interromper-a-escola"
+id="toc-parar-sem-interromper-a-escola">Parar sem interromper a
+escola</a></li>
+</ul></li>
+</ul></li>
 </ul>
 </nav>
 <main id="conteudo">
+<h1 id="labguard-2.3.0---manual-do-usuário">LabGuard 2.3.0 - Manual do
+usuário</h1>
+<p>Começar na rede existente, conectar um controlador e conferir cada
+resultado.</p>
+<p>Edição 2.3.0 | 9 de novembro de 2026</p>
+<p>Este manual acompanha a interface 2.3.0, com identificação orientada
+pelas fontes disponíveis, preferências de início e atualização do
+aplicativo. A disponibilidade dos instaladores depende da publicação
+correspondente na página de versões. Um pacote anterior não contém
+automaticamente as funções descritas aqui.</p>
 <h2 id="primeiro-uso-em-cinco-passos">1. Primeiro uso em cinco
 passos</h2>
 <p>Na primeira abertura, o LabGuard começa em
@@ -78,7 +209,7 @@ passos</h2>
 consegue consultar. Esse primeiro contato não pede senha do roteador e
 não altera o caminho da rede.</p>
 <ol type="1">
-<li>Instale o pacote 2.2.0 na <a
+<li>Instale o pacote 2.3.0 na <a
 href="https://github.com/perabru/LabGuard/releases">página de
 versões</a>, conferindo versão e arquivo de verificação da mesma
 publicação. A primeira migração da 2.1 ou anterior é manual para obter o
@@ -94,9 +225,12 @@ consultar os dados locais.</li>
 <li>Abra <strong>Dispositivos</strong> e confira os endereços
 disponíveis. A lista reúne evidências do sistema; não garante descobrir
 todas as máquinas ligadas ao switch.</li>
-<li>Abra <strong>Sites → Banco de sites</strong> para organizar a
-política desejada. Cadastrar um domínio não modifica o firewall. A
-aplicação exige um controlador compatível conectado.</li>
+<li>Se usa Vivo com switch simples, escolha <strong>Sem
+MikroTik</strong> e siga o capítulo 16. Para as listas, abra
+<strong>Sites → Banco de sites</strong> para organizar a política
+desejada. Cadastrar um domínio não modifica o firewall. A aplicação
+exige uma fonte com controle: o novo filtro DNS local ou uma integração
+compatível conectada.</li>
 </ol>
 <p>Para aprender sem usar dados reais, escolha <strong>Abrir
 demonstração</strong> em Início. O modo fictício fica identificado e não
@@ -516,7 +650,7 @@ confirmação explícita. Nem todo jogo tem remoção remota. Dados locais
 podem ser afetados pelo gerenciador do sistema. Falha de rede durante a
 execução pode deixar o resultado incerto: consulte a estação antes de
 repetir.</p>
-<p>Consulte <a href="https://github.com/perabru/LabGuard/blob/main/docs/ADMINISTRACAO_REMOTA.md">Administração remota</a>
+<p>Consulte <a href="ADMINISTRACAO_REMOTA.md">Administração remota</a>
 para catálogo e permissões. As operações limitadas não exigem liberar
 execução arbitrária ou um shell root.</p>
 <h2 id="mapa-relatórios-e-outros-equipamentos">10. Mapa, relatórios e
@@ -572,15 +706,15 @@ definidas pelo instalador.</p>
 <p>O HTTP é local. Para acesso remoto, use canal administrativo
 autenticado preparado pela TI; não publique a porta 8765 diretamente na
 internet.</p>
-<p>Consulte <a href="https://github.com/perabru/LabGuard/blob/main/docs/SERVIDORES.md">Servidores</a> para instalação como
+<p>Consulte <a href="SERVIDORES.md">Servidores</a> para instalação como
 serviço e configuração completa.</p>
 <h3 id="gateway-existente-é-opcional">Gateway existente é opcional</h3>
 <p>Quem usa o agente SSH anterior pode manter o modo avançado. Ele tem
 requisitos próprios de duas interfaces, DNS/DHCP, regras e chave SSH
 preparada.</p>
 <p>Esses requisitos do legado não se aplicam ao início em Observação nem
-à consulta por API. O <a href="../manual/index.html">manual 1.4</a> e o
-<a href="../manual/Manual_LabGuard_1.4.pdf">PDF 1.4</a> permanecem como referência
+à consulta por API. O <a href="MANUAL_DO_USUARIO.md">manual 1.4</a> e o
+<a href="Manual_LabGuard_1.4.pdf">PDF 1.4</a> permanecem como referência
 desse caminho.</p>
 <h2 id="erro-de-identificacao">12. Erro de identificação: passo a
 passo</h2>
@@ -722,7 +856,7 @@ capacidades de bloqueio.</p>
 etapa realizada e modelo/firmware confirmados. Revise IPs e capturas
 antes de compartilhar. <strong>Nunca inclua senha, token, chave privada
 ou saída bruta com credenciais.</strong></p>
-<p>O <a href="https://github.com/perabru/LabGuard/blob/main/docs/DIAGNOSTICO_DA_REDE.md">guia completo de diagnóstico</a>
+<p>O <a href="DIAGNOSTICO_DA_REDE.md">guia completo de diagnóstico</a>
 detalha os comandos e cada caso do assistente.</p>
 <h2 id="teste-de-aceitação-e-suporte">14. Teste de aceitação e
 suporte</h2>
@@ -846,8 +980,89 @@ para a sessão. Nenhuma lista de sites é aplicada ao abrir. Use
 <strong>Esquecer acesso salvo</strong> para remover perfil e credencial
 do cofre e confira o resultado; a conexão atual continua ativa. O
 servidor tem configuração própria, conforme o capítulo 11.</p>
+<h2 id="vivo-e-switch-simples">16. Vivo e switch não gerenciável</h2>
+<h3 id="por-que-aparecia-somente-visualização">Por que aparecia somente
+visualização?</h3>
+<p>A Observação lê a rede do computador; não é uma conexão de controle
+com o roteador Vivo. Um switch Mercusys não gerenciável não fornece
+comandos administrativos. <strong>Não é necessário ter MikroTik para o
+novo filtro DNS</strong>, mas é necessário configurar os clientes para
+usá-lo. O programa não consegue criar uma API que o equipamento não
+oferece.</p>
+<h3 id="configurar-sem-trocar-os-cabos">Configurar sem trocar os
+cabos</h3>
+<ol type="1">
+<li>Em Início, clique <strong>Sem MikroTik</strong> ou
+<strong>Configurar filtro DNS · Vivo / switch simples</strong>.</li>
+<li>Confira o <strong>IP deste computador</strong>, a <strong>Rede
+autorizada</strong> e o <strong>DNS de saída</strong>. O IP do filtro é
+o IP do PC, não o do roteador. Uma sugestão aparece apenas quando há
+dados reais da interface. Exemplo didático: <code>192.168.15.10</code>,
+rede <code>192.168.15.0/24</code>.</li>
+<li>Combine um IP reservado/fixo com a TI. A opção <strong>Iniciar este
+filtro automaticamente ao abrir o LabGuard</strong> é opcional e salva
+após uma ativação bem-sucedida; use <strong>Salvar início</strong> para
+alterar a escolha com o filtro ativo. Marque a autorização e clique
+<strong>Iniciar filtro DNS</strong>. O programa abre UDP e TCP 53 no
+endereço escolhido e carrega apenas políticas já aplicadas. Não altera
+DHCP, firewall ou DNS das estações.</li>
+<li>Se o Vivo oferecer DNS no DHCP/LAN, anuncie o IP do LabGuard para a
+rede do laboratório. Se não oferecer, altere somente o DNS de uma
+estação de teste, preservando o IP atual. A TI pode distribuir essa
+opção por política de domínio ou administração remota já autorizada. Não
+é necessário instalar cliente LabGuard.</li>
+<li>Autorize UDP e TCP 53 no firewall do PC, somente para a rede
+necessária. No Linux, a conta/serviço também precisa de permissão para a
+porta 53. Se houver conflito, o programa não encerra o outro serviço nem
+solicita elevação automática.</li>
+</ol>
+<p>Não use um DNS público como alternativa, pois ele pode contornar o
+filtro. Para redundância, use outro resolvedor com a mesma política.
+Wi-Fi de convidados, VLANs, IPv6, VPN e DNS seguro do navegador exigem
+avaliação da TI.</p>
+<h3 id="confirmar-uma-estação-antes-de-expandir">Confirmar uma estação
+antes de expandir</h3>
+<p>Depois de iniciar, clique <strong>Atualizar instruções</strong>. Em
+outro computador, execute a consulta abaixo com o IP real do filtro:</p>
+<pre class="text"><code>nslookup -type=TXT labguard-check.invalid 192.168.15.10</code></pre>
+<p>Compare com o código <code>LabGuard-...</code> mostrado no
+assistente. Em seguida, teste sem indicar servidor, para verificar o DNS
+padrão da estação:</p>
+<pre class="text"><code>nslookup -type=TXT labguard-check.invalid</code></pre>
+<p>Se só o primeiro funciona, a estação ainda usa outro DNS. O código é
+um diagnóstico de caminho, não uma senha e não uma garantia de cobertura
+de todas as máquinas. Teste também um domínio permitido antes de ampliar
+a instalação.</p>
+<h3 id="aplicar-sites-jogos-e-ia">Aplicar sites, jogos e IA</h3>
+<p>Em <strong>Sites</strong>, cadastre um domínio, por exemplo
+<code>roblox.com</code>. O filtro cobre esse domínio e subdomínios nas
+consultas que recebe; outros serviços e CDNs podem exigir entradas
+adicionais. No <strong>Banco de sites</strong>, organize listas, prepare
+o catálogo de IA e aplique explicitamente. O botão de perfil global de
+IA pode ficar desabilitado: neste modo, a aplicação é pelo banco de
+domínios.</p>
+<p>Na estação configurada, teste <code>nslookup roblox.com</code>.
+<strong>Atividade</strong> mostra somente consultas recebidas e
+distingue bloqueios confirmados de falhas do DNS de saída. Consultas não
+comprovam visitas nem revelam conteúdo HTTPS. Um roteador que encaminha
+DNS em nome dos clientes pode ocultar os IPs individuais.</p>
+<p>Este modo não corta internet por IP/MAC, controla portas de switch ou
+remove jogos. Por isso esses controles permanecem desabilitados. Cache,
+aplicações com IP embutido, IA local, VPN e DoH não são eliminados por
+cadastrar um domínio.</p>
+<h3 id="parar-sem-interromper-a-escola">Parar sem interromper a
+escola</h3>
+<p>O PC e o aplicativo precisam continuar ligados para responder aos
+clientes. Antes de fechar, desconectar ou trocar a fonte, restaure o DNS
+anterior nas estações ou no DHCP. O programa avisa antes de parar; não
+muda a rede escondido para compensar um computador desligado.</p>
+<p>Para instruções específicas de erro, configuração de servidor e
+referências, consulte <a
+href="https://github.com/perabru/LabGuard/blob/main/docs/VIVO_MERCUSYS.md">Vivo
++ Mercusys</a>. O teste de laboratório do pacote usa somente loopback; o
+ambiente do colégio ainda precisa de homologação.</p>
 </main>
-<footer class="doc-footer"><span>LabGuard 2.2.0 · Manual do usuário · Consulte a validação da versão antes da implantação.</span><a href="#inicio">Voltar ao início ↑</a></footer>
+<footer class="doc-footer"><span>LabGuard 2.3.0 · Manual do usuário · Consulte a validação da versão antes da implantação.</span><a href="#inicio">Voltar ao início ↑</a></footer>
 </div>
 </body>
 </html>
