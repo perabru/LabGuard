@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#462389">
+  <title>LabGuard Cliente 1.1.0 | Guia da estação Windows</title>
+  <meta name="description" content="Instale a proteção no PC do aluno, gerencie 831 domínios e confira o funcionamento ao iniciar o Windows.">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="guia.css">
+</head>
+<body>
+  <a class="skip" href="#conteudo">Ir ao conteúdo</a>
+  <header class="top"><div class="wrap top-inner">
+    <a class="brand" href="../"><img src="../assets/favicon.svg" alt="" width="31" height="35"><span>LabGuard</span></a>
+    <a class="back" href="../">Voltar ao site <span aria-hidden="true">↗</span></a>
+  </div></header>
+  <main id="conteudo">
+    <section class="hero"><div class="wrap hero-inner">
+      <div>
+        <p class="platform">Cliente 1.1.0 <span> / </span> Windows 10 e 11 · 64 bits</p>
+        <h1>Proteção no PC<br>do aluno.</h1>
+        <p class="lead">O LabGuard Cliente bloqueia domínios e controla jogos na própria estação, inclusive quando o PC da TI está desligado.</p>
+        <div class="actions">
+          <a class="cta" href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.1.0/LabGuardCliente.exe"><span aria-hidden="true">↓</span> Baixar cliente Windows</a>
+          <a class="pdf" href="Guia_Rapido_LabGuard_Cliente.pdf">Guia em PDF <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+      <figure class="preview">
+        <a href="catalogo.webp" aria-label="Ampliar a tela do banco de sites"><img src="catalogo.webp" width="790" height="550" alt="Aba Banco de sites do cliente com o filtro Roblox aplicado e os domínios encontrados."></a>
+        <figcaption>Banco de sites antes da instalação <span>Ampliar na imagem</span></figcaption>
+      </figure>
+    </div></section>
+    <div class="wrap layout">
+      <aside class="nav"><nav aria-label="Tópicos do guia">
+        <p>Nesta página</p>
+        <a href="#instalar">Instalar e ativar</a>
+        <a href="#catalogo">Banco de sites</a>
+        <a href="#verificar">Conferir a proteção</a>
+        <a href="#remover">Desinstalar</a>
+        <a href="#arquivos">Arquivos da versão</a>
+      </nav></aside>
+      <div class="contents">
+        <section id="instalar" class="section">
+          <h2>Instalar e ativar</h2>
+          <p>Comece por uma máquina piloto. Use uma conta administrativa da TI na instalação e uma conta padrão para o aluno.</p>
+          <ol class="steps">
+            <li>Abra o <strong>LabGuardCliente.exe</strong> e confirme a autorização do Windows. Guarde essa cópia para administrar a estação.</li>
+            <li>Em <strong>Sites</strong>, escolha <strong>Bloquear os listados</strong> para usar o catálogo. Em uma aula de navegação restrita, use <strong>Permitir só os listados</strong> e inclua os domínios de login e dos materiais que a turma precisa.</li>
+            <li>Em <strong>Jogos</strong>, revise os títulos. A opção <strong>Desinstalar o Roblox identificado</strong> vem marcada. Faça backup antes de autorizar a remoção de um jogo com dados locais.</li>
+            <li>Clique em <strong>Instalar e proteger agora</strong> e confirme. A tarefa é iniciada com o computador ligado e volta a iniciar a cada boot. Depois de conferir o estado, a TI pode fechar a janela.</li>
+          </ol>
+          <details><summary>Como o cliente trata o Roblox e o Minecraft?</summary><p>O cliente verifica as edições reconhecidas do Roblox da Microsoft Store. Para o Roblox clássico instalado no perfil do aluno, tenta usar o desinstalador registrado e assinado pelo fabricante na entrada do usuário. Instalações desconhecidas podem exigir remoção pela TI. A opção de remoção do Minecraft da Store precisa ser marcada separadamente e pode apagar mundos locais.</p></details>
+        </section>
+        <section id="catalogo" class="section">
+          <h2>Banco de sites</h2>
+          <p>A instalação já inclui <strong>831 domínios</strong> em seis categorias com sites. A TI pode usar a categoria <strong>Outros</strong> para novos cadastros.</p>
+          <dl class="categories" aria-label="Domínios iniciais por categoria">
+            <div><dt>Jogos</dt><dd>209</dd></div><div><dt>Roblox</dt><dd>40</dd></div>
+            <div><dt>Minecraft</dt><dd>23</dd></div><div><dt>Adultos</dt><dd>220</dd></div>
+            <div><dt>Apostas</dt><dd>300</dd></div><div><dt>IA</dt><dd>39</dd></div>
+          </dl>
+          <ul class="plain">
+            <li><strong>Incluir um site.</strong> Abra <strong>Banco de sites → Novo</strong>, digite o domínio sem <code>https://</code>, escolha a categoria, marque <strong>Ativo para bloqueio</strong> e salve.</li>
+            <li><strong>Alterar a lista.</strong> Pesquise um domínio para editar ou excluir. Para suspender uma categoria inteira, selecione-a no filtro e clique em <strong>Pausar categoria</strong>. Use <strong>Ativar categoria</strong> para retomar.</li>
+            <li><strong>Importar vários domínios.</strong> Use <strong>Exportar CSV</strong> para obter o formato. No arquivo, mantenha as colunas <code>dominio,categoria,ativo</code>. Em <strong>Importar CSV</strong>, confira a prévia antes de confirmar.</li>
+          </ul>
+          <p class="note">As alterações valem para a estação em que foram salvas. O cliente verifica o banco durante a execução. O limite é de 10.000 cadastros e 975 domínios ativos distintos, contando os bloqueios adicionais da política.</p>
+        </section>
+        <section id="verificar" class="section">
+          <h2>Conferir a proteção</h2>
+          <ol class="steps">
+            <li>Abra <strong>Estação → Atualizar estado</strong>. Confira se a verificação é recente e consulte <strong>Detalhes técnicos</strong> em caso de pendência. Para solicitar o início de uma instalação existente, use <strong>Ativar agora</strong>.</li>
+            <li>Na conta padrão do aluno, feche e abra o Edge, Chrome ou Firefox. Teste um domínio ativo, como <code>roblox.com</code>, e um site permitido pela escola. No modo restrito, confira também o login e os materiais da aula.</li>
+            <li>Após o próximo reinício do Windows, confira novamente o horário do registro em <strong>Estação</strong>. A TI pode localizar a tarefa <strong>LabGuardCliente</strong> no Agendador de Tarefas.</li>
+          </ol>
+          <p class="note">O cliente trabalha em segundo plano. Avisos do navegador ao bloquear uma página e telas do desinstalador do fabricante podem aparecer. Aplicativos com VPN ou DNS próprio podem exigir políticas adicionais da escola.</p>
+        </section>
+        <section id="remover" class="section">
+          <h2>Desinstalar</h2>
+          <p>Em <strong>Banco de sites → Exportar CSV</strong>, salve os cadastros que deseja conservar e anote quais categorias estavam pausadas. Abra a cópia baixada como administrador e selecione <strong>Estação → Desinstalar cliente</strong>.</p>
+          <p>A remoção desfaz as regras gerenciadas e remove o banco local. Para voltar a usar um jogo desinstalado, reinstale-o e restaure os dados a partir do backup da escola.</p>
+        </section>
+        <section id="arquivos" class="section">
+          <h2>Arquivos da versão</h2>
+          <div class="files">
+            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.1.0/LabGuardCliente.exe"><span><strong>Aplicativo Windows</strong><small>Executável com Python embutido</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.1.0/labguard_cliente.py"><span><strong>Código em Python</strong><small>Arquivo único para a equipe de TI</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.1.0/LabGuard-Catalogo.sqlite3"><span><strong>Catálogo SQLite</strong><small>Cópia para consulta dos 831 domínios já incluídos no aplicativo</small></span><span aria-hidden="true">↓</span></a>
+            <a href="Guia_Rapido_LabGuard_Cliente.pdf"><span><strong>Guia rápido em PDF</strong><small>Instruções para imprimir ou usar sem internet</small></span><span aria-hidden="true">↗</span></a>
+          </div>
+          <a class="github" href="https://github.com/perabru/LabGuard/releases/tag/cliente-v1.1.0">Ver a versão e as somas SHA-256 no GitHub <span aria-hidden="true">↗</span></a>
+        </section>
+      </div>
+    </div>
+  </main>
+  <footer><div class="wrap"><span>LabGuard Cliente · Guia da TI</span><a href="../">Site do LabGuard</a></div></footer>
+</body>
+</html>

@@ -8,6 +8,10 @@ Painel em Python para conhecer a rede do laboratório e administrar os equipamen
 
 [Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.4](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
 
+## Cliente Windows para o computador do aluno
+
+Instale a proteção diretamente na estação Windows para que ela comece na mesma sessão e volte a cada boot. A TI gerencia um banco SQLite de 831 domínios, o modo de sites permitidos e o controle local de jogos. A edição da estação funciona com o painel da TI desligado. [Baixar o cliente, a fonte Python e o catálogo](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.1.0) · [Guia rápido do cliente](https://perabru.github.io/LabGuard/cliente/) · [Guia rápido em PDF](https://perabru.github.io/LabGuard/cliente/Guia_Rapido_LabGuard_Cliente.pdf) · [Instalação e uso](client/README.md).
+
 ## Vivo + switch Mercusys não gerenciável
 
 Abra **Configurar → 1. Ligar filtro**. O computador passa a responder DNS UDP/TCP e a filtrar os domínios aplicados. É necessário apontar as estações para esse DNS, pelo DHCP/LAN do Vivo se o modelo permitir, ou na configuração das estações. O switch continua no lugar e não precisa de configuração.
