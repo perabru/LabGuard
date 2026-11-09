@@ -94,6 +94,13 @@ class GuiTests(unittest.TestCase):
         connect.assert_not_called()
         self.assertIn("protegido", w.status.set.call_args.args[0])
 
+    def test_changing_target_discards_pending_password_and_previous_evidence(self):
+        w = self.window
+        w._reset_results()
+        w.secret.set.assert_called_once_with("")
+        for label in (w.direct, w.default, w.blocked):
+            label.set.assert_called_once_with("Aguardando teste")
+
     def test_blank_password_does_not_send_request_or_display_dns_in_progress(self):
         w = self.window
         with patch("labguard.station_dns_gui.create_session") as login:

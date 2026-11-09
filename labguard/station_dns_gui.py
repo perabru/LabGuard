@@ -194,6 +194,7 @@ class StationDNSWindow(tk.Toplevel):
             self._buttons()
 
     def _reset_results(self):
+        self.secret.set("")
         self.port_status.set("Teste TCP 5986 a partir deste PC, sem usar a conta da estação.")
         self.direct.set("Aguardando teste")
         self.default.set("Aguardando teste")
@@ -410,7 +411,6 @@ class StationDNSWindow(tk.Toplevel):
         if self._session is not None:
             self._session.close()
         self._session = self._api = self._bound = self._preview = None
-        self.secret.set("")
         self._reset_results()
         self._buttons()
 
