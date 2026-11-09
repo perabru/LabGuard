@@ -66,7 +66,7 @@ def main():
     if os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted" or os.environ.get("RUNNER_OS") != "Windows":
         raise SystemExit("Este ensaio é exclusivo do Windows hospedado pelo GitHub.")
     parser = argparse.ArgumentParser()
-    parser.add_argument("state", choices=("protegido", "restaurado"))
+    parser.add_argument("state", choices=("protegido", "permitidos", "restaurado"))
     state = parser.parse_args().state
     apps = {
         "Chrome": Path("Google/Chrome/Application/chrome.exe"),
@@ -80,6 +80,8 @@ def main():
                 executable = browser_binary(product, relative_path)
                 navigate(server, product, executable, "aula.labguard.test", expected=True)
                 navigate(server, product, executable, "sub.jogo.labguard.test", expected=state == "restaurado")
+                if state == "permitidos":
+                    navigate(server, product, executable, "fora.labguard.test", expected=False)
         finally:
             server.shutdown()
 

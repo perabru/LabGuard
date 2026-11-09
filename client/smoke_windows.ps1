@@ -195,6 +195,17 @@ with sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri() + "?mode=ro", uri=True) 
     if ($domain -notin @(Get-RegistryStrings $edge) -or $sentinel -notin @(Get-RegistryStrings $edge)) {
         throw 'A troca do catálogo alterou a regra personalizada ou a regra do administrador anterior.'
     }
+    $fixture.catalog_enabled = $false
+    $fixture.mode = 'permitidos'
+    $fixture.allowed_domains = @('aula.labguard.test')
+    $fixture | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $withBank -Encoding utf8NoBOM
+    Invoke-Client @('politica', '--politica', $withBank, '--sim')
+    Wait-Until {
+        ('*' -in @(Get-RegistryStrings $edge)) -and ('*' -in @(Get-RegistryStrings $chrome)) -and
+        ('<all_urls>' -in @(Get-RegistryStrings $firefox))
+    } 'Não foi possível ativar o modo de sites permitidos.'
+    python "$PSScriptRoot/smoke_browser.py" permitidos
+    if ($LASTEXITCODE -ne 0) { throw 'O modo de permitidos falhou na navegação local.' }
     Write-Output 'Conferidos SQLite local, seis categorias, aplicação e remoção das regras sem reiniciar a estação.'
     Invoke-Client @('remover', '--sim')
     $installStarted = $false

@@ -1,6 +1,7 @@
 """Offline tests for the station catalog, with isolated SQLite databases."""
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from contextlib import closing
 import sqlite3
 import tempfile
 import threading
@@ -40,7 +41,7 @@ class ClientCatalogTests(unittest.TestCase):
         self.assertEqual(a.search('%'), [])
         self.assertEqual(len(a.search(limit=2, offset=2)), 2)
         self.assertEqual(a.search(category='roblox')[0]['source'], 'escola')
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             self.assertEqual(db.execute('pragma user_version').fetchone()[0], 1)
             self.assertTrue(db.execute("pragma index_list('domains')").fetchall())
         self.assertFalse(self.path.with_name('banco.sqlite3-wal').exists())
@@ -159,12 +160,12 @@ class ClientCatalogTests(unittest.TestCase):
             self.assertEqual(b.notices()['distribuicao'], 'Source X\nMIT\nText of MIT license')
             self.assertFalse(b.search('ai.example')[0]['effective'])
         # Exported single SQLite DB includes the full license even offline.
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             self.assertEqual(db.execute('SELECT count(*) FROM catalog_notices').fetchone()[0], 1)
 
     def test_unknown_db_does_not_get_modified(self):
         path=Path(self.tmp.name)/'else.sqlite3'
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db, db:
             db.execute('CREATE TABLE private_data(item TEXT)')
         data=path.read_bytes()
         with self.assertRaises(ValueError):

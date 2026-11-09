@@ -154,3 +154,12 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual((self.dir/'banco.sqlite3').read_bytes(),b'policy-content')
         self.assertFalse((self.dir/'parar.flag').exists())
         self.assertIn(('/Run','/TN',client._LC_NAME),[call.args for call in client._lc_schtasks.call_args_list])
+
+    def test_explicit_activation_recovers_disabled_owned_task(self):
+        self.upgrade_fixture()
+        task={'xml':client._lc_task_xml(self.dir,self.record),'state':1}
+        with patch.object(client,'_lc_task',return_value=task):
+            client.install_client(lambda d:None)
+        actions=[c.args for c in client._lc_schtasks.call_args_list]
+        self.assertIn(('/Change','/TN',client._LC_NAME,'/ENABLE'),actions)
+        self.assertEqual(actions[-1],('/Run','/TN',client._LC_NAME))

@@ -1875,7 +1875,7 @@ def install_client(initialize):
         run_command=_lc_run_string(directory,record)
         if run is not None and run!=run_command:
             raise RuntimeError('A entrada de inicialização pertence a outro programa.')
-        created_task=created_run=replaced=False
+        created_task=created_run=replaced=enabled_task=False
         old_task_stopped=False
         dest=directory/record['copy']
         backup=directory/_LC_PREVIOUS
@@ -1907,11 +1907,17 @@ def install_client(initialize):
                     created_task=True
                 finally:
                     xml.unlink(missing_ok=True)
+            elif task['state']==1:
+                # An explicit Instalar/Ativar restores an owned task disabled by TI.
+                _lc_schtasks('/Change','/TN',_LC_NAME,'/ENABLE')
+                enabled_task=True
             if run is None:
                 _lc_user_start(run_command)
                 created_run=True
             _lc_schtasks('/Run','/TN',_LC_NAME)
         except Exception:
+            if enabled_task:
+                _lc_schtasks('/Change','/TN',_LC_NAME,'/DISABLE')
             if created_task:
                 _lc_schtasks('/Delete','/F','/TN',_LC_NAME)
             if created_run:
@@ -1924,7 +1930,7 @@ def install_client(initialize):
                     _lc_write_record(directory,existing)
                 if old_task_stopped:
                     (directory/'parar.flag').unlink(missing_ok=True)
-                    if task is not None:
+                    if task is not None and task['state']!=1:
                         _lc_schtasks('/Run','/TN',_LC_NAME)
             if fresh:
                 for name in _LC_KNOWN:
@@ -3399,7 +3405,7 @@ def perform_install(policy):
                 _atomic_json(config, accepted)
                 _atomic_json(journal, {})
             db = ClientCatalog(directory / "banco.sqlite3")
-            db.ensure()
+            db.ensure(extra_domains=accepted["domains"] if accepted["catalog_enabled"] else ())
             _effective_domains(accepted, db)
     return install_client(initialize)
 
