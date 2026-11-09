@@ -25,7 +25,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "2.3.0"
+  LABGUARD_VERSION: "2.4.0"
 
 jobs:
   test:
@@ -74,7 +74,7 @@ jobs:
       - name: Testar componentes compatíveis com Windows
         shell: pwsh
         run: |
-          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_updater.py", "test_preferences.py", "test_credential_store.py", "test_update_manifest.py", "test_local_dns.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_updater.py", "test_preferences.py", "test_credential_store.py", "test_update_manifest.py", "test_local_dns.py", "test_simple_setup.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
           foreach ($pattern in $patterns) {
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
@@ -91,7 +91,7 @@ jobs:
       - name: Gerar painel e servidor Windows
         shell: pwsh
         run: ./scripts/build_windows.ps1 -Version $env:LABGUARD_VERSION
-      - name: Validar atualização real isolada da 2.2 para a 2.3
+      - name: Validar atualização real isolada da 2.3 para a 2.4
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -99,7 +99,7 @@ jobs:
         run: |
           $oldDirectory = Join-Path $env:RUNNER_TEMP "LabGuardPreviousRelease"
           New-Item -ItemType Directory -Path $oldDirectory | Out-Null
-          gh release download v2.2.0 --pattern LabGuard-Setup.exe --dir $oldDirectory
+          gh release download v2.3.0 --pattern LabGuard-Setup.exe --dir $oldDirectory
           if ($LASTEXITCODE -ne 0) { throw "Não foi possível obter o instalador anterior para validação." }
           $oldSetup = Join-Path $oldDirectory "LabGuard-Setup.exe"
           $installDir = Join-Path $env:LOCALAPPDATA "LabGuardUpdateSmoke\Installed App"
@@ -269,7 +269,7 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          LabGuard 2.3.0: filtro DNS local para Vivo e switch não gerenciável, sem MikroTik obrigatório.
+          LabGuard 2.4.0: três ações para configurar, gerenciar sites e testar; assistente DNS em três etapas para Vivo e switch simples.
 
           Novo botão Sem MikroTik e assistente de IP, rede autorizada, distribuição do DNS e verificação por código TXT. O próprio computador atende DNS UDP/TCP e filtra os domínios aplicados pelo banco de sites. Somente consultas recebidas são registradas; não há inspeção de HTTPS nem garantia de cobertura de toda a rede.
 
@@ -277,6 +277,6 @@ jobs:
 
           O novo modo não corta internet por IP/MAC nem controla portas de switch não gerenciável. A integração direta RouterOS e o gateway anterior continuam opcionais. A versão preserva atualização Windows por usuário, credenciais no cofre e autorização explícita.
 
-          Os pacotes passam por testes de DNS real no loopback UDP/TCP, instaladores e serviços Windows/Linux e atualização real isolada 2.2 → 2.3. Nenhum equipamento da escola foi acessado ou homologado.
+          Os pacotes passam por testes de DNS real no loopback UDP/TCP, instaladores e serviços Windows/Linux e atualização real isolada 2.3 → 2.4. Nenhum equipamento da escola foi acessado ou homologado.
           EOF
           gh release create "$tag" ./* --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard $LABGUARD_VERSION" --notes-file /tmp/release-notes.txt --latest

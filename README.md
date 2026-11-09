@@ -1,14 +1,16 @@
-# LabGuard 2.3
+# LabGuard 2.4
+
+**Configurar → Gerenciar sites → Testar conexão.** O início mostra três ações; integrações, preferências e treinamento ficam em Opções avançadas. O assistente DNS escolhe uma interface real, orienta o DNS das estações e oferece um teste local por botão.
 
 Painel em Python para conhecer a rede do laboratório e administrar os equipamentos compatíveis que já estão nela. A nova interface reúne **Início, Dispositivos, Sites e Atividade**.
 
 **Começa em Observação real:** consulta o computador, a rota padrão e os vizinhos conhecidos, com leituras locais alternativas quando o método principal falha. O resumo indica origem, recência e limites da amostra. Para começar, não precisa trocar cabos, instalar gateway ou informar credenciais.
 
-[Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.3](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
+[Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.4](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
 
 ## Vivo + switch Mercusys não gerenciável
 
-Abra **Sem MikroTik → Configurar filtro DNS**. O computador passa a responder DNS UDP/TCP e a filtrar os domínios aplicados. É necessário apontar as estações para esse DNS, pelo DHCP/LAN do Vivo se o modelo permitir, ou na configuração das estações. O switch continua no lugar e não precisa de configuração.
+Abra **Configurar → 1. Ligar filtro**. O computador passa a responder DNS UDP/TCP e a filtrar os domínios aplicados. É necessário apontar as estações para esse DNS, pelo DHCP/LAN do Vivo se o modelo permitir, ou na configuração das estações. O switch continua no lugar e não precisa de configuração.
 
 O assistente orienta IP/rede, firewall e teste com código TXT; não altera a rede sozinho. Só consultas recebidas são registradas. Corte por IP/MAC continua indisponível nesse modo. Mantenha o PC ligado e restaure o DNS anterior antes de parar o filtro. Veja o [passo a passo completo](docs/VIVO_MERCUSYS.md).
 
@@ -73,11 +75,11 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A [versão 2.3.0 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.3.0), com filtro DNS local para Vivo e switch simples. Passaram 433 testes no Linux, 389 no Windows, DNS real UDP/TCP nos executáveis e atualização isolada 2.2 → 2.3. Consulte a [validação](docs/VALIDACAO.md) antes de homologar no colégio.
+A interface 2.4.0 concentra o uso em Configurar, Gerenciar sites e Testar conexão, com opções técnicas recolhidas e diagnóstico real UDP/TCP do filtro neste PC. Os pacotes passam pela validação nativa Windows/Linux antes da publicação; consulte a [validação](docs/VALIDACAO.md) para resultados e limites.
 
 ## Documentação e legado
 
-[Manual 2.3 em Markdown](docs/MANUAL_DO_USUARIO_V2.md) · [Administração remota](docs/ADMINISTRACAO_REMOTA.md) · [Integrações](docs/INTEGRACOES.md) · [Validação](docs/VALIDACAO.md)
+[Manual 2.4 em Markdown](docs/MANUAL_DO_USUARIO_V2.md) · [Administração remota](docs/ADMINISTRACAO_REMOTA.md) · [Integrações](docs/INTEGRACOES.md) · [Validação](docs/VALIDACAO.md)
 
 O [manual 1.4](docs/MANUAL_DO_USUARIO.md) e o [PDF 1.4](docs/Manual_LabGuard_1.4.pdf) foram preservados para o modo avançado legado. Duas interfaces e gateway Linux pertencem a esse modo; não são requisito do novo início em Observação.
 

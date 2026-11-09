@@ -149,6 +149,24 @@ def inventory_presentation(snapshot, *, stale=False, busy=False):
     return {"evidence": evidence, "state": state, "kind": kind, "next_action": next_action}
 
 
+def home_status(snapshot, *, stale=False, busy=False):
+    """Plain-language display only; this never grants a capability or permission."""
+    if snapshot.get("mode") == "demo":
+        return "Demonstração", "Dados fictícios para conhecer o programa. Configure a rede real quando estiver pronto."
+    if stale:
+        return "Atualize a conexão", "A última leitura está desatualizada. Atualize antes de alterar bloqueios."
+    if busy:
+        return "Aguarde um instante", "O LabGuard está conferindo a conexão."
+    if snapshot.get("source_type") == "local_dns":
+        service = snapshot.get("dns_service", {})
+        if service.get("service_running") is True:
+            return "Filtro ligado neste PC", "DNS: " + str(service.get("listen", "")) + ". Configure esse DNS nos computadores e teste cada estação."
+        return "Filtro parado", "Abra Configurar para conferir o endereço e iniciar o filtro."
+    if snapshot_capabilities(snapshot).get("domain_filtering"):
+        return "Conexão de controle disponível", "Gerencie os sites. As ações disponíveis seguem os recursos e a autorização desta conexão."
+    return "Vamos configurar o filtro", "Vivo e switch simples: o filtro roda neste PC. Não é necessário um MikroTik."
+
+
 def conflicted_device_ips(snapshot):
     identities, conflicts = {}, set()
     rows = snapshot.get("devices", [])
@@ -169,7 +187,7 @@ def mutation_reason(snapshot, *, capability=None, required_health=(), stale=Fals
     if busy:
         return "Aguarde a operação em andamento."
     if snapshot.get("mode") == "observation":
-        return "A observação local é somente consulta. Para Vivo e switch simples, use Sem MikroTik · Configurar filtro DNS."
+        return "A observação local é somente consulta. Para Vivo e switch simples, use Configurar · Iniciar filtro DNS."
     if snapshot.get("mode") not in {"demo", "gateway", "equipment"}:
         return "Conecte um roteador compatível antes de alterar a rede."
     if stale or age > FRESH_SECONDS:
@@ -545,8 +563,8 @@ class App(tk.Tk):
         IconBadge(header, kind="shield", color=PURPLE, tint="#EEE7FD", size=40).pack(side="left", padx=(0, 10))
         brand = tk.Frame(header, bg=PANEL); brand.pack(side="left")
         self._label(brand, "LabGuard", bg=PANEL, fg=TEXT, font=(self.font_family, 19, "bold")).pack(anchor="w")
-        self._label(brand, "CONTROLE ESCOLAR · 2.3", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
-        ActionButton(header, text="Sem MikroTik", command=self._open_dns_setup, height=38).pack(side="right")
+        self._label(brand, "CONTROLE ESCOLAR · 2.4", bg=PANEL, font=(self.font_family, 7, "bold")).pack(anchor="w")
+        ActionButton(header, text="Configurar", command=self._open_primary_setup, height=38).pack(side="right")
         ActionButton(header, text="Mapa e relatórios", command=self._open_network_map, style="Yellow.TButton", height=38).pack(side="right", padx=9)
         nav = tk.Frame(self, bg=BG, padx=23, pady=12); nav.grid(row=1, column=0, sticky="ew")
         for col, (key, name) in enumerate((("home", "Início"), ("devices", "Dispositivos"), ("sites", "Sites"), ("activity", "Atividade"))):
@@ -599,6 +617,52 @@ class App(tk.Tk):
         return body
 
     def _build_home(self, parent):
+        parent.columnconfigure(0, weight=1)
+        self._label(parent, "Controle do laboratório", fg=TEXT,
+            font=(self.font_family, 23, "bold")).grid(row=0, column=0, sticky="ew", pady=(3, 5))
+        self._label(parent, "Configure uma vez. Gerencie os sites e confira o resultado.").grid(
+            row=1, column=0, sticky="ew", pady=(0, 16))
+        status = RoundCard(parent, padding=20); status.grid(row=2, column=0, sticky="ew")
+        self.overview_title = tk.StringVar(); self.overview_hint = tk.StringVar()
+        self._label(status.body, textvariable=self.overview_title, bg=PANEL, fg=PURPLE,
+            font=(self.font_family, 16, "bold")).pack(fill="x")
+        self._label(status.body, textvariable=self.overview_hint, bg=PANEL).pack(fill="x", pady=(7, 0))
+        cards = tk.Frame(parent, bg=BG); cards.grid(row=3, column=0, sticky="ew", pady=16)
+        for n, (title, hint, action, color) in enumerate((
+            ("1. Configurar", "Escolha a rede e ligue o filtro com um passo a passo.", self._open_primary_setup, PURPLE),
+            ("2. Gerenciar sites", "Adicione bloqueios ou revise seu banco de sites e IA.", lambda:self.show_page("sites"), BLUE),
+            ("3. Testar conexão", "Verifique o filtro e veja como testar uma estação.", self._open_connection_test, AMBER))):
+            cards.columnconfigure(n, weight=1, uniform="actions")
+            card = RoundCard(cards, padding=17); card.grid(row=0, column=n, sticky="nsew", padx=(0, 12) if n<2 else 0)
+            self._label(card.body, title, bg=PANEL, fg=color, font=(self.font_family, 13, "bold")).pack(fill="x")
+            self._label(card.body, hint, bg=PANEL).pack(fill="x", pady=(9, 14))
+            ActionButton(card.body, text=("Abrir configuração", "Abrir sites", "Abrir teste")[n], command=action,
+                style="Accent.TButton" if n==0 else "TButton", height=39).pack(anchor="w")
+        links = tk.Frame(parent, bg=BG); links.grid(row=4, column=0, sticky="ew", pady=(0, 12))
+        ActionButton(links, text="Dispositivos", command=lambda:self.show_page("devices"), height=37).pack(side="left")
+        ActionButton(links, text="Mapa e relatórios", command=self._open_network_map, height=37).pack(side="left", padx=8)
+        ActionButton(links, text="Manual passo a passo", command=self._open_manual, height=37).pack(side="left")
+        self.technical_toggle = ActionButton(parent, text="Opções avançadas", command=self._toggle_technical, height=36)
+        self.technical_toggle.grid(row=5, column=0, sticky="w", pady=(3, 10))
+        self.technical_panel = tk.Frame(parent, bg=BG)
+        self.technical_panel.grid(row=6, column=0, sticky="ew"); self.technical_panel.grid_remove()
+        self._build_technical_home(self.technical_panel)
+
+    def _toggle_technical(self):
+        self._toggle_home_panel(self.technical_panel, self.technical_toggle, "Opções avançadas")
+
+    def _open_connection_test(self):
+        if getattr(self.transport, "kind", "") in {"routeros", "legacy"}:return self._open_diagnostics()
+        return self._open_dns_setup(step=2)
+
+    def _open_primary_setup(self):
+        if getattr(self.transport, "kind", "") in {"routeros", "legacy"}:
+            if not self.technical_panel.winfo_manager():self._toggle_technical()
+            if not self.admin_panel.winfo_manager():self._toggle_admin()
+            return
+        return self._open_dns_setup()
+
+    def _build_technical_home(self, parent):
         parent.columnconfigure(0, weight=3, uniform="home"); parent.columnconfigure(1, weight=2, uniform="home")
         self._label(parent, "Identifique a sua rede", fg=TEXT, font=(self.font_family, 21, "bold")).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(3, 4))
         self._label(parent, "Comece pela leitura local. Veja o que foi encontrado e qual é o próximo passo.").grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 17))
@@ -832,7 +896,9 @@ class App(tk.Tk):
             panel.grid(); button.configure(text="Fechar " + label.lower())
             self.update_idletasks()
             bounds = self.home_canvas.bbox("all")
-            if bounds:self.home_canvas.yview_moveto(max(0, panel.winfo_y()-8)/max(1, bounds[3]))
+            if bounds:
+                offset = panel.winfo_rooty() - self.home_canvas.winfo_rooty() + self.home_canvas.canvasy(0)
+                self.home_canvas.yview_moveto(max(0, offset-8)/max(1, bounds[3]))
 
     def _toggle_admin(self):
         self._toggle_home_panel(self.admin_panel, self.admin_toggle_button, "Acesso ao equipamento")
@@ -1053,6 +1119,9 @@ class App(tk.Tk):
 
     def _render_home(self):
         view = inventory_presentation(self.snapshot, stale=self._snapshot_stale, busy=self._busy)
+        if "overview_title" in self.__dict__:
+            title, hint = home_status(self.snapshot, stale=self._snapshot_stale or view["kind"] == "stale", busy=self._busy)
+            self.overview_title.set(title); self.overview_hint.set(hint)
         evidence = view["evidence"]; counts = evidence["counts"]
         mode = self.snapshot.get("mode", "observation"); stale = view["kind"] == "stale" or self._snapshot_stale
         labels = {"observation": "OBSERVAÇÃO LOCAL · somente consulta", "equipment": "ROTEADOR CONECTADO · recursos conforme a API",
@@ -1325,9 +1394,17 @@ class App(tk.Tk):
             'Clientes que usam este computador como DNS podem ficar sem navegação. '
             'Restaure o DNS anterior nas estações ou no DHCP antes de parar. Continuar?', parent=self, default='no', icon='warning')
 
-    def _open_dns_setup(self):
+    def _open_dns_setup(self, step=0):
         from .dns_gui import DNSSetupWindow
-        return DNSSetupWindow(self)
+        window = self.__dict__.get("_dns_setup_window")
+        if window is not None:
+            try:
+                if window.winfo_exists() and not window._closed:
+                    window.refresh(); window.steps.select(step); window.lift(); return window
+            except tk.TclError:pass
+        self._dns_setup_window = DNSSetupWindow(self)
+        self._dns_setup_window.steps.select(step)
+        return self._dns_setup_window
 
     def _open_manual(self):
         import webbrowser

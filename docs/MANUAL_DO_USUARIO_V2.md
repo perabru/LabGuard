@@ -1,26 +1,22 @@
-# LabGuard 2.3.0 - Manual do usuário
+# LabGuard 2.4.0 - Manual do usuário
 
 Começar na rede existente, conectar um controlador e conferir cada resultado.
 
-Edição 2.3.0 | 9 de novembro de 2026
+Edição 2.4.0 | 9 de novembro de 2026
 
-Este manual acompanha a interface 2.3.0, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
+Este manual acompanha a interface 2.4.0, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
 
-## 1. Primeiro uso em cinco passos
+## 1. Primeiro uso em três ações
 
-Na primeira abertura, o LabGuard começa em **Observação**, com informações reais que o sistema local consegue consultar. Esse primeiro contato não pede senha do roteador e não altera o caminho da rede.
+Instale o pacote 2.4.0 da [página de versões](https://github.com/perabru/LabGuard/releases) e abra o LabGuard. Na primeira abertura, a leitura começa em Observação, sem alterar a rede. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`.
 
-1. Instale o pacote 2.3.0 na [página de versões](https://github.com/perabru/LabGuard/releases), conferindo versão e arquivo de verificação da mesma publicação. A primeira migração da 2.1 ou anterior é manual para obter o atualizador; depois, siga o capítulo 15.
-2. Abra o programa. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`. No Windows, use também o inicializador do projeto. No Debian/Ubuntu, o Tk está no pacote `python3-tk`.
-3. Na tela **Início**, mantenha **Observação** e use **Identificar minha rede**. Não precisa instalar gateway Linux nem trocar cabos para consultar os dados locais.
-4. Abra **Dispositivos** e confira os endereços disponíveis. A lista reúne evidências do sistema; não garante descobrir todas as máquinas ligadas ao switch.
-5. Se usa Vivo com switch simples, escolha **Sem MikroTik** e siga o capítulo 16. Para as listas, abra **Sites → Banco de sites** para organizar a política desejada. Cadastrar um domínio não modifica o firewall. A aplicação exige uma fonte com controle: o novo filtro DNS local ou uma integração compatível conectada.
+1. **Configurar:** abra o primeiro card. Na etapa **1. Ligar filtro**, escolha a conexão, confira o IP deste PC e autorize o início. A opção de ligar ao abrir é salva somente após sucesso. Na etapa **2. Usar nos computadores**, copie o IP e configure-o como DNS pelo DHCP/LAN do Vivo, se permitido, ou em uma estação de teste. O capítulo 16 detalha IP fixo, firewall e Linux.
+2. **Gerenciar sites:** adicione um domínio ou abra o Banco de sites. Revise e aplique a lista explicitamente. Preparar o catálogo de IA apenas adiciona cadastros ao banco; ainda é necessário aplicá-los.
+3. **Testar conexão:** em **3. Testar**, use **Verificar neste PC**. Depois, execute o comando TXT em OUTRO computador e compare o código. Confira um domínio permitido, um bloqueado e as consultas em Atividade antes de expandir.
 
-Para aprender sem usar dados reais, escolha **Abrir demonstração** em Início. O modo fictício fica identificado e não altera a rede.
+O teste neste PC verifica UDP e TCP do filtro, sem confirmar o DNS das estações. O filtro alcança apenas os clientes configurados para usá-lo. Mantenha este PC ligado e restaure o DNS anterior antes de parar o serviço.
 
-### Antes de uma aula
-
-Confira o modo, a fonte e o horário da coleta. Comece com uma estação de teste. Aplique regras somente depois de confirmar que a conexão corresponde ao equipamento certo e que a capacidade desejada está disponível.
+**Dispositivos** e **Mapa e relatórios** continuam à vista. **Opções avançadas** reúne conexões administrativas, detalhes, atualizações e demonstração. Dados fictícios não preenchem configurações reais.
 
 ## 2. Escolher o modo certo
 
@@ -55,15 +51,15 @@ A marca ou operadora não define uma API universal. Um modem Vivo identificado n
 | Sites | Administrar domínios, perfil de IA e banco de sites |
 | Atividade | Consultar a amostra DNS, ações e conexões disponibilizadas |
 
-Em Início, abra **Acesso ao equipamento** para configurar uma conexão administrativa. O formulário de MikroTik pede **Endereço do roteador**, **Porta**, **Usuário**, **Senha da sessão** e **Certificado CA (opcional)**. **Autorizar alterações neste roteador** começa desmarcado.
+Em Início, abra **Opções avançadas → Acesso ao equipamento** para configurar uma conexão administrativa. O formulário de MikroTik pede **Endereço do roteador**, **Porta**, **Usuário**, **Senha da sessão** e **Certificado CA (opcional)**. **Autorizar alterações neste roteador** começa desmarcado.
 
 As opções avançadas incluem lista de interfaces WAN, rede do laboratório e IPs/MACs protegidos. Preencha com a TI antes de autorizar alterações. Esses valores delimitam as regras.
 
-**Detalhes e recursos** abre requisitos e capacidades da conexão. Esse painel e **Acesso ao equipamento** começam recolhidos. **Mapa e relatórios** e **Outros equipamentos** abrem ferramentas adicionais.
+**Opções avançadas → Detalhes e recursos** abre requisitos e capacidades da conexão. Esse painel e **Opções avançadas → Acesso ao equipamento** começam recolhidos. **Mapa e relatórios** e **Outros equipamentos** abrem ferramentas adicionais.
 
 ### Ler a identificação
 
-Em Observação, use **Identificar minha rede**. O cartão **O que foi identificado** apresenta a fonte, o estado da leitura, as contagens e o **Próximo passo** recomendado. Confira esses dados antes de interpretar a lista de dispositivos.
+Em Observação, use **Atualizar**. Em **Opções avançadas**, o cartão de identificação oferece a leitura detalhada. O cartão **O que foi identificado** apresenta a fonte, o estado da leitura, as contagens e o **Próximo passo** recomendado. Confira esses dados antes de interpretar a lista de dispositivos.
 
 Uma leitura confirmada indica resposta da fonte, com **cobertura parcial**. As contagens representam evidências de endereços e MACs, sem garantir o total físico de máquinas. A data informa quando a fonte foi consultada, não a presença de cada estação.
 
@@ -85,7 +81,7 @@ A integração usa a API REST HTTPS do **RouterOS 7**. Ela administra o roteador
 2. Em **Início → Acesso ao equipamento**, selecione **Controlar MikroTik via HTTPS**.
 3. Informe o IP literal do roteador, porta HTTPS, usuário e senha da sessão. Se necessário, selecione a CA institucional. Este adaptador não aceita nomes DNS no campo de endereço.
 4. Mantenha **Autorizar alterações neste roteador** desmarcado e clique **Conectar**.
-5. Confira a identificação e a rede. Abra **Detalhes e recursos** para verificar as capacidades antes de autorizar qualquer alteração.
+5. Confira a identificação e a rede. Abra **Opções avançadas → Detalhes e recursos** para verificar as capacidades antes de autorizar qualquer alteração.
 
 ### Certificado e alcance
 
@@ -353,7 +349,7 @@ Para suporte, informe versão, sistema, modo, modelo/firmware e categoria da fal
 
 A primeira instalação da 2.2 é manual: versões anteriores não tinham o motor de atualização. Depois, no **Windows instalado por usuário**, novas versões podem ser preparadas e aplicadas sem repetir a instalação manual.
 
-1. Abra **Detalhes e recursos → Atualizações do programa**.
+1. Abra **Opções avançadas → Detalhes e recursos → Atualizações do programa**.
 2. Mantenha a opção **Atualizações automáticas** habilitada. Use **Verificar atualização** para solicitar uma consulta.
 3. Continue usando o programa enquanto ele verifica e prepara o pacote em segundo plano.
 4. Quando a atualização estiver preparada, feche o programa normalmente. A aplicação ocorre nesse encerramento, na mesma pasta e para o mesmo usuário. O processo não fecha outros programas nem reinicia o Windows. O LabGuard permanece fechado; a próxima abertura usa a nova versão.
@@ -366,7 +362,7 @@ O pacote oficial é conferido por HTTPS, manifesto, tamanho e SHA256. Isso verif
 
 ### Lembrar um acesso ao roteador
 
-1. Peça à TI que prepare o MikroTik, a conta e o certificado do capítulo 4. Abra **Acesso ao equipamento** e preencha a conexão.
+1. Peça à TI que prepare o MikroTik, a conta e o certificado do capítulo 4. Abra **Opções avançadas → Acesso ao equipamento** e preencha a conexão.
 2. Escolha **Lembrar este acesso**. No Windows, marque **Salvar senha no cofre do Windows** se desejar persistir a credencial e **Conectar ao abrir (somente consulta)** para tentar a conexão no início.
 3. Conecte manualmente. As escolhas são salvas somente depois de uma conexão bem-sucedida.
 
@@ -383,9 +379,9 @@ A Observação lê a rede do computador; não é uma conexão de controle com o 
 
 ### Configurar sem trocar os cabos
 
-1. Em Início, clique **Sem MikroTik** ou **Configurar filtro DNS · Vivo / switch simples**.
-2. Confira o **IP deste computador**, a **Rede autorizada** e o **DNS de saída**. O IP do filtro é o IP do PC, não o do roteador. Uma sugestão aparece apenas quando há dados reais da interface. Exemplo didático: `192.168.15.10`, rede `192.168.15.0/24`.
-3. Combine um IP reservado/fixo com a TI. A opção **Iniciar este filtro automaticamente ao abrir o LabGuard** é opcional e salva após uma ativação bem-sucedida; use **Salvar início** para alterar a escolha com o filtro ativo. Marque a autorização e clique **Iniciar filtro DNS**. O programa abre UDP e TCP 53 no endereço escolhido e carrega apenas políticas já aplicadas. Não altera DHCP, firewall ou DNS das estações.
+1. Em Início, clique **Configurar**. O assistente abre as etapas **1. Ligar filtro**, **2. Usar nos computadores** e **3. Testar**.
+2. Escolha a conexão observada. Use **Ajustar IP / DNS** para conferir o **IP deste PC**, a **Rede autorizada (CIDR)** e o **DNS de saída**. O IP do filtro é o IP do PC, não o do roteador. Uma sugestão aparece apenas quando há dados reais da interface. Exemplo didático: `192.168.15.10`, rede `192.168.15.0/24`.
+3. Combine um IP reservado/fixo com a TI. A opção **Ligar este filtro ao abrir o LabGuard** é opcional e salva após uma ativação bem-sucedida; use **Salvar início automático** para alterar a escolha com o filtro ativo. Marque a autorização e clique **Iniciar filtro DNS**. O programa abre UDP e TCP 53 no endereço escolhido e carrega apenas políticas já aplicadas. Não altera DHCP, firewall ou DNS das estações.
 4. Se o Vivo oferecer DNS no DHCP/LAN, anuncie o IP do LabGuard para a rede do laboratório. Se não oferecer, altere somente o DNS de uma estação de teste, preservando o IP atual. A TI pode distribuir essa opção por política de domínio ou administração remota já autorizada. Não é necessário instalar cliente LabGuard.
 5. Autorize UDP e TCP 53 no firewall do PC, somente para a rede necessária. No Linux, a conta/serviço também precisa de permissão para a porta 53. Se houver conflito, o programa não encerra o outro serviço nem solicita elevação automática.
 
@@ -393,7 +389,9 @@ Não use um DNS público como alternativa, pois ele pode contornar o filtro. Par
 
 ### Confirmar uma estação antes de expandir
 
-Depois de iniciar, clique **Atualizar instruções**. Em outro computador, execute a consulta abaixo com o IP real do filtro:
+Abra **3. Testar** e clique **Verificar neste PC** para conferir UDP e TCP com o código desta sessão. Sucesso local não confirma acesso por outro computador. A seguir, teste uma estação.
+
+Depois de iniciar, abra **3. Testar**. Em outro computador, execute a consulta abaixo com o IP real do filtro:
 
 ```text
 nslookup -type=TXT labguard-check.invalid 192.168.15.10

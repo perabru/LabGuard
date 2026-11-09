@@ -89,6 +89,13 @@ class ControllerTransport:
                 raise ControllerError("A conexão foi encerrada. Conecte novamente.")
             return self._checked_snapshot(self.transport.request(action, **params))
 
+    def verify_dns(self):
+        """Probe only this controller's local DNS listener, never an arbitrary host."""
+        with self._lock:
+            if self._closed or self.kind != "local_dns":
+                raise ControllerError("O filtro DNS local não está conectado.")
+            return self.transport.verify_dns()
+
     def close(self):
         if self._closed:
             return

@@ -271,6 +271,28 @@ class LocalDNSTransport:
         try:self.filter.start()
         except Exception:self.database.close(); self._observation.close(); raise
 
+    def verify_dns(self):
+        """Verify UDP/TCP on our bound endpoint without testing network coverage."""
+        from dnslib import DNSRecord, QTYPE
+        with self._lock:
+            if self._closed or not self.filter.running:
+                raise DNSError('DNS_LOCAL_STATE: filtro não está ativo.')
+            results = {}
+            for name, tcp in (('udp', False), ('tcp', True)):
+                query = DNSRecord.question(CHECK_DOMAIN, 'TXT')
+                try:
+                    answer = DNSRecord.parse(query.send(self.filter.listen, self.port, tcp=tcp, timeout=2))
+                    results[name] = bool(answer.header.id == query.header.id and answer.header.qr
+                        and answer.header.rcode == 0 and len(answer.questions) == 1
+                        and answer.q == query.q and len(answer.rr) == 1
+                        and answer.rr[0].rtype == QTYPE.TXT
+                        and str(answer.rr[0].rdata).strip('"') == self.filter.check_token)
+                except Exception:
+                    # Parser errors are a failed diagnostic, never a verified listener.
+                    results[name] = False
+            return {**results, 'ok': all(results.values()), 'scope': 'this_computer',
+                    'network_scope_verified': False}
+
     def request(self, action, **params):
         with self._lock:
             if self._closed:raise DNSError('DNS_LOCAL_PORT: filtro encerrado; configure novamente.')

@@ -1,6 +1,6 @@
 # Vivo + Mercusys não gerenciável: bloquear sites sem MikroTik
 
-**Use LabGuard 2.3 ou posterior → Sem MikroTik → Configurar filtro DNS.**
+**Use LabGuard 2.4 ou posterior → Configurar → 1. Ligar filtro.**
 
 A visualização da versão anterior não era uma conexão de controle com o Vivo. Ela apenas lia interfaces, rota e vizinhos do PC. Não é necessário comprar um MikroTik para usar o novo filtro DNS. O switch simples continua ramificando a rede e não possui uma API de configuração que o LabGuard possa habilitar.
 
@@ -9,11 +9,11 @@ O novo modo executa um servidor DNS no próprio computador. Os cabos e o roteado
 ## 1. Preparar o PC do filtro
 
 1. Abra o LabGuard e aguarde a observação real.
-2. Clique **Sem MikroTik** no topo ou **Configurar filtro DNS · Vivo / switch simples** em Início.
-3. Confira **IP deste computador** e **Rede autorizada**. São o endereço e a sub-rede da interface do laboratório, não o IP do roteador. O assistente sugere apenas endereços efetivamente observados; dados de demonstração não são usados como configuração.
+2. Clique **Configurar** no topo ou no primeiro card de Início. Siga **1. Ligar filtro → 2. Usar nos computadores → 3. Testar**.
+3. Escolha a conexão e, se necessário, abra **Ajustar IP / DNS** para conferir **IP deste PC** e **Rede autorizada (CIDR)**. São o endereço e a sub-rede da interface do laboratório, não o IP do roteador. O assistente sugere apenas endereços efetivamente observados; dados de demonstração não são usados como configuração.
 4. Reserve esse IP no DHCP ou combine uma configuração fixa com a TI, fora de conflitos. Exemplo didático: PC `192.168.15.10`, rede `192.168.15.0/24`. Não copie o exemplo sem conferir sua rede.
 5. Confira **DNS de saída**. O padrão `1.1.1.1` recebe as consultas não bloqueadas; pode ser trocado pelo resolvedor IPv4 autorizado pela TI. Não aponte a saída para o próprio filtro.
-6. Se desejar, marque **Iniciar este filtro automaticamente ao abrir o LabGuard**. Essa opção é salva somente após a ativação bem-sucedida; com o filtro ativo, use **Salvar início** para alterá-la. A falha de inicialização é informada e não muda DNS nem IP do sistema.
+6. Se desejar, marque **Ligar este filtro ao abrir o LabGuard**. Essa opção é salva somente após a ativação bem-sucedida; com o filtro ativo, use **Salvar início automático** para alterá-la. A falha de inicialização é informada e não muda DNS nem IP do sistema.
 7. Marque a autorização e clique **Iniciar filtro DNS**. O programa tenta abrir **UDP e TCP 53** no IP escolhido. A lista aplicada anteriormente a esse IP/rede será carregada; organizar o banco não aplica novas regras por si só.
 
 O serviço não muda DNS, DHCP, firewall ou configurações do Vivo. Se outro processo já usa a porta, não o encerra. No Linux a conta precisa ter permissão de vincular a porta 53; a TI pode usar o servidor como serviço com `CAP_NET_BIND_SERVICE`, mantendo a interface gráfica sem root. No Windows, autorize no firewall somente o IP/rede necessários; as permissões administrativas seguem a política da escola.
@@ -30,7 +30,7 @@ Não coloque um DNS público como alternativo: o sistema pode escolhê-lo e cont
 
 ## 3. Confirmar por código, em outro computador
 
-Depois de iniciar, clique **Atualizar instruções** e anote o código `LabGuard-...` exibido.
+Depois de iniciar, abra **3. Testar**, clique **Verificar neste PC** para conferir UDP/TCP locais e anote o código `LabGuard-...` exibido.
 
 Execute, substituindo o IP pelo valor real:
 
@@ -62,7 +62,7 @@ A atividade mostra solicitações DNS recebidas, não páginas visitadas, conte�
 
 | Sintoma | Verificação |
 |---|---|
-| Continua somente visualização | Abra Sem MikroTik e inicie o filtro, com autorização; selecionar Observação não inicia DNS. |
+| Continua somente visualização | Abra Configurar e inicie o filtro, com autorização; selecionar Observação não inicia DNS. |
 | Não abre a porta 53 | Confira IP local, outro serviço DNS e permissão do sistema. O programa não encerra serviços nem eleva privilégios sozinho. |
 | Código não aparece na consulta com IP explícito | Confira se LabGuard e PC estão ligados, o IP e a rede escolhidos, firewall UDP/TCP 53 e isolamento de Wi-Fi/VLAN. |
 | Com IP funciona, sem IP não | Confira DNS do adaptador/DHCP, outros adaptadores, alternativas IPv6 e a renovação da configuração. |
