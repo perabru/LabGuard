@@ -1,4 +1,12 @@
-# Validação da versão 2.4.2
+# Validação da versão 2.4.3
+
+Em **Administrar estações → Verificar porta**, o PC da TI testa a porta TCP 5986 do endereço selecionado. Os ensaios da interface cobriram porta acessível e recusada, troca de estação, limpeza da senha e manutenção das três indicações de DNS sem confirmação após falha no login. Em loopback, o cliente WinRM fez conexões HTTPS reais para conferir recusa TCP, cadeia de confiança, nome do certificado e respostas HTTP 401 e 403. O destino utilizado foi um servidor de teste local. O acesso à estação da escola depende da configuração dela e precisa ser verificado a partir do laboratório.
+
+Os 510 testes de regressão passaram no ambiente local. Windows e Linux concluíram seus ensaios de compilação e instalação. No Windows, o instalador abriu o painel após a instalação e o ensaio de atualização passou da versão 2.4.2 para a 2.4.3. [Execução dos testes e compilação](https://github.com/perabru/LabGuard/actions/runs/42678014908)
+
+O instalador verificado tem 25.567.859 bytes. SHA-256 `9f93c66edb8ddc917ebb54cfdb98fde2c60039f47a8037bc4effa39d6ff217c2`. [Versão 2.4.3 e downloads](https://github.com/perabru/LabGuard/releases/tag/v2.4.3)
+
+## Evidência anterior da versão 2.4.2
 
 Na [versão 2.4.2](https://github.com/perabru/LabGuard/releases/tag/v2.4.2), **Proteger laboratório** aplica oito domínios de jogos e conteúdo adulto e confere as regras pela leitura do filtro ativo. O ensaio isolado usou DNS real em loopback para conferir respostas NXDOMAIN em A e AAAA, incluiu subdomínios, preservou regras existentes e verificou comportamento em falhas parciais. A escolha do DNS de saída familiar foi testada na configuração e na persistência. A classificação externa dos sites depende do provedor escolhido.
 
