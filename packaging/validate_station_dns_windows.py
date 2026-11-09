@@ -65,6 +65,12 @@ class NativeFixture(WindowsSession):
             # An accidental call to an unmocked backup command cannot reach HKLM.
             script = script.replace(registry_key, r"'LabGuardFixture:\unavailable'")
             script = script.replace(NETSH, 'Invoke-FixtureNetsh')
+            # Autoloading DnsClient while doing a real TXT lookup may import
+            # CDXML functions into this session. Use unique test command names
+            # so it can never replace the synthetic adapter reads mid-operation.
+            for native, simulated in ADAPTER_READS:
+                require(script.count(native + ' ') == 1, 'Review native adapter read: ' + native)
+                script = script.replace(native + ' ', simulated + ' ')
             require(script.count("Resolve-DnsName") == 1, "Review station lookup fixture isolation")
             script = script.replace("Resolve-DnsName", "Invoke-FixtureDns")
             script = script.replace(MARKER, FIXTURE_POWERSHELL + "\n" + DNS_FIXTURE + "\n" + MARKER)
@@ -78,12 +84,13 @@ if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -n
     throw 'Windows PowerShell 5.1 required'
 }
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+Import-Module DnsClient -ErrorAction Stop
 function Write-FixtureTrace([string]$message) {
     [IO.File]::AppendAllText($env:LABGUARD_DNS_TRACE, $message + [Environment]::NewLine)
 }
 function Write-FixtureFailure($record) {
     Write-FixtureTrace ("error=" + $record.Exception.Message + " fqid=" + $record.FullyQualifiedErrorId +
-        " at=" + $record.InvocationInfo.ScriptLineNumber + ":" + $record.InvocationInfo.Line.Trim() +
+        " at=" + $record.InvocationInfo.ScriptLineNumber + ":" + ([string]$record.InvocationInfo.Line).Trim() +
         " stack=" + $record.ScriptStackTrace)
 }
 """
@@ -150,48 +157,56 @@ function Invoke-FixtureDns {
 }
 """
 
+ADAPTER_READS = (
+    ('Get-NetIPAddress', 'Read-FixtureIPAddress'),
+    ('Get-NetAdapter', 'Read-FixtureAdapter'),
+    ('Get-DnsClientServerAddress', 'Read-FixtureServerAddresses'),
+    ('Get-DnsClient', 'Read-FixtureDnsRegistration'),
+)
+
 FIXTURE_POWERSHELL = r"""
 $fixture = Get-Content -LiteralPath $env:LABGUARD_STATION_FIXTURE -Raw -Encoding UTF8 | ConvertFrom-Json
 function Save-Fixture {
     [IO.File]::WriteAllText($env:LABGUARD_STATION_FIXTURE,
         ($fixture | ConvertTo-Json -Depth 10 -Compress), [Text.Encoding]::UTF8)
 }
-function Get-NetIPAddress($AddressFamily,$IPAddress,$ErrorAction) {
+function Read-FixtureIPAddress($AddressFamily,$IPAddress,$ErrorAction) {
     if ($AddressFamily -ne 'IPv4' -or $IPAddress -ne $p.target) {throw 'unexpected fixture target'}
     [pscustomobject]@{AddressState='Preferred'; InterfaceIndex=19}
 }
-function Get-NetAdapter($InterfaceIndex,$ErrorAction) {
+function Read-FixtureAdapter($InterfaceIndex,$ErrorAction) {
     if ($InterfaceIndex -ne 19) {throw 'unexpected adapter'}
     [pscustomobject]@{Status='Up';ifIndex=19;InterfaceGuid='4ef92f25-da91-434c-ac31-fa313ac257a8';Name='Lab CI'}
 }
-function Get-DnsClient($InterfaceIndex,$ErrorAction) {
+function Read-FixtureDnsRegistration($InterfaceIndex,$ErrorAction) {
     [pscustomobject]@{RegisterThisConnectionsAddress=$true;UseSuffixWhenRegistering=$false}
 }
-function Get-DnsClientServerAddress($AddressFamily,$InterfaceIndex,$ErrorAction) {
+function Read-FixtureServerAddresses($AddressFamily,$InterfaceIndex,$ErrorAction) {
     $entry = $fixture.PSObject.Properties[$AddressFamily].Value
     Write-FixtureTrace ("addresses $AddressFamily " + ($entry | ConvertTo-Json -Depth 3 -Compress))
     [pscustomobject]@{ServerAddresses=@($entry.servers)}
 }
 function Invoke-FixtureNetsh {
+    [string[]]$arguments=@($args)
     $global:LASTEXITCODE = 0
-    Write-FixtureTrace ("netsh arguments " + ($args | ConvertTo-Json -Compress))
-    $family = $args[1]
-    if ($args[0] -ne 'interface' -or $family -notin @('ipv4','ipv6') -or
-        $args[3] -ne 'dnsservers' -or $args[4] -ne 'name=19') {throw 'unexpected netsh target'}
-    $setting = $fixture.$family
-    switch ($args[2]) {
+    Write-FixtureTrace ("netsh arguments " + ($arguments | ConvertTo-Json -Compress))
+    $family = $arguments[1]
+    if ($arguments[0] -ne 'interface' -or $family -notin @('ipv4','ipv6') -or
+        $arguments[3] -ne 'dnsservers' -or $arguments[4] -ne 'name=19') {throw 'unexpected netsh target'}
+    $setting = $fixture.PSObject.Properties[$family].Value
+    switch ($arguments[2]) {
         'show' {
             if ($setting.mode -eq 'auto') {'    DNS servers configured through DHCP: 192.0.2.1'}
             else {'    Statically Configured DNS Servers: 192.0.2.1'}
         }
         'set' {
-            if ($args -notcontains 'register=primary') {throw 'registration changed'}
-            if ($args -contains 'source=dhcp') {
+            if ($arguments -notcontains 'register=primary') {throw 'registration changed'}
+            if ($arguments -contains 'source=dhcp') {
                 $setting.mode='auto'
                 $setting.servers=@($fixture.autoServers.$family)
-            } elseif ($args -contains 'source=static') {
+            } elseif ($arguments -contains 'source=static') {
                 $setting.mode='static'
-                $address = @($args | Where-Object {$_ -like 'address=*'})[0].Substring(8)
+                $address = @($arguments | Where-Object {$_ -like 'address=*'})[0].Substring(8)
                 if ($address -eq 'none') {$setting.servers=@()} else {$setting.servers=@($address)}
             } else {throw 'unexpected netsh source'}
             if ($fixture.interfereAfterSet -and $family -eq 'ipv6' -and $setting.servers.Count -eq 0) {
@@ -206,8 +221,8 @@ function Invoke-FixtureNetsh {
                 $global:LASTEXITCODE=87
                 return
             }
-            $address = @($args | Where-Object {$_ -like 'address=*'})[0].Substring(8)
-            if ($args -notcontains ('index='+($setting.servers.Count+1))) {throw 'DNS order changed'}
+            $address = @($arguments | Where-Object {$_ -like 'address=*'})[0].Substring(8)
+            if ($arguments -notcontains ('index='+($setting.servers.Count+1))) {throw 'DNS order changed'}
             $setting.servers=@($setting.servers)+@($address)
             Save-Fixture
         }
