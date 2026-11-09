@@ -1,4 +1,16 @@
-# Validação da versão 2.4.1
+# Validação da versão 2.4.2
+
+Na [versão 2.4.2](https://github.com/perabru/LabGuard/releases/tag/v2.4.2), **Proteger laboratório** aplica oito domínios de jogos e conteúdo adulto e confere as regras pela leitura do filtro ativo. O ensaio isolado usou DNS real em loopback para conferir respostas NXDOMAIN em A e AAAA, incluiu subdomínios, preservou regras existentes e verificou comportamento em falhas parciais. A escolha do DNS de saída familiar foi testada na configuração e na persistência. A classificação externa dos sites depende do provedor escolhido.
+
+A [compilação](https://github.com/perabru/LabGuard/actions/runs/42658173373) passou no commit `7350d1df195322125b6c65c87493a2b441ae9c5b`, com **491 testes no Linux** e **443 aprovados no Windows**, com quatro verificações específicas de POSIX/Linux ignoradas nessa plataforma, instaladores e serviços. A atualização Windows de 2.4.1 para 2.4.2 foi verificada por instalação e encerramento normais dos binários, recibo de atualização, versão PE/HKCU e autoteste.
+
+[Windows PowerShell 5.1](https://github.com/perabru/LabGuard/actions/runs/42658173373/job/129302371378) executou consultas TXT e A pelo resolvedor nativo, em loopback. O ensaio comparou resposta direta com NXDOMAIN pelo caminho padrão, conferiu o bloqueio de um domínio e isolou o adaptador, as alterações de DNS e o backup em uma simulação. Verificou aplicação, restauração, falha parcial e mudança concorrente. O preparo WinRM foi validado por sintaxe e simulação do certificado e das configurações no Windows. WinRM em rede, DCOM/Kerberos em domínio, GPO/MDM e equipamentos físicos da escola não foram homologados.
+
+O painel web utiliza o navegador da TI em loopback. A autorização por token, origem da requisição, expiração de prévia e troca de fonte passaram por testes HTTP. O [site e o manual](https://github.com/perabru/LabGuard/actions/runs/42655380066) foram publicados. O manual contém 20 páginas em 16 capítulos.
+
+O instalador Windows foi conferido por integridade do artefato, SHA-256 interno, CRC do ZIP, formato PE e autotestes. Tamanho de 25,563,391 bytes. SHA-256 `031286979313e1677d3113d94013fd89b4c94e09317d8512e26f246aa862a24c`.
+
+## Evidência anterior da versão 2.4.1
 
 Publicada em 9 de novembro de 2026. O [fluxo completo](https://github.com/perabru/LabGuard/actions/runs/42645163153) passou no commit `71d1653a8a53a075c1b19f1a7f59a740db462cc1`. A revisão preserva o início com três ações e corrige a abertura do assistente durante uma leitura em segundo plano: controles e interfaces acompanham o resultado sem exigir reabrir a janela. Campos preenchidos pelo usuário são preservados.
 

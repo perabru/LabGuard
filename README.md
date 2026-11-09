@@ -76,7 +76,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A versão 2.4.2 oferece aplicação da lista escolar, diagnóstico remoto de bloqueio e controles no painel web. A validação de instaladores, serviços e atualização é executada em Windows e Linux. [Resultados de validação](docs/VALIDACAO.md).
+A [versão 2.4.2](https://github.com/perabru/LabGuard/releases/tag/v2.4.2) oferece a ação Proteger laboratório, testes a partir de estações gerenciadas e painel web local. Passaram 491 testes no Linux e 443 testes no Windows (quatro verificações específicas de POSIX/Linux foram ignoradas), além do ensaio de DNS no PowerShell 5.1 e da atualização do instalador. [Resultados e limites de validação](docs/VALIDACAO.md).
 
 ## Documentação e legado
 
