@@ -1,4 +1,4 @@
-# LabGuard 2.4.2
+# LabGuard 2.4.3
 
 No PC da TI, escolha **Proteger laboratório** para aplicar a lista inicial de jogos e sites adultos. Use **Administrar estações** ou **Painel web → Estações** para conferir o resultado em um PC do laboratório. O LabGuard testa o DNS diretamente na estação Windows por WinRM HTTPS e permite revisar, aplicar e restaurar o ajuste. A opção **Preparar acesso remoto** no painel web gera um script para a TI distribuir por GPO ou MDM a computadores com certificado de máquina confiável. No Windows da TI, **Preparar nesta estação** usa WMI/DCOM com Kerberos quando esse canal está disponível. Sem WinRM, WMI, domínio, MDM ou outro canal autorizado, a estação precisa de um primeiro provisionamento para receber comandos.
 
@@ -13,6 +13,8 @@ Painel em Python para conhecer a rede do laboratório e administrar os equipamen
 Abra **Configurar → 1. Ligar filtro**. O computador passa a responder DNS UDP/TCP e a filtrar os domínios aplicados. É necessário apontar as estações para esse DNS, pelo DHCP/LAN do Vivo se o modelo permitir, ou na configuração das estações. O switch continua no lugar e não precisa de configuração.
 
 Selecione uma estação gerenciada e use **Testar DNS** para comparar a resposta direta do filtro com a resposta do DNS padrão da estação. O painel mostra se a consulta direta funcionou e a padrão recebeu domínio inexistente, inclusive quando o Windows seleciona outro DNS em IPv6. O autoteste do próprio PC possui contador separado. Mantenha o filtro ligado e restaure os clientes antes de parar o DNS. [Guia Vivo e Mercusys](docs/VIVO_MERCUSYS.md).
+
+Se o teste local funcionar e a estação continuar com **Sem confirmação**, clique em **Verificar porta** no desktop da TI. Em seguida, teste com uma conta autorizada na estação. O diagnóstico completo está no [guia de início](docs/COMECE_AQUI.md).
 
 ## Início e atualizações
 

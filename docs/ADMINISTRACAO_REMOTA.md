@@ -1,6 +1,6 @@
 # Administração dos computadores sem instalar cliente
 
-O LabGuard administra um computador selecionado por vez usando **WinRM HTTPS do Windows** ou **OpenSSH do Linux**, previamente habilitados pela equipe de TI. Não instala agente nas estações, não habilita serviços remotamente e não descobre credenciais. A conexão direta ao roteador continua responsável pelas regras da rede; desinstalar programas e consultar processos exige acesso administrativo ao próprio computador.
+O LabGuard administra uma estação por vez por **WinRM HTTPS no Windows** ou **OpenSSH no Linux**. O Windows pode receber o preparo inicial pelo canal de gestão da escola. Para consultar processos e remover uma instalação compatível, a TI precisa de acesso administrativo à estação.
 
 ## Preparação do laboratório
 
@@ -18,6 +18,18 @@ Na instalação Python do painel, o suporte Windows utiliza `pywinrm>=0.5,<0.6`.
 Em **Configurar → Administrar estações**, selecione o IPv4 de uma estação autorizada. **Testar estação** consulta o filtro pelo IP e depois pelo DNS padrão do alvo. O teste Windows utiliza WinRM HTTPS. No Linux, requer SSH com chave, Python 3 e `dig`. Para Windows, **Preparar alteração**, **Aplicar DNS** e **Restaurar DNS** permitem ajustar o adaptador da estação com prévia e confirmação.
 
 O navegador local da TI também oferece **Estações → Testar DNS** para Windows. Para preparar WinRM HTTPS pelo domínio ou MDM, consulte **Preparar acesso remoto** e o [capítulo 11 do manual](MANUAL_DO_USUARIO_V2.md). O script é distribuído pelo canal institucional de gestão do computador.
+
+### Funciona no PC da TI e a estação está sem confirmação
+
+1. No PC da TI, abra **Configurar → Administrar estações**. Confira o IPv4 da máquina de aluno no inventário, selecione **Windows · WinRM HTTPS** e clique em **Verificar porta**. Essa etapa dispensa usuário e senha.
+2. Se a conexão for **recusada** ou **expirar**, confira se o computador está ligado e continua com o IP selecionado. Verifique pelo canal de gestão se o Windows tem um ouvinte WinRM HTTPS e se a regra de firewall permite que o PC da TI o alcance na porta TCP 5986. Duas máquinas conectadas ao mesmo switch ainda podem ter regras de acesso diferentes.
+3. Se **a porta responder**, informe uma conta autorizada na estação. Para conta local, use o nome do computador e a conta, como `NOME-DO-PC\contaTI`. Para conta de domínio, use `DOMÍNIO\contaTI`. Digite a senha no LabGuard e clique em **Testar estação**. O painel limpa a senha após o envio. Uma recusa de autenticação pede revisão da conta e da senha. Uma recusa de permissão pede revisão dos direitos dessa conta na estação.
+4. Se o painel indicar **certificado**, confira o certificado de servidor do ouvinte e sua validade. Nesta conexão por IPv4, o certificado precisa incluir o IP escolhido como endereço IP no campo SAN. Se a CA da escola ainda não estiver no conjunto de confiança usado pelo painel, selecione seu certificado público PEM em **CA HTTPS (opcional)** no desktop. No serviço web, use o arquivo `station-ca.pem` do diretório de configuração do servidor.
+5. Após conectar, confira **Direto ao filtro**, **DNS padrão da estação** e o domínio aplicado. Se o direto passar e o padrão falhar, use **Preparar alteração** para conferir o adaptador e o DNS proposto. Depois de aplicar ao computador piloto, rode **Testar estação** novamente.
+
+Se a estação ainda precisa receber WinRM, a opção **Preparar nesta estação** do painel web exige um canal WMI/DCOM já autorizado no domínio e um certificado adequado. Também é possível distribuir o preparo por GPO ou MDM. Se o objetivo imediato é filtrar sites e o roteador permite definir o DNS dos clientes no DHCP, a TI pode distribuir o IP do filtro por esse caminho, mesmo sem acesso remoto aos computadores. Verifique também o DNS anunciado por IPv6 e as políticas de DNS seguro dos navegadores.
+
+Na versão 2.4.2, a mensagem genérica de conexão cobre várias falhas. O comando `Test-NetConnection 192.168.15.105 -Port 5986`, executado no PowerShell do **PC da TI**, verifica o caminho TCP até esse IP de exemplo. Um resultado `TcpTestSucceeded : True` permite seguir para certificado e conta. Um resultado `False` indica que a conexão TCP não foi estabelecida.
 
 ## O que o inventário mostra
 

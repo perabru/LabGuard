@@ -9,12 +9,15 @@ from __future__ import annotations
 import base64
 import copy
 from datetime import datetime, timezone
+import errno
 import hashlib
 import json
 from pathlib import Path
 import re
 import secrets
 import shutil
+import socket
+import ssl
 import subprocess
 import threading
 import time
@@ -24,6 +27,102 @@ from .transport import OutputLimitExceeded, run_bounded, ssh_command_base, valid
 
 class RemoteError(RuntimeError):
     pass
+
+
+class WinRMConnectionError(RemoteError):
+    """Only messages in this table may be returned by the web panel."""
+    _messages = {
+        "refused": "A conexão na porta 5986 foi recusada. Confira o IP e se a estação aceita WinRM HTTPS nessa porta.",
+        "unreachable": "Não foi possível alcançar a estação. Confira o endereço e a rota até a rede dos alunos.",
+        "network_timeout": "A conexão com a porta 5986 expirou. Confira se a estação está ligada e se o firewall permite WinRM HTTPS a partir do PC de TI.",
+        "read_timeout": "O serviço na porta 5986 demorou para responder. Confira o WinRM na estação antes de repetir a operação.",
+        "interrupted": "A conexão WinRM foi interrompida. Confira se a estação continua disponível antes de repetir a operação.",
+        "certificate_name": "O certificado HTTPS não corresponde ao endereço da estação. Confira o alvo e o endereço registrado no certificado.",
+        "certificate_time": "O certificado HTTPS está fora do período de validade. Confira a data dos computadores e a validade do certificado.",
+        "certificate_trust": "O certificado HTTPS não pôde ser validado. Confira a cadeia do certificado e selecione a CA da escola usada pela estação.",
+        "tls": "A negociação HTTPS falhou na porta 5986. Confira o listener WinRM HTTPS e o certificado configurado na estação.",
+        "authentication": "O WinRM recusou a autenticação. Confira a senha e a conta autorizada, como DOMÍNIO\\usuário ou NOME-DO-PC\\usuário.",
+        "permission": "O Windows negou acesso à operação. Confira se a conta tem permissão de administração remota nessa estação.",
+        "endpoint": "O serviço HTTPS respondeu, mas não aceitou a solicitação WinRM em /wsman. Confira o listener HTTPS da estação na porta 5986.",
+        "unknown": "Não foi possível concluir a conexão WinRM HTTPS. Confira certificado, credenciais e permissões do computador.",
+    }
+
+    def __init__(self, code):
+        self.code = code if isinstance(code, str) and code in self._messages else "unknown"
+        super().__init__(self.public_message)
+
+    @property
+    def public_message(self):
+        return self._messages.get(self.code, self._messages["unknown"])
+
+
+def _winrm_failure(error):
+    # requests and urllib3 nest exceptions in .reason, .args and exception chains.
+    # No server-supplied text, URL, local path or credential is shown or logged.
+    chain = []
+    pending = [error]
+    seen = set()
+    while pending and len(chain) < 32:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        chain.append(current)
+        nested = (current.__cause__, current.__context__, getattr(current, "reason", None), *current.args)
+        pending.extend(cause for cause in nested if isinstance(cause, BaseException))
+
+    # Windows support is optional in source installations. Use the exception types
+    # without importing its HTTP stack when starting a Linux-only installation.
+    types = {(type(item).__module__, type(item).__name__) for item in chain}
+    for item in chain:
+        if type(item).__module__ == "winrm.exceptions":
+            status = getattr(item, "code", None)
+            fault = getattr(item, "wsman_fault_code", None)
+            wmi = getattr(item, "wmierror_code", None)
+            subcode = getattr(item, "fault_subcode", None)
+            if (fault in (5, 0x80070005, 0x80041003) or wmi in (5, 0x80070005, 0x80041003)
+                    or (isinstance(subcode, str) and subcode.split(":")[-1] == "AccessDenied")):
+                return "permission"
+        else:
+            status = getattr(getattr(item, "response", None), "status_code", None)
+        if status == 401:
+            return "authentication"
+        if status == 403:
+            return "permission"
+        if status in (404, 405):
+            return "endpoint"
+
+    for item in chain:
+        if isinstance(item, ssl.SSLCertVerificationError):
+            code = getattr(item, "verify_code", None)
+            if code in (62, 64):
+                return "certificate_name"
+            if code in (9, 10):
+                return "certificate_time"
+            return "certificate_trust"
+    if ("urllib3.util.ssl_match_hostname", "CertificateError") in types:
+        return "certificate_name"
+    if (any(isinstance(item, ssl.SSLError) for item in chain)
+            or types.intersection({("requests.exceptions", "SSLError"), ("urllib3.exceptions", "SSLError")})):
+        return "tls"
+    if types.intersection({("requests.exceptions", "ReadTimeout"), ("urllib3.exceptions", "ReadTimeoutError")}):
+        return "read_timeout"
+
+    for item in chain:
+        if not isinstance(item, OSError):
+            continue
+        codes = {item.errno, getattr(item, "winerror", None)}
+        if isinstance(item, ConnectionRefusedError) or codes.intersection({errno.ECONNREFUSED, 10061}):
+            return "refused"
+        if isinstance(item, socket.gaierror) or codes.intersection({errno.ENETUNREACH, errno.EHOSTUNREACH, 10051, 10065}):
+            return "unreachable"
+        if isinstance(item, TimeoutError) or codes.intersection({errno.ETIMEDOUT, 10060}):
+            return "network_timeout"
+        if isinstance(item, (ConnectionResetError, ConnectionAbortedError)):
+            return "interrupted"
+    if types.intersection({("requests.exceptions", "ConnectTimeout"), ("urllib3.exceptions", "ConnectTimeoutError")}):
+        return "network_timeout"
+    return "unknown"
 
 
 MAX_OUTPUT = 512 * 1024
@@ -345,9 +444,8 @@ class WindowsSession(_Session):
             return _decode(bytes(output))
         except RemoteError:
             raise
-        except Exception:
-            # Exceções HTTP/NTLM podem conter credenciais ou dados de ambiente.
-            raise RemoteError("Não foi possível concluir a conexão WinRM HTTPS. Confira certificado, credenciais e permissões do computador.") from None
+        except Exception as error:
+            raise WinRMConnectionError(_winrm_failure(error)) from None
         finally:
             if command_id:
                 try:

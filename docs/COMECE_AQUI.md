@@ -1,4 +1,4 @@
-# Comece aqui - LabGuard 2.4.2
+# Comece aqui - LabGuard 2.4.3
 
 O uso diário tem três ações: **Configurar**, **Gerenciar sites** e **Testar conexão**. A leitura local começa ao abrir. Regras novas só são aplicadas após sua escolha.
 
@@ -20,6 +20,13 @@ Para aplicar a lista inicial de jogos e adultos, use **Proteger laboratório** e
 1. No PC da TI, abra **Configurar → 2. Usar nos computadores → Administrar estações**. O mesmo botão aparece em **3. Testar**. Selecione o endereço da estação autorizada e a conexão de gerenciamento preparada pela TI.
 2. Clique em **Testar estação**. A estação faz duas consultas TXT. **Direto ao filtro** verifica se alcança o IPv4 do LabGuard. **DNS padrão da estação** verifica se a resolução usual retorna o código da sessão. Compare ambos com o código atual do painel.
 3. Se o teste direto passar e o padrão falhar em um Windows gerenciado, clique em **Preparar alteração**. Confira o computador, o adaptador e os endereços DNS na prévia antes de confirmar **Aplicar DNS**. Repita **Testar estação**. Use **Restaurar DNS** para desfazer a alteração correspondente.
+
+### O teste local passou e a estação mostra “Sem confirmação”
+
+1. No desktop da TI, em **Administrar estações**, selecione o IPv4 de um PC de aluno e clique em **Verificar porta**. O teste usa a porta 5986. Essa etapa dispensa a senha. Se a porta recusar a conexão, confira se o Windows da estação está preparado para WinRM HTTPS. Se o teste expirar, confira o IP, se a estação está ligada e se a rede permite a conexão a partir da TI.
+2. Quando a porta responder, preencha a conta autorizada **na estação** e digite a senha no próprio LabGuard. Em domínio, use o formato `DOMÍNIO\conta`. Clique em **Testar estação**. A confirmação de que a porta responde ainda não valida o certificado, as credenciais ou o filtro.
+3. Se a mensagem indicar certificado, confira se a autoridade emissora é confiável e se o certificado do Windows contém o IPv4 escolhido como SAN do tipo IP. Use **CA HTTPS (opcional)** para indicar a CA institucional quando necessário. Se a mensagem indicar autenticação ou permissão, confira o nome da conta, a senha e a autorização remota na estação.
+4. Se o acesso ainda precisa ser preparado, consulte as opções institucionais de WMI, GPO e MDM descritas abaixo. Enquanto a sessão remota não abrir, os testes de DNS daquela estação continuam sem confirmação.
 
 Para usar o navegador do PC da TI, abra **Painel web → Copiar chave e abrir**, cole a chave no login e abra **Estações → Testar DNS**. O painel também oferece **Preparar alteração**, **Aplicar DNS** e **Restaurar DNS** para a estação Windows. No Windows da TI, **Preparar nesta estação** usa o WMI/DCOM com Kerberos já autorizado no domínio. Informe o IPv4 e o FQDN do alvo e a conta de domínio. Outra opção é distribuir o script de **Preparar acesso remoto** por GPO ou MDM, conforme o capítulo 11 do manual. A estação precisa de certificado apropriado e canal de gestão institucional.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Execute em Linux x86_64. CI usa Ubuntu 22.04 (glibc 2.35).
 set -euo pipefail
-version="${1:-2.4.2}"
+version="${1:-2.4.3}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Versão inválida.' >&2; exit 1; }
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Compile em Linux x86_64.' >&2; exit 1; }
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"

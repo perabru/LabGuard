@@ -48,7 +48,7 @@
     el('station-panel').hidden = !admin; el('station-nav').hidden = !admin;
     const service = snapshot?.dns_service;
     const ready = admin && snapshot?.source_type === 'local_dns' && service?.service_running === true && sourceRecent() && Date.now() - lastSuccess <= 20000;
-    el('station-state').textContent = ready ? `Filtro em ${service.listen}. Selecione o IP de uma estação com WinRM HTTPS autorizado.` : 'Ligue o filtro DNS e atualize a leitura para administrar as estações. A preparação do acesso fica disponível abaixo.';
+    el('station-state').textContent = ready ? `Filtro em ${service.listen}. Para verificar a porta, basta informar o IP. Para testar o DNS, preencha também a conta e a senha da estação.` : 'Ligue o filtro DNS e atualize a leitura para administrar as estações. A preparação do acesso fica disponível abaixo.';
     if (!el('access-ip').value && service?.listen) el('access-ip').value = service.listen;
     const hosts = (snapshot?.devices || []).filter(row => row.ip && !row.protected && !row.identity_conflict).map(row => row.ip);
     if (JSON.stringify(hosts) !== stationHosts) {
@@ -56,7 +56,7 @@
       el('station-hosts').replaceChildren(...hosts.map(host => { const option = document.createElement('option'); option.value = host; return option; }));
     }
     for (const id of ['station-host','station-user','station-password']) el(id).disabled = !admin || stationBusy;
-    for (const id of ['station-test','station-preview','station-restore']) el(id).disabled = !ready || stationBusy;
+    for (const id of ['station-check-port','station-test','station-preview','station-restore']) el(id).disabled = !ready || stationBusy;
     el('station-apply').disabled = !stationPreview || !ready || stationBusy;
     el('access-download').disabled = !admin || stationBusy;
     el('access-push').disabled = !ready || stationBusy;
@@ -69,8 +69,16 @@
     const host = el('station-host').value.trim();
     const user = el('station-user').value.trim();
     const password = el('station-password').value;
-    if (!host || !user || !password) { el('station-result').textContent = 'Preencha o IP, a conta e a senha da estação.'; return; }
-    const body = {host, user, password};
+    if (!host) { el('station-result').textContent = 'Informe o IPv4 da estação.'; el('station-host').focus(); return; }
+    const body = {host};
+    if (action !== 'check-port') {
+      if (!user || !password) {
+        el('station-result').textContent = 'Informe a conta administrativa e a senha da estação para continuar.';
+        el(user ? 'station-password' : 'station-user').focus();
+        return;
+      }
+      Object.assign(body, {user, password});
+    }
     if (action === 'apply') {
       if (!stationPreview || stationPreview.host !== host || stationPreview.user !== user) return;
       if (!window.confirm(`Aplicar o DNS previsto na estação ${host}? O DNS da escola pode atender nomes internos.`)) return;
@@ -155,7 +163,7 @@
     } catch (error) { if (current === generation) el('access-result').textContent = error.message; }
     finally { stationBusy = false; syncStation(); }
   }
-  for (const action of ['test','preview','apply','restore']) el(`station-${action}`).addEventListener('click', () => stationAction(action));
+  for (const action of ['check-port','test','preview','apply','restore']) el(`station-${action}`).addEventListener('click', () => stationAction(action));
   for (const id of ['station-host','station-user']) el(id).addEventListener('input', () => { forgetStation(); el('station-password').value=''; });
   el('station-password').addEventListener('input', forgetStation);
   el('access-download').addEventListener('click',prepareAccess);

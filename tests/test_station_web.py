@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
+from labguard.remote import RemoteError, WinRMConnectionError
 from labguard.server import Application, LocalHTTPServer, ServerConfig, initialize
 from labguard.station_dns import StationDNS
 
@@ -117,6 +118,40 @@ class StationHTTPTests(unittest.TestCase):
         self.assertEqual(self.operations, ['preview', 'apply', 'restore'])
         for session in self.sessions:
             session.close.assert_called_once()
+
+    def test_port_check_takes_only_scoped_host_and_never_opens_a_session(self):
+        path = '/api/station/check-port'
+        host = {'host': '192.168.15.22'}
+        with patch('labguard.station_web.check_winrm_port') as probe:
+            self.assertEqual(self.request('POST', path, token=self.viewer, payload=host)[0], 403)
+            self.assertEqual(self.request('POST', path, token=self.admin, payload={'host': '192.168.15.1'})[0], 400)
+            self.assertEqual(self.request('POST', path, token=self.admin, payload={'host': '192.168.0.1'})[0], 400)
+            self.assertEqual(self.post('check-port', token=self.admin)[0], 400)
+            probe.assert_not_called()
+            for ok, code in [(True, 'open'), (False, 'refused')]:
+                probe.return_value = {'ok': ok, 'code': code, 'message': 'Diagnóstico TCP'}
+                status, data = self.request('POST', path, token=self.admin, payload=host)
+                self.assertEqual((status, data['data']), (200, probe.return_value))
+                probe.assert_called_with(host['host'])
+        self.connect.assert_not_called()
+        self.assertEqual(self.operations, [])
+
+    def test_web_surfaces_only_classified_winrm_messages(self):
+        for code in ('refused', 'authentication', 'certificate_name'):
+            with self.subTest(code=code):
+                error = WinRMConnectionError(code)
+                with patch.object(StationDNS, '_run', side_effect=error):
+                    status, result = self.post('test', token=self.admin)
+                self.assertEqual((status, result['error']), (400, error.public_message))
+        with patch.object(StationDNS, '_run', side_effect=WinRMConnectionError('certificate_trust')):
+            status, result = self.post('test', token=self.admin)
+        self.assertEqual(status, 400)
+        self.assertIn('Selecionar CA do WinRM', result['error'])
+        self.assertIn('station-ca.pem', result['error'])
+        with patch.object(StationDNS, '_run', side_effect=RemoteError('SenhaTemporariaDeTeste')):
+            status, result = self.post('test', token=self.admin)
+        self.assertEqual(status, 400)
+        self.assertIn('não confirmou', result['error'])
 
     def test_remote_access_preparation_requires_admin_scoped_target_and_confirmation(self):
         prepare = Mock(return_value={'ok': True, 'message': 'Acesso preparado.'})

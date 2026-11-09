@@ -7,10 +7,11 @@ from pathlib import Path
 import threading
 import time
 
-from .remote import create_session, RemoteError
+from .remote import create_session, RemoteError, WinRMConnectionError
 from .server import ServerError
+from .station_connectivity import check_winrm_port
 
-OPERATIONS = frozenset(('test', 'preview', 'apply', 'restore', 'prepare-access'))
+OPERATIONS = frozenset(('check-port', 'test', 'preview', 'apply', 'restore', 'prepare-access'))
 STATION_ROUTES = frozenset('/api/station/' + operation for operation in OPERATIONS)
 
 
@@ -36,7 +37,7 @@ class StationOperations:
 
     @staticmethod
     def _arguments(operation, payload):
-        required = {'host', 'user', 'password'}
+        required = {'host'} if operation == 'check-port' else {'host', 'user', 'password'}
         if operation in ('apply', 'restore', 'prepare-access'):
             required.add('confirm')
         if operation == 'prepare-access':
@@ -51,6 +52,8 @@ class StationOperations:
             host = str(ipaddress.IPv4Address(payload['host']))
         except ValueError:
             raise ServerError('Informe o IPv4 da estação.') from None
+        if operation == 'check-port':
+            return host, None, None
         user, password = payload['user'], payload['password']
         if not isinstance(user, str) or not 1 <= len(user.strip()) <= 200 or not user.isprintable():
             raise ServerError('Informe a conta administrativa da estação.')
@@ -161,7 +164,9 @@ class StationOperations:
             raise ServerError('Há uma operação em andamento. Aguarde antes de continuar.')
         session = None
         try:
-            snapshot, target = self._scope(app, host, for_change=operation != 'test')
+            snapshot, target = self._scope(app, host, for_change=operation not in ('test', 'check-port'))
+            if operation == 'check-port':
+                return check_winrm_port(target.address)
             if operation == 'prepare-access':
                 return self._prepare_access(app, snapshot, payload)
             plan = self._take(key, target, payload['id']) if operation == 'apply' else None
@@ -189,6 +194,11 @@ class StationOperations:
                 station.resume_preview(plan)
                 return station.apply(payload['id'])
             return station.restore()
+        except WinRMConnectionError as error:
+            # Other RemoteErrors may contain data returned by the station.
+            if error.code == 'certificate_trust':
+                raise ServerError('Confira a cadeia do certificado HTTPS da estação. No aplicativo da TI, use “Selecionar CA do WinRM” na janela do painel web. No LabGuard Server, salve a CA pública em station-ca.pem na pasta de configuração do servidor.') from None
+            raise ServerError(error.public_message) from None
         except RemoteError:
             raise ServerError('A estação não confirmou a operação. Confira WinRM HTTPS, a conta, o certificado e a configuração atual.') from None
         except ServerError:

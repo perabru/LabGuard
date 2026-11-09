@@ -1,6 +1,6 @@
 # Vivo + Mercusys não gerenciável: bloquear sites sem MikroTik
 
-No PC da TI, abra **LabGuard 2.4.2 → Configurar → 1. Ligar filtro**. O Vivo e o switch continuam transportando o tráfego normalmente. O PC do LabGuard passa a responder às consultas DNS das estações configuradas. Os testes de estação e o ajuste do DNS do Windows são comandados pelo painel da TI.
+No PC da TI, abra **LabGuard → Configurar → 1. Ligar filtro**. O Vivo e o switch continuam transportando o tráfego normalmente. O PC do LabGuard passa a responder às consultas DNS das estações configuradas. Os testes de estação e o ajuste do DNS do Windows são comandados pelo painel da TI.
 
 ## 1. Preparar o PC do filtro
 
@@ -32,7 +32,9 @@ Em Linux, a conexão SSH oferece os testes. Quando a estação não tiver um can
 
 ## 3. Interpretar os dois testes
 
-**Direto ao filtro** consulta `labguard-check.invalid.` como TXT no endereço IPv4 onde o LabGuard está ativo. **DNS padrão da estação** faz a mesma consulta pelo caminho que a estação usa normalmente. Compare os dois resultados com o código `LabGuard-...` da sessão atual. Cada reinício do filtro gera um código novo.
+Se o teste local funcionou e a conexão com a estação Windows falhou, abra **Administrar estações → Verificar porta** no PC da TI. O resultado mostra se a porta de administração está acessível antes de usar conta e senha. Siga o [passo a passo para a estação sem confirmação](ADMINISTRACAO_REMOTA.md#funciona-no-pc-da-ti-e-a-estação-está-sem-confirmação).
+
+**Direto ao filtro** consulta o IPv4 do serviço ativo. **DNS padrão da estação** consulta o resolvedor usado pelo computador do aluno. O teste automático no Windows usa um nome novo sob `labguard-check.test.` para cada consulta. O diagnóstico manual e o teste Linux usam `labguard-check.invalid.`. Compare os dois resultados com o código `LabGuard-...` da sessão atual. Cada reinício do filtro gera um código novo.
 
 Em **Atividade**, localize o nome do teste, a origem e o horário. Se existir um encaminhador DNS, a origem registrada pode ser o próprio encaminhador. O contador geral de consultas e o teste **Verificar neste PC** não identificam qual estação recebeu o código.
 

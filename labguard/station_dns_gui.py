@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 from .station_policy import StationScope, station_target_from_snapshot
+from .station_connectivity import check_winrm_port
 from .school_policy import sample_blocked_domain
 from .remote import RemoteError, create_session
 from .ui import ActionButton, BG, PANEL, TEXT, MUTED, PURPLE
@@ -112,14 +113,22 @@ class StationDNSWindow(tk.Toplevel):
         self.mode = ttk.Combobox(form, textvariable=self.platform, state="readonly", values=(WINDOWS, LINUX))
         self.mode.grid(row=1, column=1, sticky="ew", pady=3)
         self.mode.bind("<<ComboboxSelected>>", lambda _: self._protocol_changed())
-        self._label(form, "Conta administrativa").grid(row=2, column=0, sticky="w")
+        self.port_row = tk.Frame(form, bg=PANEL)
+        self.port_row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=5)
+        self.port_button = ActionButton(self.port_row, text="Verificar porta", command=self.check_port)
+        self.port_button.pack(side="left", padx=(0, 10))
+        self.port_status = tk.StringVar(value="Teste TCP 5986 a partir deste PC, sem usar a conta da estação.")
+        port_label = self._label(self.port_row, variable=self.port_status)
+        port_label.configure(wraplength=450)
+        port_label.pack(side="left", fill="x", expand=True)
+        self._label(form, "Conta administrativa").grid(row=3, column=0, sticky="w")
         self.username = ttk.Entry(form, textvariable=self.user)
-        self.username.grid(row=2, column=1, sticky="ew", pady=3)
+        self.username.grid(row=3, column=1, sticky="ew", pady=3)
         self.windows = tk.Frame(form, bg=PANEL)
         self.linux = tk.Frame(form, bg=PANEL)
         for panel in (self.windows, self.linux):
             panel.columnconfigure(1, weight=1)
-            panel.grid(row=3, column=0, columnspan=2, sticky="ew")
+            panel.grid(row=4, column=0, columnspan=2, sticky="ew")
         self._label(self.windows, "Senha da sessão").grid(row=0, column=0, sticky="w", padx=(0, 15))
         self.password = ttk.Entry(self.windows, textvariable=self.secret, show="*")
         self.password.grid(row=0, column=1, columnspan=2, sticky="ew", pady=3)
@@ -128,10 +137,10 @@ class StationDNSWindow(tk.Toplevel):
         self._file_field(self.linux, 1, "known_hosts (opcional)", self.known)
         self.linux.grid_remove()
         self.explanation = tk.StringVar()
-        self._label(form, variable=self.explanation).grid(row=4, column=0, columnspan=2, sticky="ew", pady=7)
+        self._label(form, variable=self.explanation).grid(row=5, column=0, columnspan=2, sticky="ew", pady=7)
         self._protocol_changed()
         actions = tk.Frame(form, bg=PANEL)
-        actions.grid(row=5, column=0, columnspan=2, sticky="ew")
+        actions.grid(row=6, column=0, columnspan=2, sticky="ew")
         self.test_button = ActionButton(actions, text="Testar estação", command=self.test, style="Accent.TButton")
         self.test_button.pack(side="left")
         self.change_button = ActionButton(actions, text="Trocar estação", command=self.disconnect)
@@ -158,6 +167,7 @@ class StationDNSWindow(tk.Toplevel):
             button.pack(side="left", padx=(0, 6))
         self.status = tk.StringVar(value="Escolha uma estação do inventário ou digite seu IPv4 autorizado.")
         self._label(self, variable=self.status).grid(row=2, column=0, sticky="ew", padx=18, pady=10)
+        self.target.trace_add("write", lambda *_: self._reset_results())
 
     def _file_field(self, panel, row, label, var):
         self._label(panel, label).grid(row=row, column=0, sticky="w", padx=(0, 10))
@@ -172,11 +182,24 @@ class StationDNSWindow(tk.Toplevel):
         windows = self.platform.get() == WINDOWS
         (self.windows if windows else self.linux).grid()
         (self.linux if windows else self.windows).grid_remove()
+        if windows:
+            self.port_row.grid()
+        else:
+            self.port_row.grid_remove()
         self.secret.set("")
-        self.explanation.set("A estação precisa aceitar WinRM HTTPS com certificado válido para o IP selecionado e uma conta autorizada."
+        self.explanation.set("Use a conta da TI autorizada na estação. A senha é limpa a cada tentativa de conexão."
                              if windows else "Teste por SSH usando chave, servidor conhecido e Python 3 na estação Linux.")
         if hasattr(self, "status"):
+            self._reset_results()
             self._buttons()
+
+    def _reset_results(self):
+        self.port_status.set("Teste TCP 5986 a partir deste PC, sem usar a conta da estação.")
+        self.direct.set("Aguardando teste")
+        self.default.set("Aguardando teste")
+        self.blocked.set("Aguardando teste")
+        self.detail.set("Teste a estação antes de preparar uma alteração de DNS.")
+        self.status.set("Escolha a estação e faça o teste.")
 
     def _load_targets(self):
         try:
@@ -199,7 +222,8 @@ class StationDNSWindow(tk.Toplevel):
                 if isinstance(child, (ttk.Entry, ttk.Button)):
                     child.configure(state="normal" if editable else "disabled")
         ready = not connecting and not busy and self.platform.get() == WINDOWS
-        for button, enabled in ((self.test_button, not busy), (self.change_button, not connecting and not busy),
+        for button, enabled in ((self.port_button, editable and self.platform.get() == WINDOWS),
+                                (self.test_button, not busy), (self.change_button, not connecting and not busy),
                                 (self.preview_button, ready), (self.restore_button, ready),
                                 (self.apply_button, ready and bool(self._preview))):
             button.configure(state="normal" if enabled else "disabled")
@@ -215,7 +239,7 @@ class StationDNSWindow(tk.Toplevel):
                     user=self.user.get().strip(), password=self.secret.get(), ca_file=self.ca.get().strip(),
                     key_path=self.key.get().strip(), known_hosts=self.known.get().strip())
 
-    def _start(self, action, operation, callback, *, for_change=False):
+    def _start(self, action, operation, callback, *, for_change=False, port_only=False):
         if self._closed or self._future is not None:
             return
         try:
@@ -224,14 +248,27 @@ class StationDNSWindow(tk.Toplevel):
             self.status.set(str(error))
             return
         session, api = self._session, self._api
-        credentials = self._session_args() if session is None else None
-        self.secret.set("")
+        credentials = None
+        if session is None and not port_only:
+            if self.platform.get() == WINDOWS:
+                if not self.user.get().strip():
+                    self.status.set("Informe a conta administrativa da estação ou use Verificar porta sem credenciais.")
+                    self.username.focus_set()
+                    return
+                if not self.secret.get():
+                    self.status.set("Digite a senha da conta administrativa para esta tentativa ou use Verificar porta.")
+                    self.password.focus_set()
+                    return
+            credentials = self._session_args()
+            self.secret.set("")
         def run():
             from .station_dns import StationDNS
             opened = None
             try:
                 if self._closed or station_target(self.owner, self.transport, target.address, for_change=for_change) != target:
                     raise RemoteError("A conexão mudou. Atualize o filtro e repita o teste.")
+                if port_only:
+                    return None, None, operation(target.address)
                 active_session = session
                 active_api = api
                 if active_session is None:
@@ -254,6 +291,16 @@ class StationDNSWindow(tk.Toplevel):
         self.status.set(action + "…")
         self._buttons()
         return True
+
+    def check_port(self):
+        if self.platform.get() == WINDOWS and self._session is None:
+            if self._start("Verificando a porta TCP 5986", check_winrm_port, self._show_port, port_only=True):
+                self.port_status.set("Verificando a porta TCP 5986…")
+
+    def _show_port(self, result):
+        self.port_status.set(result["message"])
+        self.status.set("Preencha a conta e a senha e clique em Testar estação." if result["ok"]
+                        else "Confira a orientação ao lado de Verificar porta e repita esse teste.")
 
     def test(self):
         self._preview = None
@@ -327,16 +374,21 @@ class StationDNSWindow(tk.Toplevel):
             returned, api, result = future.result()
             if self._target() != self._pending_target:
                 raise RemoteError("O alvo ou a sessão do filtro mudou. Confira o estado antes de repetir a operação.")
-            self._session, self._api, self._bound = returned, api, self._pending_target
+            if returned is not None:
+                self._session, self._api, self._bound = returned, api, self._pending_target
             self._callback(result)
         except Exception as error:
             if returned is not None and returned is not self._session:
                 returned.close()
-            self._preview = None
-            self.direct.set("Sem confirmação")
-            self.default.set("Sem confirmação")
-            self.blocked.set("Sem confirmação")
-            self.detail.set("Confira o estado da estação antes de repetir uma alteração.")
+            if self._callback == self._show_port:
+                self.port_status.set("Verificação da porta sem resultado.")
+            else:
+                self._preview = None
+                self.direct.set("Sem confirmação")
+                self.default.set("Sem confirmação")
+                self.blocked.set("Sem confirmação")
+                self.detail.set("O teste remoto não entregou resultados de DNS." if self._session is None else
+                                "Confira o estado da estação antes de repetir uma alteração.")
             self.status.set(str(error) if isinstance(error, RemoteError) else
                             "A operação falhou. Confira o acesso administrativo e teste novamente.")
         self._last_used = monotonic()
@@ -359,11 +411,7 @@ class StationDNSWindow(tk.Toplevel):
             self._session.close()
         self._session = self._api = self._bound = self._preview = None
         self.secret.set("")
-        self.direct.set("Aguardando teste")
-        self.default.set("Aguardando teste")
-        self.blocked.set("Aguardando teste")
-        self.detail.set("Selecione a estação e teste sua conexão.")
-        self.status.set("Escolha a estação e faça o teste novamente.")
+        self._reset_results()
         self._buttons()
 
     def _destroy_event(self, event):

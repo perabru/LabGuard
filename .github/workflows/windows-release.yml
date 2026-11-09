@@ -25,7 +25,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "2.4.2"
+  LABGUARD_VERSION: "2.4.3"
 
 jobs:
   test:
@@ -103,7 +103,7 @@ jobs:
       - name: Gerar painel e servidor Windows
         shell: pwsh
         run: ./scripts/build_windows.ps1 -Version $env:LABGUARD_VERSION
-      - name: Validar atualização real isolada da 2.4.1 para a 2.4.2
+      - name: Validar atualização real isolada da 2.4.2 para a 2.4.3
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,7 +111,7 @@ jobs:
         run: |
           $oldDirectory = Join-Path $env:RUNNER_TEMP "LabGuardPreviousRelease"
           New-Item -ItemType Directory -Path $oldDirectory | Out-Null
-          gh release download v2.4.1 --pattern LabGuard-Setup.exe --dir $oldDirectory
+          gh release download v2.4.2 --pattern LabGuard-Setup.exe --dir $oldDirectory
           if ($LASTEXITCODE -ne 0) { throw "Não foi possível obter o instalador anterior para validação." }
           $oldSetup = Join-Path $oldDirectory "LabGuard-Setup.exe"
           $installDir = Join-Path $env:LOCALAPPDATA "LabGuardUpdateSmoke\Installed App"
@@ -281,14 +281,10 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          No LabGuard 2.4.2 a TI administra estações pelo desktop ou pelo painel web no computador de gestão.
+          O LabGuard 2.4.3 ajuda a TI a identificar por que uma estação Windows não chega ao teste de DNS.
 
-          Proteger laboratório instala a lista inicial de domínios de jogos e sites adultos, preserva regras existentes e confere o resultado no filtro. Cloudflare Families é uma opção ao ligar o DNS. O diagnóstico da estação pode confirmar uma consulta bloqueada de uma regra aplicada.
+          Em Administrar estações, escolha o IPv4 do computador e clique em Verificar porta para saber se a porta 5986 responde a partir do PC da TI. Essa verificação dispensa a senha e não modifica a estação. Para testar o DNS, informe a conta autorizada e a senha da sessão. O diagnóstico orienta a próxima ação conforme a resposta recebida.
 
-          Com o filtro ativo, escolha a estação Windows e compare os testes direto e padrão executados nela por WinRM HTTPS. O painel oferece prévia, aplicação e restauração do DNS do adaptador. A configuração é verificada depois da alteração. Linux pode executar o diagnóstico pelo desktop usando SSH.
-
-          Em Estações → Preparar acesso remoto, gere um script para distribuir por GPO/MDM. No Windows da TI, o preparo direto também pode usar WMI/DCOM com Kerberos já autorizado. O preparo usa certificado de máquina confiável e limita a nova regra de firewall ao IPv4 da TI. Uma estação isolada, sem canal administrativo, precisa de provisionamento autorizado para receber comandos. O painel web abre no navegador da TI em loopback e usa autenticação por token.
-
-          O filtro distingue autotestes locais de consultas das estações. Os pacotes passam por testes Windows/Linux, incluindo atualização do Windows 2.4.1 → 2.4.2. A rede física da escola precisa ser validada pela TI.
+          Quando a conexão de gerenciamento falha, os resultados de DNS ficam sem confirmação. Consulte o guia Comece aqui antes de aplicar mudanças. Os pacotes passam pelos ensaios em Windows e Linux, incluindo a atualização do instalador de 2.4.2 para 2.4.3.
           EOF
           gh release create "$tag" ./* --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard $LABGUARD_VERSION" --notes-file /tmp/release-notes.txt --latest
