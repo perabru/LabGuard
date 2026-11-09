@@ -1,10 +1,11 @@
-name: Cliente escolar Windows
+name: Cliente e Central escolar Windows
 on:
   push:
     branches: [main]
     tags: ['cliente-v*']
     paths:
       - 'client/**'
+      - 'central/**'
       - '.github/workflows/client-windows.yml'
   workflow_dispatch:
 
@@ -20,6 +21,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       version: ${{ steps.version.outputs.version }}
+      central_version: ${{ steps.version.outputs.central_version }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -48,11 +50,24 @@ jobs:
               raise ValueError('O número da tag difere do cliente.')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
               print('version=' + version, file=output)
+              central_tree = ast.parse(pathlib.Path('central/labguard_tecnico.py').read_text(encoding='utf-8'))
+              central_version = next(n.value.value for n in central_tree.body if isinstance(n, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id == 'CENTRAL_VERSION' for t in n.targets))
+              if not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)', central_version):
+                  raise ValueError('Versão da central inválida.')
+              print('central_version=' + central_version, file=output)
+      - name: Instalar dependências da central e da verificação visual
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -r central/requirements.txt playwright==1.62.0
+          if ($LASTEXITCODE -ne 0) { throw 'Falha nas dependências da central.' }
       - name: Executar os testes do cliente
         shell: pwsh
         run: |
           python -m unittest discover -s client -p 'test_*.py' -v
           if ($LASTEXITCODE -ne 0) { throw 'Falha nos testes do cliente.' }
+          python -m unittest discover -s central -p 'test_*.py' -v
+          if ($LASTEXITCODE -ne 0) { throw 'Falha nos testes da central.' }
       - name: Compilar cliente autônomo para Windows x64
         shell: pwsh
         run: |
@@ -62,9 +77,25 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Falha na compilação do executável.' }
           Copy-Item client/labguard_cliente.py build/cliente/export/labguard_cliente.py
           Copy-Item client/README.md build/cliente/export/LEIA-ME.md
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --uac-admin --noupx --name LabGuardTecnico --paths . --paths client --paths central --add-data 'central/assets;assets' --distpath build/cliente/export --workpath build/central/temp --specpath build/central central/labguard_tecnico.py
+          if ($LASTEXITCODE -ne 0) { throw 'Falha na compilação da central.' }
+          Copy-Item central/README.md build/cliente/export/Central-LEIA-ME.md
       - name: Testar instalação, proteção e restauração no Windows
         shell: pwsh
         run: ./client/smoke_windows.ps1 -Exe (Resolve-Path 'build/cliente/export/LabGuardCliente.exe').Path
+      - name: Testar central, painel e sincronização no Windows
+        shell: pwsh
+        run: |
+          python central/smoke_windows.py --central build/cliente/export/LabGuardTecnico.exe --client build/cliente/export/LabGuardCliente.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Falha na instalação, painel ou sincronização da central.' }
+      - name: Preservar telas da validação
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Central-Verificacao-Visual
+          path: build/central/qa/*.png
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Exportar cópia íntegra do banco inicial
         shell: python
         run: |
@@ -90,10 +121,21 @@ jobs:
         run: |
           import hashlib
           import pathlib
+          import zipfile
           folder = pathlib.Path('build/cliente/export')
+          with zipfile.ZipFile(folder / 'LabGuardCentral-Fonte.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+              for root in ('central', 'client'):
+                  for path in pathlib.Path(root).rglob('*'):
+                      if path.is_file() and '__pycache__' not in path.parts and path.suffix not in ('.pyc', '.pem', '.key'):
+                          archive.write(path, 'LabGuardCentral/' + path.as_posix())
+              archive.write('GERAR_EXECUTAVEIS_WINDOWS.bat', 'LabGuardCentral/GERAR_EXECUTAVEIS_WINDOWS.bat')
           files = ['LabGuardCliente.exe', 'labguard_cliente.py', 'LabGuard-Catalogo.sqlite3', 'LEIA-ME.md']
           (folder / 'SHA256SUMS.txt').write_text(''.join(
               f'{hashlib.sha256((folder / name).read_bytes()).hexdigest()}  {name}\n' for name in files
+          ), encoding='utf-8', newline='\n')
+          central_files = ['LabGuardTecnico.exe', 'LabGuardCentral-Fonte.zip', 'Central-LEIA-ME.md']
+          (folder / 'Central-SHA256SUMS.txt').write_text(''.join(
+              f'{hashlib.sha256((folder / name).read_bytes()).hexdigest()}  {name}\n' for name in central_files
           ), encoding='utf-8', newline='\n')
       - name: Preservar o executável e a fonte verificados
         uses: actions/upload-artifact@v4
@@ -121,16 +163,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           CLIENT_VERSION: ${{ needs.windows.outputs.version }}
+          CENTRAL_VERSION: ${{ needs.windows.outputs.central_version }}
         run: |
           set -euo pipefail
           cd release
           sha256sum --check SHA256SUMS.txt
+          sha256sum --check Central-SHA256SUMS.txt
           tag="cliente-v${CLIENT_VERSION}"
           if gh release view "$tag" --repo "$GH_REPO" >/dev/null 2>&1; then
             echo "O cliente $tag já está publicado. Os arquivos existentes são preservados."
-            exit 0
+          else
+            gh release create "$tag" ./LabGuardCliente.exe ./labguard_cliente.py ./LabGuard-Catalogo.sqlite3 ./LEIA-ME.md ./SHA256SUMS.txt \
+              --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard Cliente ${CLIENT_VERSION} · Windows x64" \
+              --notes 'Proteção local do computador escolar com vínculo opcional à Central do técnico. Guia: https://perabru.github.io/LabGuard/tecnico/ . Instalação, painel e sincronização verificados no Windows antes da publicação.' \
+              --latest=false
           fi
-          gh release create "$tag" ./LabGuardCliente.exe ./labguard_cliente.py ./LabGuard-Catalogo.sqlite3 ./LEIA-ME.md ./SHA256SUMS.txt \
-            --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard Cliente ${CLIENT_VERSION} · Windows x64" \
-            --notes 'Proteção local do computador escolar. Baixe o executável ou o arquivo Python e consulte as instruções em LEIA-ME.md.' \
-            --latest=false
+          central_tag="central-v${CENTRAL_VERSION}"
+          if gh release view "$central_tag" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "A central $central_tag já está publicada. Os arquivos existentes são preservados."
+          else
+            gh release create "$central_tag" ./LabGuardTecnico.exe ./LabGuardCentral-Fonte.zip ./Central-LEIA-ME.md ./Central-SHA256SUMS.txt \
+              --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard Central ${CENTRAL_VERSION} · Técnico do laboratório" \
+              --notes 'Adicione, exclua, libere e bloqueie sites em um painel com senha. Use com LabGuard Cliente 1.2.0. Guia: https://perabru.github.io/LabGuard/tecnico/ . Instalação, painel e sincronização verificados no Windows antes da publicação.' \
+              --latest=false
+          fi

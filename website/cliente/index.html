@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#462389">
-  <title>LabGuard Cliente 1.1.0 | Guia da estação Windows</title>
+  <title>LabGuard Cliente 1.2.0 | Guia da estação Windows</title>
   <meta name="description" content="Instale a proteção no PC do aluno, gerencie 831 domínios e confira o funcionamento ao iniciar o Windows.">
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="guia.css">
@@ -20,12 +20,12 @@
   <main id="conteudo">
     <section class="hero"><div class="wrap hero-inner">
       <div>
-        <p class="platform">Cliente 1.1.0 <span> / </span> Windows 10 e 11 · 64 bits</p>
+        <p class="platform">Cliente 1.2.0 <span> / </span> Windows 10 e 11 · 64 bits</p>
         <h1>Proteção no PC<br>do aluno.</h1>
         <p class="lead">O LabGuard Cliente bloqueia domínios e controla jogos na própria estação, inclusive quando o PC da TI está desligado.</p>
         <div class="actions">
-          <a class="cta" href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.1.0/LabGuardCliente.exe"><span aria-hidden="true">↓</span> Baixar cliente Windows</a>
-          <a class="pdf" href="Guia_Rapido_LabGuard_Cliente.pdf">Guia em PDF <span class="link-arrow" aria-hidden="true"></span></a>
+          <a class="cta" href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.2.0/LabGuardCliente.exe"><span aria-hidden="true">↓</span> Baixar cliente Windows</a>
+          <a class="pdf" href="Guia_Rapido_LabGuard_Cliente.pdf">Guia local 1.1 em PDF <span class="link-arrow" aria-hidden="true"></span></a>
         </div>
       </div>
       <figure class="preview">
@@ -37,6 +37,7 @@
       <aside class="nav"><nav aria-label="Tópicos do guia">
         <p>Nesta página</p>
         <a href="#instalar">Instalar e ativar</a>
+        <a href="#central">Controle pelo técnico</a>
         <a href="#catalogo">Banco de sites</a>
         <a href="#verificar">Conferir a proteção</a>
         <a href="#remover">Desinstalar</a>
@@ -54,6 +55,7 @@
           </ol>
           <details><summary>Como o cliente trata o Roblox e o Minecraft?</summary><p>O cliente verifica as edições reconhecidas do Roblox da Microsoft Store. Para o Roblox clássico instalado no perfil do aluno, tenta usar o desinstalador registrado e assinado pelo fabricante na entrada do usuário. Instalações desconhecidas podem exigir remoção pela TI. A opção de remoção do Minecraft da Store precisa ser marcada separadamente e pode apagar mundos locais.</p></details>
         </section>
+        <section id="central" class="section"><h2>Controle os sites pela Central do técnico</h2><p>Na versão 1.2.0, a aba <strong>Técnico</strong> permite importar o arquivo de vínculo gerado na Central. Os computadores vinculados recebem as listas de bloqueio e liberação definidas pelo técnico e mantêm a última lista válida quando ele estiver offline.</p><p>Abra o novo EXE como administrador e selecione <strong>Técnico → Importar vínculo</strong>. Uma instalação 1.1.0 existente é atualizada antes da conexão. <a href="../tecnico/"><strong>Instalar a Central e seguir o guia completo →</strong></a></p></section>
         <section id="catalogo" class="section">
           <h2>Banco de sites</h2>
           <p>A instalação já inclui <strong>831 domínios</strong> em seis categorias com sites. A TI pode usar a categoria <strong>Outros</strong> para novos cadastros.</p>
@@ -67,7 +69,7 @@
             <li><strong>Alterar a lista.</strong> Pesquise um domínio para editar ou excluir. Para suspender uma categoria inteira, selecione-a no filtro e clique em <strong>Pausar categoria</strong>. Use <strong>Ativar categoria</strong> para retomar.</li>
             <li><strong>Importar vários domínios.</strong> Use <strong>Exportar CSV</strong> para obter o formato. No arquivo, mantenha as colunas <code>dominio,categoria,ativo</code>. Em <strong>Importar CSV</strong>, confira a prévia antes de confirmar.</li>
           </ul>
-          <p class="note">As alterações valem para a estação em que foram salvas. O cliente verifica o banco durante a execução. O limite é de 10.000 cadastros e 975 domínios ativos distintos, contando os bloqueios adicionais da política.</p>
+          <p class="note">No modo independente, as alterações valem para a estação em que foram salvas. Quando vinculada, a estação usa os sites definidos na Central. O cliente verifica o banco durante a execução. O limite é de 10.000 cadastros e 975 domínios ativos distintos, contando os bloqueios adicionais da política.</p>
         </section>
         <section id="verificar" class="section">
           <h2>Conferir a proteção</h2>
@@ -86,12 +88,12 @@
         <section id="arquivos" class="section">
           <h2>Arquivos da versão</h2>
           <div class="files">
-            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.1.0/LabGuardCliente.exe"><span><strong>Aplicativo Windows</strong><small>Executável com Python embutido</small></span><span aria-hidden="true">↓</span></a>
-            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.1.0/labguard_cliente.py"><span><strong>Código em Python</strong><small>Arquivo único para a equipe de TI</small></span><span aria-hidden="true">↓</span></a>
-            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.1.0/LabGuard-Catalogo.sqlite3"><span><strong>Catálogo SQLite</strong><small>Cópia para consulta dos 831 domínios já incluídos no aplicativo</small></span><span aria-hidden="true">↓</span></a>
-            <a href="Guia_Rapido_LabGuard_Cliente.pdf"><span><strong>Guia rápido em PDF</strong><small>Instruções para imprimir ou usar sem internet</small></span><span class="link-arrow" aria-hidden="true"></span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.2.0/LabGuardCliente.exe"><span><strong>Aplicativo Windows</strong><small>Executável com Python embutido</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.2.0/labguard_cliente.py"><span><strong>Código em Python</strong><small>Arquivo único para a equipe de TI</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.2.0/LabGuard-Catalogo.sqlite3"><span><strong>Catálogo SQLite</strong><small>Cópia para consulta dos 831 domínios já incluídos no aplicativo</small></span><span aria-hidden="true">↓</span></a>
+            <a href="Guia_Rapido_LabGuard_Cliente.pdf"><span><strong>Guia em PDF da instalação local 1.1</strong><small>Instruções para imprimir ou usar sem internet</small></span><span class="link-arrow" aria-hidden="true"></span></a>
           </div>
-          <a class="github" href="https://github.com/perabru/LabGuard/releases/tag/cliente-v1.1.0">Ver a versão e as somas SHA-256 no GitHub <span class="link-arrow" aria-hidden="true"></span></a>
+          <a class="github" href="https://github.com/perabru/LabGuard/releases/tag/cliente-v1.2.0">Ver a versão e as somas SHA-256 no GitHub <span class="link-arrow" aria-hidden="true"></span></a>
         </section>
       </div>
     </div>

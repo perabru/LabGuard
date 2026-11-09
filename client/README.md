@@ -2,9 +2,15 @@
 
 Esta edição roda no computador da escola. Funciona sem o painel da TI, sem WinRM e sem alterar o DNS do roteador. Use conta de aluno padrão e reserve as credenciais de administrador para a TI. A tarefa **LabGuardCliente** é identificada no Agendador de Tarefas. O cliente não abre painel, console ou ícone de bandeja no login do aluno. Avisos de bloqueio do navegador e eventuais telas do desinstalador do fabricante podem aparecer.
 
+## Novo na versão 1.2.0: controle pelo técnico
+
+O cliente também pode receber os sites da **LabGuard Central 1.0.0**. Instale a [Central no computador do técnico](../central/README.md), gere um arquivo de vínculo para cada estação e, no cliente instalado, abra **Técnico → Importar vínculo**. A TI poderá adicionar, excluir, liberar e bloquear os domínios em um único painel. O cliente informa a revisão aplicada e mantém a última política válida quando a central estiver offline.
+
+Para atualizar uma instalação 1.1.0, abra o novo EXE como administrador e importe o vínculo; o programa atualiza a cópia instalada pelo ciclo de instalação existente. Os sites definidos na Central substituem a lista e o catálogo locais enquanto houver vínculo. As opções locais de jogos são preservadas. **Técnico → Desvincular** retoma a política local original. Consulte o [guia da Central](https://perabru.github.io/LabGuard/tecnico/) para instalar, vincular e interpretar as confirmações.
+
 ## Começar em uma máquina piloto
 
-1. Baixe **LabGuardCliente.exe** na [versão do cliente](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.1.0). Guarde a cópia baixada para administração e remoção. Abra e confirme a solicitação de administrador do Windows. O EXE contém Python. Para utilizar o arquivo fonte, veja abaixo.
+1. Baixe **LabGuardCliente.exe** na [versão do cliente](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.2.0). Guarde a cópia baixada para administração e remoção. Abra e confirme a solicitação de administrador do Windows. O EXE contém Python. Para utilizar o arquivo fonte, veja abaixo.
 2. Em **Sites**, escolha **Bloquear os listados** para aplicar o catálogo de jogos, conteúdo adulto e serviços de IA. Para uma aula com navegação restrita, escolha **Permitir só os listados** e escreva os domínios necessários, um por linha. Inclua os domínios de login, arquivos, vídeos e demais recursos que sua atividade usa. Confira em um perfil de aluno antes de replicar a política.
 3. Em **Jogos**, marque os títulos desejados. **Desinstalar o Roblox identificado** está ativo na política inicial. Desinstalações podem apagar dados locais do aplicativo. Minecraft da Store só pode ser desinstalado se a TI habilitar essa opção expressamente; faça backup dos mundos primeiro.
 4. Clique em **Instalar e proteger agora** e confirme a instalação. O Windows executa a tarefa imediatamente no PC já ligado e novamente a cada inicialização. Na aba **Estação**, use **Atualizar estado** e **Detalhes técnicos** até aparecer uma verificação recente. Feche a janela da TI. O Windows inicia a tarefa no boot e a edição clássica do Roblox é tratada no login padrão seguinte.
@@ -29,7 +35,7 @@ Em **Bloquear os listados**, os domínios e os subdomínios do catálogo ficam b
 | Roblox da Microsoft Store | A tarefa verifica os pacotes reconhecidos das contas da máquina, confere identidade e assinatura, solicita a desinstalação e lê novamente o inventário. A verificação de pacotes se repete periodicamente e após mudanças na política. |
 | Roblox clássico no perfil de aluno | No login, o cliente usa a conta do próprio usuário para executar somente o desinstalador registrado, compatível e assinado pela Roblox. Ausência de registro confiável, edição fora do catálogo, edição instalada para a máquina ou instalador que exige interação podem exigir remoção pela TI em Aplicativos instalados. |
 | Demais jogos | Os títulos reconhecidos têm controle de execução. Remoção automática adicional disponível para Minecraft da Store, com autorização explícita. |
-| Administração | A configuração é local por estação. O status apresenta horário e resultados dos controles locais; não confirma uma tentativa de navegação em cada perfil. Não existe conexão de telemetria ou sincronização com o dashboard do LabGuard nesta edição. |
+| Administração | Configuração local por estação ou gerenciamento opcional dos sites pela LabGuard Central. A aba Técnico permite importar vínculo, sincronizar e desvincular. A Central recebe nome da estação, versão e confirmação das regras de sites; não coleta histórico de navegação. O status não confirma uma tentativa de navegação em cada perfil. |
 
 O endereço de um serviço adulto novo ou de um jogo novo precisa estar no catálogo para ser bloqueado no modo de lista de bloqueio. Para uma aula restrita aos recursos selecionados, use **Permitir só os listados**. Políticas existentes da escola podem ter precedência; na configuração do Edge, perfis conectados com conta Microsoft pessoal podem ter tratamento diferente. Teste com o perfil usado em sala.
 

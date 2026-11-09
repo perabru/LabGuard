@@ -10,7 +10,13 @@ Painel em Python para conhecer a rede do laboratório e administrar os equipamen
 
 ## Cliente Windows para o computador do aluno
 
-Instale a proteção diretamente na estação Windows para que ela comece na mesma sessão e volte a cada boot. A TI gerencia um banco SQLite de 831 domínios, o modo de sites permitidos e o controle local de jogos. A edição da estação funciona com o painel da TI desligado. [Baixar o cliente, a fonte Python e o catálogo](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.1.0) · [Guia rápido do cliente](https://perabru.github.io/LabGuard/cliente/) · [Guia rápido em PDF](https://perabru.github.io/LabGuard/cliente/Guia_Rapido_LabGuard_Cliente.pdf) · [Instalação e uso](client/README.md).
+Instale a proteção diretamente na estação Windows para que ela comece na mesma sessão e volte a cada boot. A TI gerencia um banco SQLite de 831 domínios, o modo de sites permitidos e o controle local de jogos. A edição da estação funciona com o painel da TI desligado. [Baixar o cliente 1.2.0, a fonte Python e o catálogo](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.2.0) · [Guia rápido do cliente](https://perabru.github.io/LabGuard/cliente/) · [Guia rápido em PDF da instalação local 1.1](https://perabru.github.io/LabGuard/cliente/Guia_Rapido_LabGuard_Cliente.pdf) · [Instalação e uso](client/README.md).
+
+## Central do técnico: gerenciar sites em todos os computadores
+
+A **LabGuard Central 1.0.0**, instalada no PC do técnico, oferece um painel com senha para **adicionar, excluir, liberar e bloquear sites**. O **Cliente 1.2.0** recebe a política por HTTPS e confirma a revisão aplicada; mantém a última lista válida se a Central ficar offline. Gere um arquivo de vínculo exclusivo por estação e importe na aba **Técnico** do cliente. Os controles de jogos continuam locais, e esta edição dispensa WinRM e mudanças no DNS do roteador.
+
+[Baixar LabGuardTecnico.exe](https://github.com/perabru/LabGuard/releases/download/central-v1.0.0/LabGuardTecnico.exe) · [Guia da Central](https://perabru.github.io/LabGuard/tecnico/) · [Manual e fonte](central/README.md).
 
 ## Vivo + switch Mercusys não gerenciável
 

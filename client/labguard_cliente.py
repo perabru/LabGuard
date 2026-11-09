@@ -10,6 +10,7 @@ import argparse
 import ctypes
 import datetime
 import ipaddress
+import http.client
 import json
 import os
 from pathlib import Path
@@ -30,9 +31,12 @@ import secrets
 import shutil
 import sqlite3
 import stat
+import socket
+import ssl
+from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
-CLIENT_VERSION = "1.1.0"
+CLIENT_VERSION = "1.2.0"
 CLIENT_CATALOG_VERSION = "2026.11.09.1"
 
 def default_policy():
@@ -1472,7 +1476,8 @@ _LC_PREVIOUS = 'cliente.anterior'
 _LC_STAGE = 'cliente.preparado'
 _LC_RECORD_STAGE = 'instalacao.tmp'
 _LC_KNOWN = _LC_DB_SIDECARS | {_LC_PREVIOUS, _LC_STAGE, _LC_RECORD_STAGE, 'banco.sqlite3', _LC_RECORD, 'politica.json', 'estado.json', 'status.json', 'operacao.lock',
-             'parar.flag', 'tarefa.xml', 'LabGuardCliente.exe', 'LabGuardCliente.py'}
+             'parar.flag', 'tarefa.xml', 'LabGuardCliente.exe', 'LabGuardCliente.py',
+             'gerenciado.json', 'politica-central.json', 'central-status.json'}
 _LC_RUN_KEY = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
 
 
@@ -2237,7 +2242,10 @@ def _browser_policy_run(policy, state, checkpoint, registry, removing=False):
         raise ValueError("Modo de proteção de sites inválido.")
     strict = mode == "permitidos" and not removing
     domains = [] if removing else _site_domains(policy.get("domains", []))
-    allowed = _site_domains(policy.get("allowed_domains", [])) if strict else []
+    allowed = [] if removing else _site_domains(policy.get("allowed_domains", []))
+    if not strict:
+        # A release covers its domain and descendants consistently in all browsers.
+        domains = [domain for domain in domains if not any(domain == allow or domain.endswith("." + allow) for allow in allowed)]
     if strict and not allowed:
         raise ValueError("Cadastre ao menos um domínio escolar antes de usar somente permitidos.")
     saved = state.setdefault("sites", {})
@@ -2312,9 +2320,8 @@ def _hosts_names(policy):
             names.add("www." + domain)
         if domain == "roblox.com":
             names.update(label + ".roblox.com" for label in _ROBLOX_ENDPOINTS)
-    if policy.get("mode") == "permitidos":
-        allowed = policy.get("allowed_domains", [])
-        names = {name for name in names if not any(name == domain or name.endswith("." + domain) for domain in allowed)}
+    allowed = policy.get("allowed_domains", [])
+    names = {name for name in names if not any(name == domain or name.endswith("." + domain) for domain in allowed)}
     return names
 
 
@@ -3108,8 +3115,8 @@ def show_client_ui():
     root_body.rowconfigure(0, weight=1)
     tabs = ttk.Notebook(root_body, style="LG.TNotebook")
     tabs.grid(row=0, column=0, sticky="nsew")
-    home, sites, games, bank = [ttk.Frame(tabs, style="Card.TFrame", padding=14) for _ in range(4)]
-    for panel, name in ((home, "Estação"), (sites, "Sites"), (games, "Jogos"), (bank, "Banco de sites")):
+    home, sites, games, bank, technician = [ttk.Frame(tabs, style="Card.TFrame", padding=14) for _ in range(5)]
+    for panel, name in ((home, "Estação"), (sites, "Sites"), (games, "Jogos"), (bank, "Banco de sites"), (technician, "Técnico")):
         tabs.add(panel, text=name)
         panel.columnconfigure(0, weight=1)
 
@@ -3133,7 +3140,8 @@ def show_client_ui():
         button.pack(side="left", padx=(0, 5))
 
     mode = tk.StringVar(value="bloqueados")
-    label(sites, "Política dos navegadores", heading=True).grid(row=0, column=0, sticky="w")
+    sites_heading = tk.StringVar(value="Política dos navegadores")
+    label(sites, "", heading=True, variable=sites_heading).grid(row=0, column=0, sticky="w")
     options = ttk.Frame(sites, style="Card.TFrame")
     options.grid(row=1, column=0, sticky="w", pady=(3, 4))
     for value, name in (("bloqueados", "Bloquear os listados"), ("permitidos", "Permitir só os listados")):
@@ -3162,7 +3170,7 @@ def show_client_ui():
     ttk.Checkbutton(sites, text="Usar os domínios ativos do Banco de sites", variable=catalog_on,
                     style="LG.TCheckbutton").grid(row=3, column=0, sticky="w", pady=2)
     deny = domain_box(4, "Bloqueios adicionais da política • um domínio por linha")
-    allow = domain_box(6, "Domínios permitidos no modo restrito • um por linha")
+    allow = domain_box(6, "Domínios liberados / permitidos • um por linha")
 
     label(games, "Jogos com execução bloqueada", heading=True).grid(row=0, column=0, sticky="w")
     label(games, "O cliente procura processos conhecidos dos jogos marcados e encerra a execução "
@@ -3202,6 +3210,24 @@ def show_client_ui():
     couple_removal(game_flags["roblox"], remove_roblox)
     couple_removal(game_flags["minecraft"], remove_minecraft)
 
+    central_text = tk.StringVar(value="Consultando o vínculo com a central…")
+    label(technician, "Controle pelo técnico do laboratório", heading=True).grid(row=0, column=0, sticky="w")
+    label(technician, "Instale o cliente nesta estação. Depois, no painel LabGuard Técnico, gere um arquivo de vínculo "
+                      "para este computador e importe-o abaixo. Cada arquivo permite vincular uma estação.").grid(
+                          row=1, column=0, sticky="w", pady=(8, 12))
+    label(technician, "", variable=central_text).grid(row=2, column=0, sticky="w", pady=(0, 12))
+    central_controls = ttk.Frame(technician, style="Card.TFrame")
+    central_controls.grid(row=3, column=0, sticky="w")
+    pair_button = ttk.Button(central_controls, text="Importar vínculo", style="Apply.LG.TButton")
+    sync_button = ttk.Button(central_controls, text="Sincronizar agora", style="LG.TButton")
+    unlink_button = ttk.Button(central_controls, text="Desvincular", style="LG.TButton")
+    for button in (pair_button, sync_button, unlink_button):
+        button.pack(side="left", padx=(0, 7))
+    label(technician, "Enquanto houver vínculo, os sites são administrados no painel do técnico. As configurações "
+                      "locais de jogos são preservadas. Sem conexão, a estação mantém a última lista válida e "
+                      "tenta sincronizar novamente. Ao desvincular, a política local anterior volta a valer.").grid(
+                          row=4, column=0, sticky="w", pady=(18, 0))
+
     foot = ttk.Frame(root_body, style="LG.TFrame")
     foot.grid(row=1, column=0, sticky="ew", pady=(9, 0))
     foot.columnconfigure(0, weight=1)
@@ -3230,9 +3256,20 @@ def show_client_ui():
         for button, active in ((refresh, job is None), (details, ready and bool(snapshot)),
                                (activate, ready and installed and editable and admin),
                                (remove, ready and installed and admin),
-                               (apply_button, ready and editable and admin)):
+                               (apply_button, ready and editable and admin),
+                               (pair_button, ready and installed and admin and not snapshot.get("managed")),
+                               (sync_button, ready and installed and admin and snapshot.get("managed")),
+                               (unlink_button, ready and installed and admin and snapshot.get("managed"))):
             button.state(["!disabled" if active else "disabled"])
-        apply_button.configure(text="Salvar política" if installed else "Instalar e proteger agora")
+        apply_button.configure(text=("Salvar jogos locais" if snapshot.get("managed") else "Salvar política") if installed else "Instalar e proteger agora")
+        def site_state(widget):
+            if isinstance(widget, (ttk.Checkbutton, ttk.Radiobutton)):
+                widget.state(["disabled" if snapshot.get("managed") else "!disabled"])
+            elif isinstance(widget, tk.Text):
+                widget.configure(state="disabled" if snapshot.get("managed") else "normal")
+            for child in widget.winfo_children():
+                site_state(child)
+        site_state(sites)
         bank_controls()
 
     def fill(data):
@@ -3241,6 +3278,7 @@ def show_client_ui():
         mode.set(data["mode"])
         catalog_on.set(data.get("catalog_enabled", True))
         for area, key in ((deny, "domains"), (allow, "allowed_domains")):
+            area.configure(state="normal")
             area.delete("1.0", "end")
             area.insert("1.0", "\n".join(data.get(key, [])))
         for key, flag in game_flags.items():
@@ -3289,6 +3327,17 @@ def show_client_ui():
             agent_time.set("Último registro (UTC)   " + str(stamp) if stamp else
                            "Abra Detalhes técnicos para consultar o estado da proteção.")
         bank_update(bank_data, bool((data or {}).get("catalog_enabled", True)))
+        if value.get("managed"):
+            sites_heading.set("Sites controlados pela central • política local preservada abaixo")
+            central = value.get("central") or {}
+            central_text.set("Central: " + str(central.get("server_url", "vinculada")) + "\n" +
+                ("Último contato: " + str(central.get("last_contact", "aguardando")) + " (UTC)\n") +
+                "Revisão recebida: " + str(central.get("expected_revision", "—")) +
+                "  •  Aplicada: " + str(central.get("applied_revision") or "pendente") +
+                ("\n" + str(central.get("error")) if central.get("error") else ""))
+        else:
+            sites_heading.set("Política dos navegadores")
+            central_text.set("Estação sem vínculo. A política e o banco de sites são administrados localmente.")
         feedback.set(issue or ("Abra este programa como administrador para alterar a proteção."
                               if not admin else note))
         buttons()
@@ -3376,8 +3425,48 @@ def show_client_ui():
         box.insert("1.0", json.dumps(snapshot, indent=2, ensure_ascii=False))
         box.configure(state="disabled")
 
+    def pair_station():
+        from tkinter import filedialog
+        filename = filedialog.askopenfilename(parent=root, title="Arquivo de vínculo do LabGuard Técnico",
+                    filetypes=[("Vínculo da central", "*.json")])
+        if not filename:
+            return
+        try:
+            checked_link = validate_enrollment(_json_read(Path(filename)))
+        except Exception as error:
+            messagebox.showerror("Vínculo inválido", str(error), parent=root)
+            return
+        if not messagebox.askyesno("Vincular ao técnico",
+                "Confiar nesta central e usar suas listas de sites nesta estação?\n\n" + checked_link["server_url"] +
+                "\n\nAs configurações de jogos desta estação serão preservadas.", parent=root, default="no"):
+            return
+        def work():
+            enroll_client(Path(filename))
+            return load_state()
+        submit("Vinculando a estação…", work, lambda value: display(value, True, "Vínculo salvo. Aguarde a confirmação da tarefa."))
+
+    def sync_station():
+        def work():
+            require_client_admin()
+            sync_central()
+            return load_state()
+        submit("Sincronizando com a central…", work, lambda value: display(value, False, "Lista recebida. A tarefa confirmará a aplicação."))
+
+    def unlink_station():
+        if not messagebox.askyesno("Retomar controle local", "Desvincular esta estação e retomar a política local preservada?",
+                                  parent=root, default="no"):
+            return
+        def work():
+            unlink_client()
+            return load_state()
+        submit("Retomando o controle local…", work, lambda value: display(value, True, "Vínculo removido. Aguarde a aplicação da política local."))
+
+    pair_button.configure(command=pair_station)
+    sync_button.configure(command=sync_station)
+    unlink_button.configure(command=unlink_station)
+
     bank_update, bank_controls = _admin_bank_tab(bank, root, submit, load_state, display,
-                       can_edit=lambda: initialized and installed and admin and job is None,
+                       can_edit=lambda: initialized and installed and admin and job is None and not snapshot.get("managed"),
                        is_installed=lambda: installed)
     refresh.configure(command=lambda: submit("Consultando a estação…", load_state, lambda x: display(x, False)))
     details.configure(command=detail_window)
@@ -3492,8 +3581,16 @@ def get_client_status():
     pending = (directory / "parar.flag").exists()
     catalog = ClientCatalog(directory / "banco.sqlite3")
     report["bank_revision"] = catalog.revision()
-    report["catalog_enabled"] = report.get("policy", {}).get("catalog_enabled", True)
-    same = (worker.get("policy_revision") == _policy_revision(report.get("policy", {}))
+    effective, central_revision = _central_effective(report.get("policy", {}), directory)
+    report["managed"] = central_revision is not None
+    report["catalog_enabled"] = effective.get("catalog_enabled", True)
+    if report["managed"]:
+        report["central"] = _json_read(directory / _CENTRAL_STATUS) if (directory / _CENTRAL_STATUS).is_file() else {}
+        report["central"]["applied_revision"] = (worker.get("central_revision")
+            if fresh and worker.get("sites", {}).get("ok") is True and worker.get("system_sites", {}).get("ok") is True else None)
+        report["central"]["expected_revision"] = central_revision
+    same = (worker.get("policy_revision") == _policy_revision(effective)
+            and worker.get("central_revision") == central_revision
             and (not report["catalog_enabled"] or worker.get("bank_revision") == report["bank_revision"]))
     task = report["task"]
     startup_ok = task.get("running") and task.get("user_start") and task.get("task_registered")
@@ -3518,6 +3615,280 @@ def _policy_revision(policy):
     return hashlib.sha256(json.dumps(policy, sort_keys=True).encode("utf-8")).hexdigest()
 
 
+# The technician connection carries site policy only. Its credential is never
+# returned in status, and the original local policy is kept for unlinking.
+_CENTRAL_CONFIG = "gerenciado.json"
+_CENTRAL_POLICY = "politica-central.json"
+_CENTRAL_STATUS = "central-status.json"
+_CENTRAL_MAX_RESPONSE = 2 * 1024 * 1024
+
+
+class CentralError(RuntimeError):
+    pass
+
+
+def _central_endpoint(value):
+    if not isinstance(value, str) or len(value) > 256:
+        raise ValueError("Endereço da central inválido.")
+    try:
+        parsed = urlsplit(value)
+        address = ipaddress.IPv4Address(parsed.hostname)
+        port = parsed.port or 8788
+    except (ValueError, TypeError):
+        raise ValueError("Use o vínculo HTTPS com o IPv4 do computador do técnico.") from None
+    if (parsed.scheme != "https" or parsed.username or parsed.password or parsed.query or parsed.fragment
+            or parsed.path not in ("", "/") or not 1024 <= port <= 65535
+            or not address.is_private or address.is_unspecified or address.is_multicast
+            or address.is_link_local):
+        raise ValueError("O vínculo deve apontar para uma central HTTPS na rede local.")
+    return f"https://{address}:{port}", str(address), port
+
+
+def _central_secret(value, label):
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{24,256}", value):
+        raise ValueError(f"{label} inválido no vínculo da central.")
+    return value
+
+
+def _central_tls(pem):
+    if not isinstance(pem, str) or not 100 <= len(pem) <= 16384:
+        raise ValueError("O certificado da central não foi informado corretamente.")
+    # Trust only the certificate supplied by the technician, with name and
+    # validity verification. Never follow a redirect to another enrollment host.
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_verify_locations(cadata=pem)
+    return context
+
+
+def validate_enrollment(raw):
+    fields = {"format", "server_url", "ca_pem", "enrollment_token"}
+    if not isinstance(raw, dict) or set(raw) != fields or raw.get("format") != "labguard-central-v1":
+        raise ValueError("Selecione o arquivo de vínculo exportado pelo LabGuard Técnico.")
+    url, _, _ = _central_endpoint(raw["server_url"])
+    _central_tls(raw["ca_pem"])
+    _central_secret(raw["enrollment_token"], "Código de vínculo")
+    return dict(raw, server_url=url)
+
+
+def _central_config(directory):
+    path = directory / _CENTRAL_CONFIG
+    if not path.exists():
+        return None
+    raw = _json_read(path)
+    if set(raw) != {"format", "server_url", "ca_pem", "device_id", "device_token"} or raw.get("format") != "labguard-central-v1":
+        raise ValueError("Configuração da central inválida; consulte o técnico.")
+    _central_endpoint(raw["server_url"])
+    _central_secret(raw["device_token"], "Credencial da estação")
+    if not isinstance(raw["device_id"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", raw["device_id"]):
+        raise ValueError("Identificação da estação inválida.")
+    return raw
+
+
+def _central_write_private(path, data):
+    """Create the credential with an admin/SYSTEM-only ACL before writing bytes."""
+    payload = (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    temp = path.with_name("lg-central-" + secrets.token_hex(12) + ".tmp")
+    if os.name == "nt":
+        import msvcrt
+        from ctypes import wintypes
+        class SecurityAttributes(ctypes.Structure):
+            _fields_ = [("nLength", wintypes.DWORD), ("descriptor", ctypes.c_void_p), ("inherit", wintypes.BOOL)]
+        sd = ctypes.c_void_p()
+        adv, kernel = ctypes.windll.advapi32, ctypes.windll.kernel32
+        descriptor = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;GR;;;OW)"
+        if not adv.ConvertStringSecurityDescriptorToSecurityDescriptorW(descriptor, 1, ctypes.byref(sd), None):
+            raise ctypes.WinError()
+        try:
+            attrs = SecurityAttributes(ctypes.sizeof(SecurityAttributes), sd, False)
+            create = kernel.CreateFileW
+            create.argtypes = (wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                               wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE)
+            create.restype = wintypes.HANDLE
+            handle = create(str(temp), 0x40000000, 0, ctypes.byref(attrs), 1, 0x80, None)
+            if handle == ctypes.c_void_p(-1).value:
+                raise ctypes.WinError()
+            try:
+                fd = msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY)
+            except BaseException:
+                kernel.CloseHandle(wintypes.HANDLE(handle))
+                raise
+        finally:
+            kernel.LocalFree(sd)
+    else:
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def _central_request(config, path, body, *, authenticated=True):
+    if path not in ("/api/agent/enroll", "/api/agent/poll"):
+        raise ValueError("Operação da central não permitida.")
+    _, host, port = _central_endpoint(config["server_url"])
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if authenticated:
+        headers["Authorization"] = "Bearer " + _central_secret(config["device_token"], "Credencial da estação")
+    connection = http.client.HTTPSConnection(host, port, timeout=6, context=_central_tls(config["ca_pem"]))
+    try:
+        connection.request("POST", path, body=json.dumps(body, ensure_ascii=False).encode("utf-8"), headers=headers)
+        response = connection.getresponse()
+        payload = response.read(_CENTRAL_MAX_RESPONSE + 1)
+        if response.status in (401, 403):
+            raise CentralError("Vínculo recusado ou revogado. Solicite um novo arquivo ao técnico.")
+        if response.status != 200:
+            raise CentralError("A central não concluiu a sincronização. A última política válida continua ativa.")
+        if len(payload) > _CENTRAL_MAX_RESPONSE or response.getheader("Content-Type", "").split(";")[0] != "application/json":
+            raise CentralError("Resposta incompatível da central. A última política válida foi preservada.")
+        data = json.loads(payload)
+        if not isinstance(data, dict) or data.get("ok") is not True:
+            raise CentralError("A central não confirmou a operação.")
+        return data
+    except ssl.SSLError:
+        raise CentralError("Certificado da central não confirmado. Confira o relógio do Windows e o vínculo com o técnico.") from None
+    except (OSError, http.client.HTTPException):
+        raise CentralError("Central sem conexão. A última política válida continua ativa; haverá nova tentativa automática.") from None
+    except (ValueError, UnicodeError):
+        raise CentralError("A central retornou dados inválidos. A última política válida foi preservada.") from None
+    finally:
+        connection.close()
+
+
+def validate_central_policy(raw):
+    if not isinstance(raw, dict) or set(raw) != {"revision", "site_policy"}:
+        raise ValueError("Formato de política central incompatível.")
+    revision, policy = raw["revision"], raw["site_policy"]
+    if type(revision) is not int or not 1 <= revision <= 2**53 - 1:
+        raise ValueError("Revisão da política central inválida.")
+    if (not isinstance(policy, dict) or set(policy) != {"mode", "catalog_enabled", "domains", "allowed_domains"}
+            or policy["mode"] != "bloqueados" or policy["catalog_enabled"] is not False):
+        raise ValueError("A central pode administrar somente listas de sites nesta versão.")
+    checked = dict(policy)
+    for key in ("domains", "allowed_domains"):
+        if not isinstance(policy[key], list) or len(policy[key]) > CATALOG_ACTIVE_LIMIT:
+            raise ValueError("A lista central excedeu o limite de sites.")
+        checked[key] = _site_domains(policy[key])
+    if len(set(checked["domains"]) | set(checked["allowed_domains"])) > CATALOG_ACTIVE_LIMIT:
+        raise ValueError("A política central excedeu o limite de 975 sites.")
+    if any(block == allow or block.endswith("." + allow)
+           for block in checked["domains"] for allow in checked["allowed_domains"]):
+        raise ValueError("A política contém bloqueio dentro de um domínio liberado. Revise as regras na central.")
+    return {"revision": revision, "site_policy": checked}
+
+
+def _central_snapshot(response):
+    return validate_central_policy({"revision": response.get("revision"), "site_policy": response.get("site_policy")})
+
+
+def _central_effective(local_policy, directory):
+    if not (directory / _CENTRAL_CONFIG).exists():
+        return local_policy, None
+    saved = validate_central_policy(_json_read(directory / _CENTRAL_POLICY))
+    return dict(local_policy, **saved["site_policy"]), saved["revision"]
+
+
+def enroll_client(link_path):
+    require_client_admin()
+    directory = client_directory()
+    record = _lc_load(directory)
+    if record.get("version") != CLIENT_VERSION:
+        # The downloaded management UI may be newer than the installed worker.
+        # Upgrade its binary through the existing owned-task lifecycle first.
+        perform_install(read_policy())
+    link_path = Path(link_path)
+    if not link_path.is_file() or link_path.stat().st_size > 32768:
+        raise ValueError("Arquivo de vínculo ausente ou muito grande.")
+    link = validate_enrollment(_json_read(link_path))
+    with _operation_lock(directory):
+        if (directory / "parar.flag").exists():
+            raise RuntimeError("Conclua a remoção antes de vincular a estação.")
+        if (directory / _CENTRAL_CONFIG).exists():
+            raise RuntimeError("A estação já está vinculada. Desvincule antes de trocar de central.")
+        result = _central_request(link, "/api/agent/enroll", {
+            "enrollment_token": link["enrollment_token"], "name": socket.gethostname()[:120],
+            "client_version": CLIENT_VERSION}, authenticated=False)
+        saved = _central_snapshot(result)
+        device_id, token = result.get("device_id"), result.get("device_token")
+        if not isinstance(device_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", device_id):
+            raise CentralError("A central não retornou identificação válida para a estação.")
+        _central_secret(token, "Credencial da estação")
+        config = {"format": link["format"], "server_url": link["server_url"], "ca_pem": link["ca_pem"],
+                  "device_id": device_id, "device_token": token}
+        _atomic_json(directory / _CENTRAL_POLICY, saved)
+        _central_write_private(directory / _CENTRAL_CONFIG, config)
+        _atomic_json(directory / _CENTRAL_STATUS, {"connected": True, "last_contact": _utc_now(),
+                     "server_url": link["server_url"], "revision": saved["revision"], "error": ""})
+    return {"ok": True, "server_url": link["server_url"], "device_id": device_id,
+            "message": "Estação vinculada. A tarefa aplicará a política central na próxima verificação."}
+
+
+def unlink_client():
+    require_client_admin()
+    directory = client_directory()
+    _lc_load(directory)
+    with _operation_lock(directory):
+        if (directory / "parar.flag").exists():
+            raise RuntimeError("A remoção está em andamento.")
+        # Confirm the preserved local policy before handing control back to it.
+        _effective_domains(read_policy(), ClientCatalog(directory / "banco.sqlite3"))
+        (directory / _CENTRAL_CONFIG).unlink(missing_ok=True)
+        (directory / _CENTRAL_POLICY).unlink(missing_ok=True)
+        (directory / _CENTRAL_STATUS).unlink(missing_ok=True)
+    return {"ok": True, "message": "Vínculo removido. A política local preservada será retomada na próxima verificação."}
+
+
+def sync_central(directory=None):
+    """Poll outside the application lock; atomically accept only a valid snapshot."""
+    directory = directory or client_directory()
+    with _operation_lock(directory):
+        config = _central_config(directory)
+        if config is None:
+            return {"ok": True, "managed": False}
+        old = validate_central_policy(_json_read(directory / _CENTRAL_POLICY))
+        worker = _json_read(directory / "status.json") if (directory / "status.json").is_file() else {}
+    site_ok = (type(worker.get("central_revision")) is int and worker.get("sites", {}).get("ok") is True
+               and worker.get("system_sites", {}).get("ok") is True)
+    fresh = _health_time(worker.get("checked_at"))
+    actual = worker.get("central_revision") if fresh and site_ok else None
+    attempted = fresh and (type(worker.get("central_revision")) is int or bool(worker.get("erro")))
+    reported_ok = bool(site_ok) if attempted else None
+    body = {"device_id": config["device_id"], "name": socket.gethostname()[:120], "client_version": CLIENT_VERSION,
+            "applied_revision": actual, "site_ok": reported_ok,
+            "status_at": worker.get("checked_at") if fresh else None,
+            "error": "Falha na aplicação dos sites; consulte a estação." if reported_ok is False else ""}
+    try:
+        response = _central_request(config, "/api/agent/poll", body)
+        saved = _central_snapshot(response)
+        if saved["revision"] < old["revision"] or (saved["revision"] == old["revision"] and saved != old):
+            raise CentralError("Revisão inconsistente recebida. A política local em cache foi preservada.")
+        public = {"connected": True, "last_contact": _utc_now(), "server_url": config["server_url"],
+                  "revision": saved["revision"], "error": ""}
+        with _operation_lock(directory):
+            if _central_config(directory) != config or (directory / "parar.flag").exists():
+                return {"ok": False, "managed": False, "message": "O vínculo mudou durante a sincronização."}
+            current = validate_central_policy(_json_read(directory / _CENTRAL_POLICY))
+            if saved["revision"] < current["revision"]:
+                return {"ok": True, "managed": True, "revision": current["revision"], "message": "Uma política mais recente já foi recebida."}
+            if saved["revision"] == current["revision"] and saved != current:
+                raise CentralError("Revisão inconsistente recebida. A política anterior foi preservada.")
+            _atomic_json(directory / _CENTRAL_POLICY, saved)
+            _atomic_json(directory / _CENTRAL_STATUS, public)
+        return {"ok": True, "managed": True, "revision": saved["revision"],
+                "message": "Política recebida. Aguarde a confirmação de aplicação pelo cliente."}
+    except (CentralError, ValueError) as error:
+        with _operation_lock(directory):
+            if _central_config(directory) == config and not (directory / "parar.flag").exists():
+                public = _json_read(directory / _CENTRAL_STATUS) if (directory / _CENTRAL_STATUS).is_file() else {}
+                public.update(connected=False, error=str(error), server_url=config["server_url"])
+                _atomic_json(directory / _CENTRAL_STATUS, public)
+        raise
+
+
 def run_client_worker():
     client_runtime_guard()
     directory = client_directory()
@@ -3527,11 +3898,17 @@ def run_client_worker():
     sites, system_sites, store_result = {}, {}, None
     catalog = ClientCatalog(directory / "banco.sqlite3")
     while not stop.exists():
+        # A stopped/unreachable central must not suspend cached local enforcement.
+        try:
+            if (directory / _CENTRAL_CONFIG).exists():
+                sync_central(directory)
+        except Exception:
+            pass
         try:
             with _operation_lock(directory):
                 if stop.exists():
                     break
-                policy = read_policy()
+                policy, central_revision = _central_effective(read_policy(), directory)
                 key = _policy_revision(policy)
                 now = time.monotonic()
                 latest = catalog.revision() if policy["catalog_enabled"] else None
@@ -3552,7 +3929,8 @@ def run_client_worker():
                     games["store"] = store_result
                     games["ok"] = games["ok"] and store_result.get("ok") is True
                 revision = key
-                report = {"version": CLIENT_VERSION, "policy_revision":key, "bank_revision":bank_revision, "active_domains":len(useful["domains"]), "checked_at":_utc_now(),
+                report = {"version": CLIENT_VERSION, "policy_revision":key, "central_revision":central_revision,
+                          "bank_revision":bank_revision, "active_domains":len(useful["domains"]), "checked_at":_utc_now(),
                           "ok":all(item.get("ok") is True for item in (sites, system_sites, games)),
                           "sites":sites, "system_sites":system_sites, "games":games}
                 _atomic_json(directory / "status.json", report)
@@ -3602,16 +3980,18 @@ def _ensure_interactive_admin():
 def _parse_cli(argv):
     parser = argparse.ArgumentParser(prog="LabGuardCliente", description="Cliente de proteção local da escola.")
     ops = parser.add_subparsers(dest="action")
-    for name in ("instalar", "politica", "remover", "status", "verificar", "worker", "usuario", "banco-listar"):
+    for name in ("instalar", "politica", "remover", "status", "verificar", "worker", "usuario", "banco-listar", "parear", "sincronizar", "desvincular"):
         p = ops.add_parser(name)
-        if name in ("instalar", "remover", "politica"):
+        if name in ("instalar", "remover", "politica", "parear", "desvincular"):
             p.add_argument("--sim", action="store_true", help="confirmar a operação administrativa")
+        if name == "parear":
+            p.add_argument("--vinculo", type=Path, required=True, help="JSON exportado pelo técnico para esta estação")
         if name in ("instalar", "politica"):
             p.add_argument("--politica", type=Path, required=name=="politica", help="arquivo JSON da política")
         if name == "banco-listar":
             p.add_argument("--buscar",default="")
             p.add_argument("--categoria",default=None)
-        if name in ("status", "verificar", "instalar", "politica", "remover", "usuario", "banco-listar"):
+        if name in ("status", "verificar", "instalar", "politica", "remover", "usuario", "banco-listar", "parear", "sincronizar", "desvincular"):
             p.add_argument("--json", action="store_true", help="exibir resultado em JSON")
             p.add_argument("--saida", help="registrar resultado em um arquivo novo")
     return parser.parse_args(argv)
@@ -3640,11 +4020,18 @@ def main_client(argv=None):
                       "categories":categories,"rows":catalog.search(args.buscar, args.categoria, limit=100)}
         elif args.action in ("status","verificar"):
             result = get_client_status()
+        elif args.action == "sincronizar":
+            require_client_admin()
+            result = sync_central()
         else:
             if not args.sim:
                 raise ValueError("Leia a política e adicione --sim para confirmar, ou abra a interface da TI.")
             if args.action == "remover":
                 result = perform_uninstall()
+            elif args.action == "parear":
+                result = enroll_client(args.vinculo)
+            elif args.action == "desvincular":
+                result = unlink_client()
             else:
                 policy = validate_policy(_json_read(args.politica)) if args.politica else validate_policy(default_policy())
                 if args.action == "instalar":

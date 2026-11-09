@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#542ea3">
+  <title>LabGuard Central · Painel do técnico</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Ir ao conteúdo</a>
+  <div id="loading-screen" class="boot-screen" role="status"><span class="spinner" aria-hidden="true"></span> Abrindo o painel da TI…</div>
+  <section id="login-screen" class="login-screen" hidden aria-labelledby="login-title">
+    <div class="login-story">
+      <div class="brand brand-light"><span class="brand-icon" aria-hidden="true">L</span><span>LabGuard<span class="brand-detail">CENTRAL</span></span></div>
+      <div class="login-intro"><p class="eyebrow">CONTROLE DO LABORATÓRIO</p><h1>Os sites da escola,<br>sob seu controle.</h1><p>Gerencie os acessos em um só lugar e acompanhe as regras recebidas por cada computador.</p></div>
+      <p class="login-caption">Painel exclusivo para a equipe técnica.</p>
+    </div>
+    <div class="login-card">
+      <span class="section-kicker">BEM-VINDO À CENTRAL</span>
+      <h2 id="login-title">Entrar no painel</h2>
+      <p class="muted">Use a senha criada na configuração do LabGuard Central.</p>
+      <form id="login-form">
+        <label for="password">Senha do técnico</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256" autofocus>
+        <p id="login-error" class="form-error" role="alert" hidden></p>
+        <button class="button primary login-submit" type="submit">Entrar na central <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="login-footnote">Este painel é aberto no computador da TI.</p>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">L</span><span>LabGuard<span class="brand-detail">CENTRAL</span></span></div>
+      <p class="nav-label">PAINEL DO TÉCNICO</p>
+      <nav class="main-nav" aria-label="Seções da central">
+        <button class="nav-link active" data-view="sites" aria-current="page"><span class="nav-symbol" aria-hidden="true">▦</span><span>Sites e regras</span></button>
+        <button class="nav-link" data-view="devices"><span class="nav-symbol computer-symbol" aria-hidden="true"></span><span>Computadores</span><span id="nav-device-count" class="nav-count">—</span></button>
+        <button class="nav-link" data-view="help"><span class="nav-symbol help-symbol" aria-hidden="true">?</span><span>Como usar</span></button>
+      </nav>
+      <div class="sidebar-help"><span class="little-shield" aria-hidden="true">✓</span><strong>Uma regra, todo o laboratório</strong><p>Os clientes vinculados recebem as alterações automaticamente.</p></div>
+      <div class="sidebar-bottom"><span class="connection-dot" aria-hidden="true"></span><span>Administração local</span><button id="logout" class="text-button">Sair</button></div>
+    </aside>
+
+    <main id="main" class="main-content" tabindex="-1">
+      <header class="page-header">
+        <div><p class="eyebrow">GESTÃO DO LABORATÓRIO</p><h1 id="page-title">Sites e regras</h1><p id="page-subtitle">Defina o que os computadores podem acessar.</p></div>
+        <div class="header-actions"><span id="refresh-state" class="refresh-state" role="status">Carregando…</span><button id="refresh" class="button secondary compact"><span aria-hidden="true">↻</span> Atualizar</button></div>
+      </header>
+
+      <div id="connection-error" class="notice error-notice" role="alert" hidden></div>
+      <section class="stats" aria-label="Resumo da central">
+        <div class="stat-card"><span class="stat-icon blocked-icon" aria-hidden="true">⊘</span><div><span class="stat-label">Domínios bloqueados</span><strong id="count-blocked">—</strong><small>Regras ativas</small></div></div>
+        <div class="stat-card"><span class="stat-icon allowed-icon" aria-hidden="true">✓</span><div><span class="stat-label">Domínios liberados</span><strong id="count-allowed">—</strong><small>Exceções ativas</small></div></div>
+        <div class="stat-card"><span class="stat-icon computer-icon" aria-hidden="true">▣</span><div><span class="stat-label">Computadores</span><strong id="count-devices">—</strong><small id="online-detail">Aguardando informações</small></div></div>
+        <div class="stat-card revision-card"><span class="stat-icon revision-icon" aria-hidden="true">↗</span><div><span class="stat-label">Revisão atual</span><strong id="current-revision">—</strong><small>Identifica a lista de regras</small></div></div>
+      </section>
+
+      <section id="view-sites" class="view" aria-labelledby="sites-heading">
+        <div class="panel">
+          <div class="panel-heading"><div><h2 id="sites-heading">Lista de sites</h2><p>Bloqueie um domínio ou crie uma liberação para a aula.</p></div><button id="new-rule" class="button primary"><span aria-hidden="true">＋</span> Adicionar site</button></div>
+          <div class="filters">
+            <div class="search-field"><label class="sr-only" for="search">Buscar domínio</label><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar domínio…" maxlength="253" autocomplete="off"></div>
+            <div class="filter-field"><label class="sr-only" for="category-filter">Filtrar categoria</label><select id="category-filter"><option value="">Todas as categorias</option></select></div>
+            <div class="filter-field"><label class="sr-only" for="action-filter">Filtrar regra</label><select id="action-filter"><option value="">Todas as regras</option><option value="block">Bloqueados</option><option value="allow">Liberados</option><option value="paused">Pausados</option></select></div>
+          </div>
+          <div id="category-tools" class="category-tools" hidden><p id="category-description"></p><button id="category-toggle" class="button secondary compact"></button></div>
+          <div class="table-scroll"><table class="rules-table"><caption class="sr-only">Domínios cadastrados e ações disponíveis para o técnico</caption><thead><tr><th scope="col">Domínio</th><th scope="col">Categoria</th><th scope="col">Regra</th><th scope="col" class="actions-heading">Gerenciar</th></tr></thead><tbody id="rules-body"></tbody></table></div>
+          <div id="rules-empty" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">⌕</span><h3>Nenhum domínio encontrado</h3><p>Revise a busca e os filtros ou adicione um novo site.</p></div>
+          <div class="pagination"><p id="rules-total" aria-live="polite">Carregando regras…</p><div><button id="previous-page" class="button pagination-button" aria-label="Página anterior" disabled>←</button><span id="page-number">1 / 1</span><button id="next-page" class="button pagination-button" aria-label="Próxima página" disabled>→</button></div></div>
+          <div id="rule-budget" class="panel-footnote"></div>
+        </div>
+        <div class="notice info-notice"><span class="info-icon" aria-hidden="true">i</span><p><strong>Alterou uma regra?</strong> Os computadores conectados recebem a lista no próximo ciclo de sincronização. Em <button class="inline-link" data-view="devices">Computadores</button>, confira qual revisão cada estação aplicou.</p></div>
+        <details class="panel audit-panel"><summary><span>Histórico de alterações</span><span class="audit-summary">Últimos 20 registros</span></summary><div class="table-scroll audit-scroll"><table><caption class="sr-only">Alterações recentes realizadas na central</caption><thead><tr><th scope="col">Quando</th><th scope="col">Ação</th><th scope="col">Detalhe</th></tr></thead><tbody id="audit-body"></tbody></table></div><p id="audit-empty" class="panel-footnote" hidden>Nenhuma alteração registrada.</p></details>
+      </section>
+
+      <section id="view-devices" class="view" hidden aria-labelledby="devices-heading">
+        <div class="panel">
+          <div class="panel-heading"><div><h2 id="devices-heading">Computadores vinculados</h2><p>Confira a comunicação e a aplicação das regras em cada estação.</p></div><button id="new-enrollment" class="button primary"><span aria-hidden="true">＋</span> Vincular computador</button></div>
+          <div class="device-note"><span class="connection-dot" aria-hidden="true"></span><p id="sync-interval">A lista é atualizada automaticamente.</p></div>
+          <div class="table-scroll"><table class="devices-table"><caption class="sr-only">Último contato e revisão aplicada pelos computadores do laboratório</caption><thead><tr><th scope="col">Computador</th><th scope="col">Estado</th><th scope="col">Revisão aplicada</th><th scope="col">Último contato</th><th scope="col" class="actions-heading">Gerenciar</th></tr></thead><tbody id="devices-body"></tbody></table></div>
+          <div id="devices-empty" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">▣</span><h3>Conecte o primeiro computador</h3><p>Gere um arquivo de vínculo e importe-o no LabGuard Cliente da estação.</p><button class="button secondary" id="empty-enrollment">Vincular computador</button></div>
+          <div class="panel-footnote"><strong>O que o estado confirma:</strong> a estação informou a aplicação da revisão. A navegação deve ser conferida no perfil usado pelo aluno.</div>
+        </div>
+        <div class="notice info-notice"><span class="info-icon" aria-hidden="true">i</span><p>Se um computador ficar sem contato com a central, o cliente mantém a última lista válida. Quando voltar a se conectar, procura as regras atuais.</p></div>
+      </section>
+
+      <section id="view-help" class="view" hidden aria-labelledby="help-heading">
+        <div class="panel help-panel">
+          <div class="panel-heading"><div><h2 id="help-heading">Comece com uma estação</h2><p>Depois de conferir o funcionamento, vincule os demais computadores.</p></div></div>
+          <ol class="setup-steps">
+            <li><span class="step-number" aria-hidden="true">1</span><div><h3>Gere o vínculo na central</h3><p>Em <strong>Computadores → Vincular computador</strong>, baixe o arquivo de conexão. Ele vale por uma hora e cadastra uma única estação.</p></div></li>
+            <li><span class="step-number" aria-hidden="true">2</span><div><h3>Conecte o cliente no PC do aluno</h3><p>Abra o LabGuard Cliente atualizado como administrador. Após instalar a proteção, acesse <strong>Técnico → Importar vínculo</strong> e selecione o arquivo. Use um novo vínculo para cada computador.</p></div></li>
+            <li><span class="step-number" aria-hidden="true">3</span><div><h3>Gerencie os sites por aqui</h3><p>Adicione um domínio, escolha uma categoria e selecione <strong>Bloquear</strong> ou <strong>Liberar</strong>. A central envia as regras de sites aos clientes vinculados.</p></div></li>
+            <li><span class="step-number" aria-hidden="true">4</span><div><h3>Confira o recebimento e faça o teste</h3><p>Em <strong>Computadores</strong>, aguarde a revisão aplicada coincidir com a revisão atual. Depois, reabra o navegador na conta do aluno e teste um site bloqueado e um permitido.</p></div></li>
+          </ol>
+        </div>
+        <div class="help-grid">
+          <article class="panel help-card"><span class="badge blocked">Bloquear</span><h3>Impedir o acesso ao domínio</h3><p>Uma regra de bloqueio abrange o domínio e seus subdomínios nos navegadores gerenciados. Cadastre somente o nome do site, como <code>poki.com</code>.</p></article>
+          <article class="panel help-card"><span class="badge allowed">Liberar</span><h3>Criar uma exceção explícita</h3><p>Uma liberação prevalece sobre os bloqueios da central que alcançam esse domínio. Sites de aula podem usar outros domínios para login, vídeos e arquivos.</p></article>
+          <article class="panel help-card"><span class="badge neutral">Excluir</span><h3>Retirar o cadastro</h3><p>Excluir remove a regra. Isso não cria uma liberação: um domínio superior ainda pode estar bloqueado. Para garantir uma exceção, use <strong>Liberar</strong>.</p></article>
+          <article class="panel help-card"><span class="badge pending">Sem contato</span><h3>Manter a última lista válida</h3><p>O cliente continua usando as regras recebidas anteriormente. A central precisa estar em execução para enviar novas alterações.</p></article>
+        </div>
+      </section>
+      <footer class="app-footer"><span>LabGuard Central · Gestão de sites da escola</span><span id="footer-revision"></span></footer>
+    </main>
+  </div>
+
+  <dialog id="rule-dialog" class="modal" aria-labelledby="rule-dialog-title">
+    <form id="rule-form">
+      <div class="modal-heading"><div><p class="section-kicker">REGRA DE ACESSO</p><h2 id="rule-dialog-title">Adicionar site</h2></div><button type="button" class="close-button" data-close="rule-dialog" aria-label="Fechar">×</button></div>
+      <div class="modal-body">
+        <label for="rule-domain">Domínio</label><input id="rule-domain" name="domain" type="text" placeholder="exemplo.com.br" autocomplete="off" autocapitalize="none" spellcheck="false" required maxlength="253" aria-describedby="domain-hint"><p id="domain-hint" class="field-hint">Informe o domínio, sem https://, portas ou caminho da página.</p>
+        <label for="rule-category">Categoria</label><select id="rule-category" name="category" required></select>
+        <fieldset class="action-options"><legend>O que deseja fazer?</legend><label class="action-option"><input type="radio" name="action" value="block" checked><span><strong>Bloquear</strong><small>Impedir o acesso ao site</small></span><span class="option-symbol blocked-text" aria-hidden="true">⊘</span></label><label class="action-option"><input type="radio" name="action" value="allow"><span><strong>Liberar</strong><small>Criar uma exceção de acesso</small></span><span class="option-symbol allowed-text" aria-hidden="true">✓</span></label></fieldset>
+        <p id="rule-inheritance-hint" class="form-hint" hidden></p>
+        <label class="check-label"><input id="rule-enabled" type="checkbox" checked> Regra ativa</label>
+        <p class="field-hint">A regra será enviada aos computadores vinculados quando estiver ativa e sua categoria estiver habilitada.</p>
+        <p id="rule-error" class="form-error" role="alert" hidden></p>
+      </div>
+      <div class="modal-actions"><button type="button" class="button secondary" data-close="rule-dialog">Cancelar</button><button id="save-rule" type="submit" class="button primary">Salvar regra</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="modal small-modal" aria-labelledby="confirm-title">
+    <div class="modal-heading"><h2 id="confirm-title">Confirmar alteração</h2><button type="button" class="close-button" data-close="confirm-dialog" aria-label="Fechar">×</button></div>
+    <div class="modal-body"><p id="confirm-description"></p><p id="confirm-error" class="form-error" role="alert" hidden></p></div>
+    <div class="modal-actions"><button type="button" class="button secondary" data-close="confirm-dialog">Cancelar</button><button id="confirm-action" type="button" class="button danger">Confirmar</button></div>
+  </dialog>
+
+  <dialog id="enrollment-dialog" class="modal" aria-labelledby="enrollment-title">
+    <div class="modal-heading"><div><p class="section-kicker">NOVO COMPUTADOR</p><h2 id="enrollment-title">Vincular uma estação</h2></div><button type="button" class="close-button" data-close="enrollment-dialog" aria-label="Fechar">×</button></div>
+    <div class="modal-body"><p class="modal-intro">O arquivo conecta uma estação à sua central, com o certificado de conexão e uma autorização de uso único.</p><ol class="enrollment-steps"><li>Gere e baixe o arquivo de vínculo.</li><li>Leve o arquivo ao computador que será gerenciado.</li><li>Abra o cliente como administrador, instale a proteção e use <strong>Técnico → Importar vínculo</strong>.</li></ol><div id="enrollment-result" class="enrollment-result" hidden><strong>Arquivo de vínculo preparado</strong><p id="enrollment-expiry"></p><button id="download-enrollment" class="button secondary">Baixar arquivo novamente</button></div><p class="field-hint">Gere um vínculo para cada computador. O arquivo expira após uma hora; mantenha-o com a equipe técnica.</p><p id="enrollment-error" class="form-error" role="alert" hidden></p></div>
+    <div class="modal-actions"><button type="button" class="button secondary" data-close="enrollment-dialog">Fechar</button><button id="generate-enrollment" type="button" class="button primary">Gerar e baixar vínculo</button></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
