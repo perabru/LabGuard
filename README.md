@@ -73,7 +73,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A versão **2.3.0** está em validação nativa. Inclui filtro DNS local para Vivo e switch simples, sem exigir MikroTik. A disponibilidade dos pacotes depende da publicação; confira [versões](https://github.com/perabru/LabGuard/releases) e [validação](docs/VALIDACAO.md).
+A [versão 2.3.0 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.3.0), com filtro DNS local para Vivo e switch simples. Passaram 433 testes no Linux, 389 no Windows, DNS real UDP/TCP nos executáveis e atualização isolada 2.2 → 2.3. Consulte a [validação](docs/VALIDACAO.md) antes de homologar no colégio.
 
 ## Documentação e legado
 

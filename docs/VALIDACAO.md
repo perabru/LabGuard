@@ -1,6 +1,20 @@
 # Validação da versão 2.3.0
 
-Preparada em 9 de novembro de 2026. Novo filtro DNS local, assistente Vivo/switch simples e integração opcional ao servidor estão em teste. A liberação depende de DNS nativo UDP/TCP, instaladores, serviços e atualização 2.2 → 2.3. Nenhum equipamento do colégio foi acessado; não há homologação no Vivo/Mercusys real.
+Publicada em 9 de novembro de 2026. O [fluxo completo](https://github.com/perabru/LabGuard/actions/runs/42639341179) passou para o commit `7f9492f6527518e82a13cf09b79f9c23a318fe1e`. A [versão 2.3.0](https://github.com/perabru/LabGuard/releases/tag/v2.3.0) contém seis pacotes, manifesto, autotestes DNS e atualização verificada.
+
+Passaram **433 testes** localmente e no Linux CI e **389 testes compatíveis com Windows**. O filtro foi testado com DNS real no loopback UDP/TCP, recusa de clientes fora do segmento, subdomínios, AAAA/HTTPS/TXT, aliases CNAME, respostas inválidas de saída, truncamento UDP com repetição TCP, limites de histórico/taxa e conflito de porta. O teste TXT confirma a identidade do resolvedor de teste, sem alegar cobertura de todas as máquinas.
+
+O executável instalado em cada plataforma abriu listeners somente em loopback e confirmou bloqueios UDP/TCP, código de diagnóstico e encerramento. Os arquivos `windows-dns-self-test.json` e `linux-dns-self-test.json` acompanham a versão. O backend opcional de servidor foi testado em fonte; a abertura gráfica, os instaladores e serviços SCM/systemd também passaram nos sistemas nativos. O CI de serviços usa demonstração, não implanta o DNS na rede escolar.
+
+O Windows validou DACL privada, cofre temporário com limpeza, PowerShell 5.1 e uma atualização real isolada **2.2 → 2.3**. Os instaladores e helper foram reais, com transporte de release substituído apenas por respostas locais de teste; foram confirmados espera explícita pelo encerramento, versão PE/HKCU, autoteste e remoção da instalação de teste. Não houve elevação, encerramento forçado de outros programas ou mudança de rede para liberar o teste.
+
+O assistente Tk foi conferido em 930×770/820×650 e o início em 1240×820/1000×700, com opções desligadas por padrão e sem preencher IPs de demonstração. O smoke de interface ativou DNS somente em loopback/porta alta de teste, aplicou um domínio, recebeu NXDOMAIN real, respeitou a recusa de parar o serviço e retomou a política por opção salva. O começo automático é exclusivo do perfil DNS explicitamente salvo; não restaura autorização de alteração do RouterOS.
+
+O [Pages](https://github.com/perabru/LabGuard/actions/runs/42639341070) publicou site e manual 2.3. O manual tem **18 páginas e 16 capítulos**; as páginas do cenário Vivo/Mercusys foram renderizadas e revisadas. Links, âncoras, ausência de imagens quebradas e apresentação foram conferidos no navegador.
+
+O instalador foi verificado pelo hash do artefato, CRC do ZIP, SHA-256 interno, estrutura PE e autotestes. SHA-256 do EXE: `cba4c69eb2cb0dbe1d76c790bdfd2303b542b73404fd98f350226bea09169165`.
+
+Nenhum equipamento do colégio foi acessado ou homologado. O filtro precisa de clientes configurados para usar o DNS do LabGuard, IP estável, permissão para UDP/TCP 53 e conectividade ao DNS de saída. Não muda o Vivo, o switch, o DNS das estações ou o firewall sozinho. Não corta internet por IP/MAC nem garante eliminar VPN, DoH, DNS alternativo, IPv6 ou cache. Consultas recebidas não são visitas nem identificação de pessoas. Antes de parar, restaure o DNS anterior nos clientes; o aplicativo avisa, mas não consegue manter o DNS ativo com o computador desligado.
 
 ## Evidência anterior: 2.2.0
 
