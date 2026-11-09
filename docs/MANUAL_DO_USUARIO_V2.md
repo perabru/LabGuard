@@ -1,14 +1,14 @@
-# LabGuard 2.4.0 - Manual do usuário
+# LabGuard 2.4.1 - Manual do usuário
 
 Começar na rede existente, conectar um controlador e conferir cada resultado.
 
-Edição 2.4.0 | 9 de novembro de 2026
+Edição 2.4.1 | 9 de novembro de 2026
 
-Este manual acompanha a interface 2.4.0, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
+Este manual acompanha a interface 2.4.1, com identificação orientada pelas fontes disponíveis, preferências de início e atualização do aplicativo. A disponibilidade dos instaladores depende da publicação correspondente na página de versões. Um pacote anterior não contém automaticamente as funções descritas aqui.
 
 ## 1. Primeiro uso em três ações
 
-Instale o pacote 2.4.0 da [página de versões](https://github.com/perabru/LabGuard/releases) e abra o LabGuard. Na primeira abertura, a leitura começa em Observação, sem alterar a rede. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`.
+Instale o pacote 2.4.1 da [página de versões](https://github.com/perabru/LabGuard/releases) e abra o LabGuard. Na primeira abertura, a leitura começa em Observação, sem alterar a rede. Pelo código-fonte, use Python 3.10 ou superior com Tcl/Tk e execute `python3 main.py`.
 
 1. **Configurar:** abra o primeiro card. Na etapa **1. Ligar filtro**, escolha a conexão, confira o IP deste PC e autorize o início. A opção de ligar ao abrir é salva somente após sucesso. Na etapa **2. Usar nos computadores**, copie o IP e configure-o como DNS pelo DHCP/LAN do Vivo, se permitido, ou em uma estação de teste. O capítulo 16 detalha IP fixo, firewall e Linux.
 2. **Gerenciar sites:** adicione um domínio ou abra o Banco de sites. Revise e aplique a lista explicitamente. Preparar o catálogo de IA apenas adiciona cadastros ao banco; ainda é necessário aplicá-los.

@@ -1264,6 +1264,8 @@ class App(tk.Tk):
         self.connect_button.configure(state="disabled" if self._busy else "normal")
         if "identify_button" in self.__dict__:self.identify_button.configure(state="disabled" if self._busy else "normal")
         self.disconnect_button.configure(state="normal" if not self._busy and self.snapshot.get("mode") in {"equipment", "gateway", "demo"} else "disabled")
+        dns_window = self.__dict__.get("_dns_setup_window")
+        if dns_window is not None:dns_window.sync_owner()
 
     def _confirm(self, title, message):
         return self.snapshot.get("mode") == "demo" or messagebox.askyesno(title, message, parent=self, default="no", icon="warning")

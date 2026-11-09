@@ -155,7 +155,16 @@ class DNSSetupWindow(tk.Toplevel):
         self.refresh()
 
     def refresh(self):
+        self._owner_state = (id(self.owner.snapshot), self.owner._busy, getattr(self.owner, '_snapshot_stale', False))
         active,address,service=effective_dns_service(self.owner.snapshot,self.host.get().strip())
+        choices = dns_network_choices(self.owner.snapshot)
+        if choices != self._choices:
+            self._choices = choices
+            self.connection_box.configure(values=list(choices))
+        if not active and not self.host.get().strip() and not self.network.get().strip() and choices:
+            label = next(iter(choices)); host, network = choices[label]
+            self.host.set(host); self.network.set(network); self.connection.set(label)
+            active,address,service=effective_dns_service(self.owner.snapshot,host)
         self.endpoint.set('Filtro em '+address if address else 'Não encontramos uma conexão válida. Informe o IP e a rede em Ajustar IP / DNS.')
         self.client_ip.set(address or 'Informe o IP na etapa 1')
         token=service.get('check_token','aparece após iniciar o filtro')
@@ -167,6 +176,14 @@ class DNSSetupWindow(tk.Toplevel):
         self.verify_button.configure(state='normal' if active and not self.owner._busy and getattr(self.owner.transport,'kind','')=='local_dns' else 'disabled')
         self.connection_box.configure(state='disabled' if active else 'readonly')
         self.state.set(('Filtro ativo neste PC · '+str(service.get('received_clients',0))+' IP(s) com consultas. Teste cada estação.') if active else 'Etapa 1: escolha a rede e inicie o filtro.')
+
+    def sync_owner(self):
+        """Follow completed reads/errors without polling or overwriting form edits."""
+        if self._closed:return
+        state = (id(self.owner.snapshot), self.owner._busy, getattr(self.owner, '_snapshot_stale', False))
+        if state != self.__dict__.get('_owner_state'):
+            self._owner_state = state
+            self.refresh()
 
     def start(self):
         self.owner._cancel_saved_startup()

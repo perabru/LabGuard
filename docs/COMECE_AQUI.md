@@ -1,4 +1,4 @@
-# Comece aqui - LabGuard 2.4.0
+# Comece aqui - LabGuard 2.4.1
 
 O uso diário tem três ações: **Configurar**, **Gerenciar sites** e **Testar conexão**. A leitura local começa ao abrir. Regras novas só são aplicadas após sua escolha.
 

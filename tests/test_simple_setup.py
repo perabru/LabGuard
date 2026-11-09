@@ -11,6 +11,15 @@ from test_local_dns import free_port
 
 
 class SetupPresentationTests(unittest.TestCase):
+    def test_waiting_wizard_tracks_completed_read_and_ignores_closed_window(self):
+        owner=Mock(snapshot={}, _busy=True, _snapshot_stale=False)
+        wizard=DNSSetupWindow.__new__(DNSSetupWindow);wizard.owner=owner;wizard._closed=False;wizard.refresh=Mock()
+        wizard.sync_owner();self.assertEqual(wizard.refresh.call_count,1)
+        wizard.sync_owner();self.assertEqual(wizard.refresh.call_count,1)
+        owner._busy=False;wizard.sync_owner();self.assertEqual(wizard.refresh.call_count,2)
+        owner.snapshot={};wizard.sync_owner();self.assertEqual(wizard.refresh.call_count,3)
+        wizard._closed=True;owner._busy=True;wizard.sync_owner();self.assertEqual(wizard.refresh.call_count,3)
+
     def test_demo_and_stale_never_display_protected_network(self):
         self.assertEqual(home_status({'mode':'demo'})[0], 'Demonstração')
         snapshot={'mode':'equipment','source_type':'local_dns','dns_service':{'listen':'192.168.15.10','service_running':True}}
