@@ -77,7 +77,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Falha na compilação do executável.' }
           Copy-Item client/labguard_cliente.py build/cliente/export/labguard_cliente.py
           Copy-Item client/README.md build/cliente/export/LEIA-ME.md
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --uac-admin --noupx --name LabGuardTecnico --paths . --paths client --paths central --add-data 'central/assets;assets' --distpath build/cliente/export --workpath build/central/temp --specpath build/central central/labguard_tecnico.py
+          $centralAssets = (Resolve-Path 'central/assets').Path
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --uac-admin --noupx --name LabGuardTecnico --paths . --paths client --paths central --add-data "$centralAssets;assets" --distpath build/cliente/export --workpath build/central/temp --specpath build/central central/labguard_tecnico.py
           if ($LASTEXITCODE -ne 0) { throw 'Falha na compilação da central.' }
           Copy-Item central/README.md build/cliente/export/Central-LEIA-ME.md
       - name: Testar instalação, proteção e restauração no Windows

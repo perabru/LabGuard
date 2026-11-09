@@ -26,7 +26,7 @@ def main():
         '--specpath', 'build', 'client/labguard_cliente.py')
     run('-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile', '--windowed', '--uac-admin', '--noupx',
         '--name', 'LabGuardTecnico', '--paths', '.', '--paths', 'client', '--paths', 'central',
-        '--add-data', 'central/assets;assets', '--distpath', 'Executaveis', '--workpath', 'build/central-local',
+        '--add-data', str(project / 'central' / 'assets') + ';assets', '--distpath', 'Executaveis', '--workpath', 'build/central-local',
         '--specpath', 'build', 'central/labguard_tecnico.py')
     print('\nArquivos gerados na pasta Executaveis:')
     print('LabGuardTecnico.exe: instalar no PC do tecnico.')
