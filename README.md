@@ -75,7 +75,7 @@ python3 main.py
 
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
-A revisão 2.4.1 mantém as três ações e atualiza os controles do assistente quando uma leitura termina. Os pacotes passam por validação nativa antes da publicação. Consulte a [validação](docs/VALIDACAO.md) para versões, evidências e limites.
+A [versão 2.4.1 está publicada](https://github.com/perabru/LabGuard/releases/tag/v2.4.1): três ações, assistente DNS em etapas e controles atualizados após a leitura inicial, preservando edições manuais. Passaram 442 testes no Linux, 398 no Windows, instaladores, serviços e atualização isolada 2.4 → 2.4.1. Consulte a [validação](docs/VALIDACAO.md).
 
 ## Documentação e legado
 

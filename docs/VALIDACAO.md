@@ -1,4 +1,16 @@
-# Validação da versão 2.4.0
+# Validação da versão 2.4.1
+
+Publicada em 9 de novembro de 2026. O [fluxo completo](https://github.com/perabru/LabGuard/actions/runs/42645163153) passou no commit `71d1653a8a53a075c1b19f1a7f59a740db462cc1`. A revisão preserva o início com três ações e corrige a abertura do assistente durante uma leitura em segundo plano: controles e interfaces acompanham o resultado sem exigir reabrir a janela. Campos preenchidos pelo usuário são preservados.
+
+Passaram **442 testes no Linux** e **398 no Windows**. O fluxo Tk exercitou a transição ocupado/pronto, sugestão de interface real após a leitura, preservação de edição manual, abertura em janelas menores, diagnóstico UDP/TCP, aplicação de Roblox no loopback, confirmação antes de parar e recuperação da política no início opcional. Nenhuma alteração de LAN ou sistema foi necessária nesses testes.
+
+Os pacotes nativos passaram por instalação, abertura gráfica, DNS real UDP/TCP, serviços SCM/systemd e atualização Windows isolada **2.4 → 2.4.1**, com espera pelo processo, versão PE/HKCU, autoteste e limpeza da instalação de teste. O [site e o manual](https://github.com/perabru/LabGuard/actions/runs/42645163072) também foram publicados. O manual mantém 18 páginas e 16 capítulos; a imagem do painel usa um endereço versionado para evitar a imagem anterior em cache.
+
+O [release 2.4.1](https://github.com/perabru/LabGuard/releases/tag/v2.4.1) contém seis pacotes, manifesto, somas e relatórios. O EXE passou por hash do artefato, CRC, SHA-256 interno, estrutura PE e autotestes. Tamanho: **25.441.360 bytes**. SHA-256: `46def7cd1d133bfad66cbbb2a953dbbb13bc78234ee164282d179c1d1cf419fe`.
+
+Nenhum equipamento da escola foi acessado ou homologado. O filtro depende do DNS configurado nos clientes e do PC acessível, ligado e autorizado em UDP/TCP 53. O teste local não confirma as estações; teste cada uma e também um domínio permitido. VPN, DoH, DNS IPv6 alternativo e cache exigem controles complementares. Os limites das integrações e do filtro local continuam os descritos abaixo.
+
+## Evidência anterior: 2.4.0
 
 Publicada em 9 de novembro de 2026. O [fluxo Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/42643188350) passou no commit `49c39b3d5eacacb5b4864ff319e94fcd3761a705`. A [versão 2.4.0](https://github.com/perabru/LabGuard/releases/tag/v2.4.0) contém os seis pacotes desktop/servidor, manifesto de atualização, somas e relatórios dos executáveis.
 
