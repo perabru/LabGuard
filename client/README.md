@@ -4,12 +4,20 @@ Esta edição roda no computador da escola. Funciona sem o painel da TI, sem Win
 
 ## Começar em uma máquina piloto
 
-1. Baixe **LabGuardCliente.exe** na [versão do cliente](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.0.0). Guarde a cópia baixada para administração e remoção. Abra e confirme a solicitação de administrador do Windows. O EXE contém Python. Para utilizar o arquivo fonte, veja abaixo.
+1. Baixe **LabGuardCliente.exe** na [versão do cliente](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.1.0). Guarde a cópia baixada para administração e remoção. Abra e confirme a solicitação de administrador do Windows. O EXE contém Python. Para utilizar o arquivo fonte, veja abaixo.
 2. Em **Sites**, escolha **Bloquear os listados** para aplicar o catálogo de jogos, conteúdo adulto e serviços de IA. Para uma aula com navegação restrita, escolha **Permitir só os listados** e escreva os domínios necessários, um por linha. Inclua os domínios de login, arquivos, vídeos e demais recursos que sua atividade usa. Confira em um perfil de aluno antes de replicar a política.
 3. Em **Jogos**, marque os títulos desejados. **Desinstalar o Roblox identificado** está ativo na política inicial. Desinstalações podem apagar dados locais do aplicativo. Minecraft da Store só pode ser desinstalado se a TI habilitar essa opção expressamente; faça backup dos mundos primeiro.
-4. Confirme a instalação. Na aba **Estação**, use **Atualizar estado** e **Detalhes técnicos** até aparecer uma verificação recente. Feche a janela da TI. O Windows inicia a tarefa no boot e a edição clássica do Roblox é tratada no login padrão seguinte.
+4. Clique em **Instalar e proteger agora** e confirme a instalação. O Windows executa a tarefa imediatamente no PC já ligado e novamente a cada inicialização. Na aba **Estação**, use **Atualizar estado** e **Detalhes técnicos** até aparecer uma verificação recente. Feche a janela da TI. O Windows inicia a tarefa no boot e a edição clássica do Roblox é tratada no login padrão seguinte.
 5. Na conta de teste, reabra o navegador. No modo de bloqueados, abra um domínio da lista e um site didático permitido. No modo de permitidos, confira também o login e os materiais do site permitido. Para diagnosticar as políticas efetivas, abra `edge://policy`, `chrome://policy` ou `about:policies` no navegador correspondente.
 6. Para mudar a lista, abra novamente a cópia baixada como administrador, edite e salve a política. O agente reaplica as regras localmente. Para retirar a proteção, abra **Estação → Desinstalar cliente** pela cópia baixada. A operação desregistra a tarefa, remove a inicialização no login e restaura os registros gerenciados e o trecho do arquivo hosts. Reinstale separadamente um jogo que a TI tenha desinstalado se ele voltar a ser necessário.
+
+## Banco de sites
+
+O instalador cria **banco.sqlite3** na estação, com **831 domínios** e procedência por registro. Jogos têm 209 entradas, Roblox tem 40, Minecraft tem 23, conteúdo adulto tem 220, apostas têm 300 e IA tem 39. O catálogo vem dentro do arquivo Python e do executável. A instalação funciona sem baixar listas. A cópia **LabGuard-Catalogo.sqlite3** nos downloads permite consultar as mesmas entradas fora da estação.
+
+Abra **Banco de sites** para pesquisar, editar uma entrada, pausar uma categoria ou revisar um CSV antes de importar. O agente verifica a revisão do banco e reaplica as mudanças enquanto o computador continua ligado. **Ativar agora** solicita novamente a execução da tarefa quando a proteção instalada precisar ser retomada. O banco aceita até **10.000 registros**; o conjunto ativo tem limite de **975 nomes distintos**, somados os domínios adicionais da TI. Se o número exceder o limite, a alteração é recusada e a lista anterior permanece válida. O limite guarda espaço para regras preexistentes nos navegadores; confira o diagnóstico se as políticas da instituição já usarem muitas entradas.
+
+Em **Bloquear os listados**, os domínios e os subdomínios do catálogo ficam bloqueados nos navegadores gerenciados. Em **Permitir só os listados**, somente os domínios autorizados pela TI e as exceções institucionais efetivas podem passar. O filtro do sistema preserva os endereços explicitamente liberados nesse modo. O conjunto do Minecraft concentra-se em downloads, mods e servidores de jogo para reduzir impactos sobre serviços escolares compartilhados. Bloquear a rede do Roblox também pode afetar Roblox Studio. A desinstalação do cliente remove o banco local; use a exportação para guardar os cadastros e anote as categorias pausadas.
 
 ## O que é protegido
 
@@ -47,6 +55,7 @@ Exemplo mínimo do arquivo `politica-lab.json`. Substitua os domínios pelos ser
 ```json
 {
   "mode": "bloqueados",
+  "catalog_enabled": true,
   "domains": ["roblox.com", "rbxcdn.com", "poki.com"],
   "allowed_domains": [],
   "games": ["roblox"],
@@ -58,3 +67,7 @@ Exemplo mínimo do arquivo `politica-lab.json`. Substitua os domínios pelos ser
 O programa mantém sua configuração e o estado de restauração em `%ProgramFiles%\LabGuardCliente`. Use a interface para administrá-los. Se o arquivo hosts contiver uma edição conflitante ou se uma política corporativa impedir a alteração, confira o diagnóstico antes de tentar novamente. Os dados locais de um jogo removido não são recuperados pela desinstalação do cliente.
 
 [Políticas de URL do Edge](https://learn.microsoft.com/deployedge/microsoft-edge-policies/urlblocklist) · [Políticas do Chrome](https://support.google.com/chrome/a/answer/9942583) · [Políticas do Firefox](https://firefox-admin-docs.mozilla.org/reference/policies/websitefilter/) · [Desinstalação do Roblox](https://en.help.roblox.com/hc/pt-br/articles/203312980-Como-Desinstalar-a-Roblox)
+
+## Origem dos registros
+
+A revisão de 9 de novembro de 2026 usa identificadores de serviços e listas publicadas por v2fly/domain-list-community e Sinfonietta/hostfiles, além de 183 domínios do levantamento de apostas da Secretaria de Prêmios e Apostas publicado em setembro de 2026. A classificação serve à política da escola. As origens e licenças acompanham o arquivo Python e o banco distribuído.

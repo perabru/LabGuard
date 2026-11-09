@@ -21,29 +21,22 @@ import time
 from contextlib import contextmanager
 
 import contextlib
+import csv
 import hashlib
 import hmac
+import io
 import ntpath
 import secrets
 import shutil
+import sqlite3
 import stat
 import xml.etree.ElementTree as ET
 
-CLIENT_VERSION = "1.0.0"
-
-# Catálogo inicial editável pela TI. Jogos e adultos incluem as regras do painel.
-STARTER_DOMAINS = (
-    "roblox.com", "rbxcdn.com", "poki.com", "crazygames.com", "friv.com",
-    "y8.com", "miniclip.com", "now.gg", "fortnite.com", "minecraft.net",
-    "store.steampowered.com", "playvalorant.com", "leagueoflegends.com",
-    "pornhub.com", "xvideos.com", "xnxx.com", "xhamster.com",
-    "chatgpt.com", "chat.openai.com", "claude.ai", "gemini.google.com",
-    "copilot.microsoft.com", "perplexity.ai", "chat.deepseek.com",
-)
-
+CLIENT_VERSION = "1.1.0"
+CLIENT_CATALOG_VERSION = "2026.11.09.1"
 
 def default_policy():
-    return {"mode": "bloqueados", "domains": list(STARTER_DOMAINS),
+    return {"mode": "bloqueados", "domains": [], "catalog_enabled": True,
             "allowed_domains": [], "games": list(GAME_IDS),
             "remove_roblox": True, "remove_games": []}
 
@@ -93,6 +86,8 @@ def validate_policy(raw):
                 raise ValueError("Revise os domínios que aparecem simultaneamente nas listas de bloqueio e permissão.")
     policy["games"] = _id_list(policy["games"], GAME_IDS)
     policy["remove_games"] = _id_list(policy["remove_games"], ("minecraft",))
+    if type(policy["catalog_enabled"]) is not bool:
+        raise ValueError("catalog_enabled deve ser true ou false.")
     if type(policy["remove_roblox"]) is not bool:
         raise ValueError("remove_roblox deve ser true ou false.")
     if policy["remove_roblox"] and "roblox" not in policy["games"]:
@@ -113,11 +108,13 @@ def _json_read(path):
 
 
 def _atomic_json(path, data):
+    payload = (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    if path.is_file() and path.stat().st_size == len(payload) and path.read_bytes() == payload:
+        return
     descriptor, name = tempfile.mkstemp(dir=path.parent, prefix="lg-", suffix=".tmp")
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(data, stream, ensure_ascii=False, indent=2)
-            stream.write("\n")
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
         for attempt in range(6):
@@ -182,6 +179,1284 @@ def _layer(name, func, *args, **kwargs):
         return {"ok": False, "errors": [f"{name}: {type(err).__name__}. Consulte as permissões e a política."]}
 
 
+# Domínios verificados, acompanhados da categoria e da origem. O banco da estação
+# preserva alterações da TI nas próximas versões deste catálogo.
+CLIENT_CATALOG_NOTICE = """Fontes do LabGuard Cliente • revisão de 9 de novembro de 2026
+
+v2fly:<arquivo> indica https://github.com/v2fly/domain-list-community/blob/e8d7a10a15bf662c927a40a3aa680bae86379608/data/<arquivo>. Fontes HTTPS identificam documentação ou páginas oficiais consultadas. Os registros contêm nomes de rede; não foram reproduzidos os textos das páginas.
+A categoria minecraft evita os sufixos compartilhados minecraft.net, minecraft-services.net, minecrafteduservices.com, xboxlive.com, playfabapi.com e Microsoft/Azure/MakeCode. Contém hosts específicos de download Java e redes de servidores públicos, lojas e mods. O recorte foi confrontado com os serviços documentados do Minecraft Education; outras categorias ou políticas da instituição podem interferir. A lista não bloqueia mundos offline nem endereços por IP.
+https://edusupport.minecraft.net/hc/en-us/articles/360047118992-FAQ-IT-Admin-Guide
+Seleção offline por origem, sem varredura de disponibilidade. Jogos com acesso por IP, plataformas de uso misto e novos domínios podem exigir revisão. As categorias de jogos abrangem portais, lojas e infraestrutura. Aplicar roblox também pode afetar Roblox Studio; políticas DNS e de remoção de pacotes são distintas.
+
+## Fontes das categorias de apostas e conteúdo adulto
+
+Retrato local consultado em 9 de novembro de 2026. O catálogo guarda domínios e categorias, sem consultar os sites listados, coletar histórico ou avaliar a disponibilidade atual.
+
+| Origem | Domínios | Seleção usada |
+|---|---:|---|
+| [Secretaria de Prêmios e Apostas do Ministério da Fazenda](https://www.gov.br/fazenda/pt-br/composicao/orgaos/secretaria-de-premios-e-apostas/transparencia-ativa-processos-de-autorizacao-de-apostas-de-quota-fixa/planilha-de-autorizacoes-1.csv/view) | 183 | Apenas nomes completos do campo DOMÍNIOS, com sufixo .bet.br, na planilha publicada em 14/09/2026. As células “a definir” foram ignoradas. A presença na lista histórica identifica o setor e não certifica situação legal ou operacional atual. |
+| [Sinfonietta/hostfiles](https://github.com/Sinfonietta/hostfiles/blob/46f3097d7bcfc9eea323fe365074dfd771d0d17c/gambling-hosts) | 117 | Subconjunto de domínios da lista gambling-hosts, incluindo operadores conhecidos e variantes presentes na lista original. Revisão `46f3097d7bcfc9eea323fe365074dfd771d0d17c`. Licença MIT. |
+| [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community/blob/e8d7a10a15bf662c927a40a3aa680bae86379608/data/category-porn) | 220 | Nomes explicitamente presentes em category-porn ou em listas por ela incluídas, com prioridade a nomes reconhecidos, domínios brasileiros e famílias de sites. Revisão `e8d7a10a15bf662c927a40a3aa680bae86379608`. Licença MIT. |
+
+A fonte governamental identifica seu conteúdo como [CC BY-ND 3.0](https://creativecommons.org/licenses/by-nd/3.0/). Foram extraídos apenas os endereços factuais publicados, sem modificar sua grafia e sem redistribuir a planilha, o texto ou as informações de empresas.
+
+As inclusões consultadas no catálogo adulto foram bongacams, brazzers, camwhores, clips4sale, digitalplayground, metart, mindgeek-porn, mydirtyhobby, nudevista, nutaku, pornhub, pornpros, realitykings, redtube, spankbang, theporndude, tube8, vixengroup, xhamster, xnxx, xvideos, youjizz, youporn. A seleção verifica nomes exatos contra as listas originais. Não expande nomes por suposição, não testa acesso a nenhum destino e não atribui classificação a páginas individuais.
+
+### Licenças dos conjuntos MIT
+
+**Sinfonietta/hostfiles** — [licença na revisão utilizada](https://github.com/Sinfonietta/hostfiles/blob/46f3097d7bcfc9eea323fe365074dfd771d0d17c/LICENSE).
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2016 Sinfonietta
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+**v2fly/domain-list-community** — [licença na revisão utilizada](https://github.com/v2fly/domain-list-community/blob/e8d7a10a15bf662c927a40a3aa680bae86379608/LICENSE).
+
+```text
+MIT License
+
+Copyright (c) 2018-2019 V2Ray
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+"""
+
+CLIENT_CATALOG_ROWS = (
+    ('4tube.com', 'adultos', 'v2fly/domain-list-community'),
+    ('8teenxxx.com', 'adultos', 'v2fly/domain-list-community'),
+    ('acasadasbrasileirinhas.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('adultfriendfinder.com', 'adultos', 'v2fly/domain-list-community'),
+    ('allpornsites.net', 'adultos', 'v2fly/domain-list-community'),
+    ('babes.com', 'adultos', 'v2fly/domain-list-community'),
+    ('bangbros.com', 'adultos', 'v2fly/domain-list-community'),
+    ('bcicdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('bcrncdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('bcvcdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('beeg.com', 'adultos', 'v2fly/domain-list-community'),
+    ('bgicdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('blacked.com', 'adultos', 'v2fly/domain-list-community'),
+    ('blackedraw.com', 'adultos', 'v2fly/domain-list-community'),
+    ('bongacams.com', 'adultos', 'v2fly/domain-list-community'),
+    ('brazzer.com', 'adultos', 'v2fly/domain-list-community'),
+    ('brazzers.com', 'adultos', 'v2fly/domain-list-community'),
+    ('brazzers.xxx', 'adultos', 'v2fly/domain-list-community'),
+    ('brazzersnetwork.com', 'adultos', 'v2fly/domain-list-community'),
+    ('c4slive.com', 'adultos', 'v2fly/domain-list-community'),
+    ('cam4.com', 'adultos', 'v2fly/domain-list-community'),
+    ('camsoda.com', 'adultos', 'v2fly/domain-list-community'),
+    ('camwhores.tv', 'adultos', 'v2fly/domain-list-community'),
+    ('camwhores.video', 'adultos', 'v2fly/domain-list-community'),
+    ('chaturbate.com', 'adultos', 'v2fly/domain-list-community'),
+    ('chinesexxxporn.net', 'adultos', 'v2fly/domain-list-community'),
+    ('clips4sale.com', 'adultos', 'v2fly/domain-list-community'),
+    ('coliriodemacho.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('collector.xhamster.com', 'adultos', 'v2fly/domain-list-community'),
+    ('deeper.com', 'adultos', 'v2fly/domain-list-community'),
+    ('digitalplayground.com', 'adultos', 'v2fly/domain-list-community'),
+    ('digitalplaygroundnetwork.com', 'adultos', 'v2fly/domain-list-community'),
+    ('drtuber.com', 'adultos', 'v2fly/domain-list-community'),
+    ('eporner.com', 'adultos', 'v2fly/domain-list-community'),
+    ('erome.com', 'adultos', 'v2fly/domain-list-community'),
+    ('exporntoons.net', 'adultos', 'v2fly/domain-list-community'),
+    ('extremetube.com', 'adultos', 'v2fly/domain-list-community'),
+    ('fapello.com', 'adultos', 'v2fly/domain-list-community'),
+    ('filmesporno.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('filmesporno.net.br', 'adultos', 'v2fly/domain-list-community'),
+    ('freeporn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('freepornhdonlinegay.com', 'adultos', 'v2fly/domain-list-community'),
+    ('freexh.blog', 'adultos', 'v2fly/domain-list-community'),
+    ('freexh.live', 'adultos', 'v2fly/domain-list-community'),
+    ('freshporno.net', 'adultos', 'v2fly/domain-list-community'),
+    ('gaytube.com', 'adultos', 'v2fly/domain-list-community'),
+    ('geilegratisporno.com', 'adultos', 'v2fly/domain-list-community'),
+    ('gelbooru.com', 'adultos', 'v2fly/domain-list-community'),
+    ('hclips.com', 'adultos', 'v2fly/domain-list-community'),
+    ('hdgaytube.xxx', 'adultos', 'v2fly/domain-list-community'),
+    ('hdporn92.com', 'adultos', 'v2fly/domain-list-community'),
+    ('heavy-r.com', 'adultos', 'v2fly/domain-list-community'),
+    ('hotmovies.com', 'adultos', 'v2fly/domain-list-community'),
+    ('hqporner.com', 'adultos', 'v2fly/domain-list-community'),
+    ('incesto.blog.br', 'adultos', 'v2fly/domain-list-community'),
+    ('javlibrary.com', 'adultos', 'v2fly/domain-list-community'),
+    ('jizzbunker.com', 'adultos', 'v2fly/domain-list-community'),
+    ('keezmovies.com', 'adultos', 'v2fly/domain-list-community'),
+    ('kink.com', 'adultos', 'v2fly/domain-list-community'),
+    ('letsdoeit.com', 'adultos', 'v2fly/domain-list-community'),
+    ('livehdcams.com', 'adultos', 'v2fly/domain-list-community'),
+    ('livejasmin.com', 'adultos', 'v2fly/domain-list-community'),
+    ('livexxx.me', 'adultos', 'v2fly/domain-list-community'),
+    ('machosaonatural.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('manyvids.com', 'adultos', 'v2fly/domain-list-community'),
+    ('matureporner.com', 'adultos', 'v2fly/domain-list-community'),
+    ('mdhcdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('megaporno.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('men.com', 'adultos', 'v2fly/domain-list-community'),
+    ('metart.com', 'adultos', 'v2fly/domain-list-community'),
+    ('metartnetwork.com', 'adultos', 'v2fly/domain-list-community'),
+    ('metcams.com', 'adultos', 'v2fly/domain-list-community'),
+    ('milfy.com', 'adultos', 'v2fly/domain-list-community'),
+    ('mobileporngames.com', 'adultos', 'v2fly/domain-list-community'),
+    ('mofos.com', 'adultos', 'v2fly/domain-list-community'),
+    ('moozporn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('motherless.com', 'adultos', 'v2fly/domain-list-community'),
+    ('mundomais.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('mydirtyhobby.com', 'adultos', 'v2fly/domain-list-community'),
+    ('myfreecams.com', 'adultos', 'v2fly/domain-list-community'),
+    ('mypornhere.com', 'adultos', 'v2fly/domain-list-community'),
+    ('naiadsystems.com', 'adultos', 'v2fly/domain-list-community'),
+    ('netxh.blog', 'adultos', 'v2fly/domain-list-community'),
+    ('nhentai.net', 'adultos', 'v2fly/domain-list-community'),
+    ('nsimg.net', 'adultos', 'v2fly/domain-list-community'),
+    ('nudevista.com', 'adultos', 'v2fly/domain-list-community'),
+    ('nudevista.es', 'adultos', 'v2fly/domain-list-community'),
+    ('nudevista.net', 'adultos', 'v2fly/domain-list-community'),
+    ('nudevista.vip', 'adultos', 'v2fly/domain-list-community'),
+    ('nutaku.com', 'adultos', 'v2fly/domain-list-community'),
+    ('nutaku.net', 'adultos', 'v2fly/domain-list-community'),
+    ('ohpornocasero.com', 'adultos', 'v2fly/domain-list-community'),
+    ('phncdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('phprcdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('porn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('porn300.com', 'adultos', 'v2fly/domain-list-community'),
+    ('porndig.com', 'adultos', 'v2fly/domain-list-community'),
+    ('porndude2.com', 'adultos', 'v2fly/domain-list-community'),
+    ('porndudecasting.com', 'adultos', 'v2fly/domain-list-community'),
+    ('porngub.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornhd.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornhub-deutsch.net', 'adultos', 'v2fly/domain-list-community'),
+    ('pornhub.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornhub.org', 'adultos', 'v2fly/domain-list-community'),
+    ('pornhubapparel.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornhubpremium.com', 'adultos', 'v2fly/domain-list-community'),
+    ('porniq.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornktube.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornmd.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornobom.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('pornobrasil.blog.br', 'adultos', 'v2fly/domain-list-community'),
+    ('pornocaserotube.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornogratis.vlog.br', 'adultos', 'v2fly/domain-list-community'),
+    ('pornoid.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornone.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornotube.blog.br', 'adultos', 'v2fly/domain-list-community'),
+    ('pornpair.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornpros.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornprosnetwork.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornsites.com', 'adultos', 'v2fly/domain-list-community'),
+    ('porntrex.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pornwebmasters.com', 'adultos', 'v2fly/domain-list-community'),
+    ('pussyporntubes.com', 'adultos', 'v2fly/domain-list-community'),
+    ('rdtcdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('realgfporn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('realitykings.com', 'adultos', 'v2fly/domain-list-community'),
+    ('redtube.com', 'adultos', 'v2fly/domain-list-community'),
+    ('redtube.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('redtubepremium.com', 'adultos', 'v2fly/domain-list-community'),
+    ('rk.com', 'adultos', 'v2fly/domain-list-community'),
+    ('sb-cd.com', 'adultos', 'v2fly/domain-list-community'),
+    ('seancody.com', 'adultos', 'v2fly/domain-list-community'),
+    ('sex.com', 'adultos', 'v2fly/domain-list-community'),
+    ('sexu.com', 'adultos', 'v2fly/domain-list-community'),
+    ('sexvid.xxx', 'adultos', 'v2fly/domain-list-community'),
+    ('shemaleporn.fun', 'adultos', 'v2fly/domain-list-community'),
+    ('shemalepornonly.com', 'adultos', 'v2fly/domain-list-community'),
+    ('slayed.com', 'adultos', 'v2fly/domain-list-community'),
+    ('spankbang.com', 'adultos', 'v2fly/domain-list-community'),
+    ('spankbang.party', 'adultos', 'v2fly/domain-list-community'),
+    ('stripchat.com', 'adultos', 'v2fly/domain-list-community'),
+    ('sunporno.com', 'adultos', 'v2fly/domain-list-community'),
+    ('swingerpornfun.com', 'adultos', 'v2fly/domain-list-community'),
+    ('thepornbet.com', 'adultos', 'v2fly/domain-list-community'),
+    ('theporndude.cc', 'adultos', 'v2fly/domain-list-community'),
+    ('theporndude.com', 'adultos', 'v2fly/domain-list-community'),
+    ('theporndude.vip', 'adultos', 'v2fly/domain-list-community'),
+    ('thumbzilla.com', 'adultos', 'v2fly/domain-list-community'),
+    ('tnaflix.com', 'adultos', 'v2fly/domain-list-community'),
+    ('tube8.com', 'adultos', 'v2fly/domain-list-community'),
+    ('tube8.fr', 'adultos', 'v2fly/domain-list-community'),
+    ('tufos.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('tushy.com', 'adultos', 'v2fly/domain-list-community'),
+    ('tushyraw.com', 'adultos', 'v2fly/domain-list-community'),
+    ('twistys.com', 'adultos', 'v2fly/domain-list-community'),
+    ('txxx.com', 'adultos', 'v2fly/domain-list-community'),
+    ('venezporn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('videos4sale.com', 'adultos', 'v2fly/domain-list-community'),
+    ('videosdepornografia.blog.br', 'adultos', 'v2fly/domain-list-community'),
+    ('videosdesexo.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('videosporno.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('vixen.com', 'adultos', 'v2fly/domain-list-community'),
+    ('vixengroup.com', 'adultos', 'v2fly/domain-list-community'),
+    ('voyeurhit.com', 'adultos', 'v2fly/domain-list-community'),
+    ('webcams.tv', 'adultos', 'v2fly/domain-list-community'),
+    ('whynotbi.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xdporner.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xfantazy.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamster.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamster.desi', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamster.xxx', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamster18.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamster18.desi', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamster19.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamster2.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamster3.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhamsterlive.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhapp.live', 'adultos', 'v2fly/domain-list-community'),
+    ('xhcdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhnews.live', 'adultos', 'v2fly/domain-list-community'),
+    ('xhpingcdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xhreal5.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xnxx-cdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xnxx-tv.net', 'adultos', 'v2fly/domain-list-community'),
+    ('xnxx.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xnxx.net', 'adultos', 'v2fly/domain-list-community'),
+    ('xnxx.tv', 'adultos', 'v2fly/domain-list-community'),
+    ('xnxx3.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xozilla.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xpornplease.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xtapes.to', 'adultos', 'v2fly/domain-list-community'),
+    ('xv-ru.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideo.vlog.br', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideos-ar.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideos-cdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideos-india.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideos.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideos.red', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideos.tv.br', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideos5.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideosnovinha.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideosnovinhas.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideosup.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('xvideosx.com.br', 'adultos', 'v2fly/domain-list-community'),
+    ('xxx-porn-fuck.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xxx-porn-tube.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xxxbunker.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xxxpornozinho.blog.br', 'adultos', 'v2fly/domain-list-community'),
+    ('xxxsexocasero.com', 'adultos', 'v2fly/domain-list-community'),
+    ('xxxstreams.org', 'adultos', 'v2fly/domain-list-community'),
+    ('xxxvideo.blog.br', 'adultos', 'v2fly/domain-list-community'),
+    ('xxxvideo.vip', 'adultos', 'v2fly/domain-list-community'),
+    ('yjcontentdelivery.com', 'adultos', 'v2fly/domain-list-community'),
+    ('yopornshop.com', 'adultos', 'v2fly/domain-list-community'),
+    ('youjizz.com', 'adultos', 'v2fly/domain-list-community'),
+    ('youporn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('youporngay.com', 'adultos', 'v2fly/domain-list-community'),
+    ('youpornpremium.com', 'adultos', 'v2fly/domain-list-community'),
+    ('youpornru.com', 'adultos', 'v2fly/domain-list-community'),
+    ('ypncdn.com', 'adultos', 'v2fly/domain-list-community'),
+    ('10bet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('12bet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('1pra1.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('1xbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('1xbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('22bet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('22betpartners.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('4play.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('4win.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('55w.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('5g.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('666casino.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('6r.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('6z.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('7games.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('7k.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('9d.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('9f.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('a247.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('afun.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('ai.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('alfa.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('americanfootballbetting.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('aposta.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('aposta1.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('apostaganha.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('apostamax.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('apostatudo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('apostou.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('arena-bet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('arenaplus.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('artemisbet10.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('aviao.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('b1bet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bacanaplay.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bandbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bateu.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bau.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bestbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bestbettoday.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bet-at-home.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bet-at-home.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bet33.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bet365.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bet365.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bet365.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bet4.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bet7days.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bet90.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bet9ja.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betadria.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betaki.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betano.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betano.bg', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betano.cz', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betano.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betano.pt', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betao.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betapp.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betboo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betboom.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betboro.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betbra.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betbuffalos.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betcaixa.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betclic.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betclic.pl', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betclic.pt', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betcopa.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betcris.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betcris.pl', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betdaq.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betdasorte.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betdna.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betespecial.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betesporte.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betextratime.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betfair.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betfair.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betfalcons.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betfast.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betfinal.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betfred.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betfusion.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betgo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betgorillas.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betika.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betinternet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betmclean.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betmgm.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betmotion.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betn1.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betnacional.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betonline.ag', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betorca.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betoto.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betou.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betpack.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betpix365.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betplay.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betpontobet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betroyal.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betsafe.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betsafe.lt', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betsson.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betsson.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betsul.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bettripledraw.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betvictor.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betvip.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betwarrior.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('betway.bg', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betway.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betway.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('betway.pt', 'apostas', 'Sinfonietta/hostfiles'),
+    ('big.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bingo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bingoplus.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('blaze.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bolsadeaposta.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('br4.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bra.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('brasil.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('brasildasorte.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bravo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('brazino777.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('brbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('brx.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bullsbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('bwin.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bwin.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bwin.pt', 'apostas', 'Sinfonietta/hostfiles'),
+    ('bz.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('campobet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('casadeapostas.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('casinoeuro.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('casinoheroes.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('casinopop.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('cassino.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('cbesportes.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('centrebet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('cgg.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('circlebet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('cmdbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('contorabet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('crownbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('dafabet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('daftarbetplace88.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('diegocasino.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('donald.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('donosdabola.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('doxxbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('drbingo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('eccobet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('energia.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('energybet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('esporte365.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('esportiva.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('esportivavip.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('esportsbetting.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('estorilsolcasinos.pt', 'apostas', 'Sinfonietta/hostfiles'),
+    ('estrelabet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('f12.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('fanbit.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('fastbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('faz1.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('fazo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('fikacasino.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('fogo777.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('free.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('fullbetter.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('fulltbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('fybet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('galera.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('ganhei.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('geralbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('ginga.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('goldebet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('goliathcasino.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('h2.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('hiper.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('ice.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('ijogo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('interwetten.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('interwetten.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('jackpotcity.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('jogajunto.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('jogalimpo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('jogao.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('jogodeouro.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('jogoonline.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('jogos.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('jojobet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('jonbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('kbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('kingpanda.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('kto.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('lancedesorte.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('lider.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('lotogreen.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('lottoland.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('lottu.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('louisvillecasino.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('lsbet690.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('luck.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('luckycasino.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('luva.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('magicjackpot.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('marathonbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('marsbet200.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('matchbook.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('maxima.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('mcgames.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('megabet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('megaposta.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('meridianbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('mgm.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('milhao.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('mmabet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('mobocasino.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('montecarlos.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('multi.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('naijabet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('netbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('nossa.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('novibet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('novibet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('obabet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('oleybet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('ona.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('p9.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('pagol.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('papigames.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('parimatch.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('pin.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('pinnacle.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('pitaco.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('pix.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('play.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('playuzu.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('pointcasino.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('pokerstars.bg', 'apostas', 'Sinfonietta/hostfiles'),
+    ('pokerstars.cz', 'apostas', 'Sinfonietta/hostfiles'),
+    ('pokerstars.eu', 'apostas', 'Sinfonietta/hostfiles'),
+    ('pq777.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('qg.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('r7.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('rdp.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('realdealbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('reals.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('receba.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('reidopitaco.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('rico.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('rivalo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('rivalo.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('rubet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('scandibet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('seguro.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('seu.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('skinbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('sortenabet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('sorteonline.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('sportingbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('sportingbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('sportingbet.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('sportsbet.io', 'apostas', 'Sinfonietta/hostfiles'),
+    ('sporty.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('sssbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('stake.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('stake.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('start.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('statusbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('super.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('superbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('suprema.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('tiger.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('tipico.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('tipico.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('tivo.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('tradicional.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('tropino.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('ultra.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('unibet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('up.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('vaidebet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('vbet.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('vbet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('vbet.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('vera.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('versus.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('vert.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('vivaro.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('vivasorte.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('vupi.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('williamhill.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('winamax.de', 'apostas', 'Sinfonietta/hostfiles'),
+    ('wjcasino.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('xbetcaixa.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('xx.bet.br', 'apostas', 'SPA/MF (2026-09-14)'),
+    ('yabet.com', 'apostas', 'Sinfonietta/hostfiles'),
+    ('aistudio.google.com', 'ia', 'v2fly:google-deepmind'),
+    ('anthropic.com', 'ia', 'v2fly:anthropic'),
+    ('chat.com', 'ia', 'v2fly:openai'),
+    ('chatgpt.com', 'ia', 'v2fly:openai'),
+    ('clau.de', 'ia', 'v2fly:anthropic'),
+    ('claude.ai', 'ia', 'v2fly:anthropic'),
+    ('claude.app', 'ia', 'v2fly:anthropic'),
+    ('claude.com', 'ia', 'v2fly:anthropic'),
+    ('claude.new', 'ia', 'v2fly:anthropic'),
+    ('claudeusercontent.com', 'ia', 'v2fly:anthropic'),
+    ('copilot.cloud.microsoft', 'ia', 'v2fly:category-ai-!cn'),
+    ('copilot.com', 'ia', 'v2fly:category-ai-!cn'),
+    ('copilot.microsoft.com', 'ia', 'v2fly:category-ai-!cn'),
+    ('duck.ai', 'ia', 'v2fly:category-ai-!cn'),
+    ('gemini.google', 'ia', 'v2fly:google-deepmind'),
+    ('gemini.google.com', 'ia', 'v2fly:google-deepmind'),
+    ('gemini.gstatic.com', 'ia', 'v2fly:google-deepmind'),
+    ('generativelanguage.googleapis.com', 'ia', 'v2fly:google-deepmind'),
+    ('githubcopilot.com', 'ia', 'v2fly:github-copilot'),
+    ('grok.com', 'ia', 'v2fly:xai'),
+    ('grok.x.com', 'ia', 'v2fly:xai'),
+    ('jasper.ai', 'ia', 'v2fly:category-ai-!cn'),
+    ('kimi.ai', 'ia', 'v2fly:category-ai-!cn'),
+    ('meta.ai', 'ia', 'v2fly:category-ai-!cn'),
+    ('midjourney.com', 'ia', 'v2fly:category-ai-!cn'),
+    ('mistral.ai', 'ia', 'v2fly:category-ai-!cn'),
+    ('moonshot.ai', 'ia', 'v2fly:category-ai-!cn'),
+    ('notebooklm.google.com', 'ia', 'v2fly:google-deepmind'),
+    ('oaistatic.com', 'ia', 'v2fly:openai'),
+    ('oaiusercontent.com', 'ia', 'v2fly:openai'),
+    ('openai.com', 'ia', 'v2fly:openai'),
+    ('openrouter.ai', 'ia', 'v2fly:category-ai-!cn'),
+    ('perplexity.ai', 'ia', 'v2fly:perplexity'),
+    ('perplexity.com', 'ia', 'v2fly:perplexity'),
+    ('poe.com', 'ia', 'v2fly:poe'),
+    ('poecdn.net', 'ia', 'v2fly:poe'),
+    ('pplx.ai', 'ia', 'v2fly:perplexity'),
+    ('sora.com', 'ia', 'v2fly:openai'),
+    ('x.ai', 'ia', 'v2fly:xai'),
+    ('2k.com', 'jogos', 'v2fly:2kgames'),
+    ('2kgames.com', 'jogos', 'v2fly:2kgames'),
+    ('2ksports.com', 'jogos', 'v2fly:2kgames'),
+    ('acesofthunder.net', 'jogos', 'v2fly:gaijin'),
+    ('activematter.game', 'jogos', 'v2fly:gaijin'),
+    ('activision.com', 'jogos', 'v2fly:activision'),
+    ('activisionblizzard.com', 'jogos', 'v2fly:activision-blizzard'),
+    ('addictinggames.com', 'jogos', 'https://addictinggames.com/'),
+    ('arcraiders.com', 'jogos', 'v2fly:embark'),
+    ('arma3.com', 'jogos', 'v2fly:bohemia'),
+    ('armaplatform.com', 'jogos', 'v2fly:bohemia'),
+    ('armorgames.com', 'jogos', 'https://armorgames.com/'),
+    ('awayoutgame.com', 'jogos', 'v2fly:ea'),
+    ('battle.net', 'jogos', 'v2fly:blizzard'),
+    ('battlebreakers.com', 'jogos', 'v2fly:epicgames'),
+    ('battlefieldbadcompany2.com', 'jogos', 'v2fly:ea'),
+    ('battlefront2.com', 'jogos', 'v2fly:ea'),
+    ('battlefrontii.com', 'jogos', 'v2fly:ea'),
+    ('bejeweledstars.com', 'jogos', 'v2fly:ea'),
+    ('blizzard.com', 'jogos', 'v2fly:blizzard'),
+    ('boombeach.com', 'jogos', 'v2fly:supercell'),
+    ('brawlstars.com', 'jogos', 'v2fly:supercell'),
+    ('brawlstarsgame.com', 'jogos', 'v2fly:supercell'),
+    ('callofduty.com', 'jogos', 'v2fly:activision'),
+    ('callofdutyleague.com', 'jogos', 'v2fly:activision'),
+    ('callofdutymobile.com', 'jogos', 'v2fly:activision'),
+    ('candycrush.com', 'jogos', 'v2fly:activision-blizzard'),
+    ('capitalgames.com', 'jogos', 'v2fly:ea'),
+    ('clashofclans.com', 'jogos', 'v2fly:supercell'),
+    ('clashroyale.com', 'jogos', 'v2fly:supercell'),
+    ('clashroyaleapp.com', 'jogos', 'v2fly:supercell'),
+    ('clickjogos.com.br', 'jogos', 'https://clickjogos.com.br/'),
+    ('crashbandicoot.com', 'jogos', 'v2fly:activision'),
+    ('crazygames.com', 'jogos', 'https://crazygames.com/'),
+    ('crossout.net', 'jogos', 'v2fly:gaijin'),
+    ('crsed.net', 'jogos', 'v2fly:gaijin'),
+    ('crysis.jp', 'jogos', 'v2fly:ea'),
+    ('cubicodyssey.game', 'jogos', 'v2fly:gaijin'),
+    ('cyberpunk.net', 'jogos', 'v2fly:cdprojekt'),
+    ('dayz.com', 'jogos', 'v2fly:bohemia'),
+    ('demonware.net', 'jogos', 'v2fly:activision'),
+    ('diablo.com', 'jogos', 'v2fly:blizzard'),
+    ('diablo3.com', 'jogos', 'v2fly:blizzard'),
+    ('diablo4.com', 'jogos', 'v2fly:blizzard'),
+    ('diabloimmortal.com', 'jogos', 'v2fly:blizzard'),
+    ('diep.io', 'jogos', 'https://diep.io/'),
+    ('dota2.com', 'jogos', 'v2fly:steam'),
+    ('ea.com', 'jogos', 'v2fly:ea'),
+    ('eaaccess.com', 'jogos', 'v2fly:ea'),
+    ('eamobile.com', 'jogos', 'v2fly:ea'),
+    ('eaplay.com', 'jogos', 'v2fly:ea'),
+    ('easports.com', 'jogos', 'v2fly:ea'),
+    ('eastore.com', 'jogos', 'v2fly:origin'),
+    ('electronicarts.com', 'jogos', 'v2fly:ea'),
+    ('embark.games', 'jogos', 'v2fly:embark'),
+    ('enlisted.net', 'jogos', 'v2fly:gaijin'),
+    ('epicgames.com', 'jogos', 'v2fly:epicgames'),
+    ('epicgamescdn.com', 'jogos', 'v2fly:epicgames'),
+    ('faceit-cdn.net', 'jogos', 'v2fly:faceit'),
+    ('faceit.com', 'jogos', 'v2fly:faceit'),
+    ('fanatical.com', 'jogos', 'v2fly:category-games-!cn'),
+    ('fortnite.com', 'jogos', 'v2fly:epicgames'),
+    ('friv.com', 'jogos', 'https://friv.com/'),
+    ('gaijin.net', 'jogos', 'v2fly:gaijin'),
+    ('gamebanana.com', 'jogos', 'v2fly:category-games-!cn'),
+    ('gamesplanet.com', 'jogos', 'v2fly:gamesplanet'),
+    ('garena.com', 'jogos', 'v2fly:garena'),
+    ('garena.live', 'jogos', 'v2fly:garena'),
+    ('garenanow.com', 'jogos', 'v2fly:garena'),
+    ('garticphone.com', 'jogos', 'https://garticphone.com/'),
+    ('genshinimpact.com', 'jogos', 'v2fly:hoyoverse'),
+    ('gog-services.com', 'jogos', 'v2fly:gog'),
+    ('gog-statics.com', 'jogos', 'v2fly:gog'),
+    ('gog.com', 'jogos', 'v2fly:gog'),
+    ('gogalaxy.com', 'jogos', 'v2fly:gog'),
+    ('gpstatic.com', 'jogos', 'v2fly:gamesplanet'),
+    ('hayday.com', 'jogos', 'v2fly:supercell'),
+    ('haydaygame.com', 'jogos', 'v2fly:supercell'),
+    ('heroesofdragonage.com', 'jogos', 'v2fly:ea'),
+    ('heroesofthestorm.com', 'jogos', 'v2fly:blizzard'),
+    ('honkaiimpact3.com', 'jogos', 'v2fly:hoyoverse'),
+    ('honkaistarrail.com', 'jogos', 'v2fly:hoyoverse'),
+    ('hoyolab.com', 'jogos', 'v2fly:hoyoverse'),
+    ('hoyoverse.com', 'jogos', 'v2fly:hoyoverse'),
+    ('itch.io', 'jogos', 'v2fly:itchio'),
+    ('itch.zone', 'jogos', 'v2fly:itchio'),
+    ('jogos360.com.br', 'jogos', 'https://jogos360.com.br/'),
+    ('joinsquad.com', 'jogos', 'v2fly:category-games-!cn'),
+    ('king.com', 'jogos', 'v2fly:activision-blizzard'),
+    ('kizi.com', 'jogos', 'https://kizi.com/'),
+    ('konami.com', 'jogos', 'v2fly:konami'),
+    ('konami.net', 'jogos', 'v2fly:konami'),
+    ('konamionline.com', 'jogos', 'v2fly:konami'),
+    ('kongregate.com', 'jogos', 'https://kongregate.com/'),
+    ('krunker.io', 'jogos', 'https://krunker.io/'),
+    ('lagged.com', 'jogos', 'https://lagged.com/'),
+    ('leagueoflegends.com', 'jogos', 'v2fly:riot'),
+    ('lolesports.com', 'jogos', 'v2fly:riot'),
+    ('lolstatic.com', 'jogos', 'v2fly:riot'),
+    ('lolusercontent.com', 'jogos', 'v2fly:riot'),
+    ('masteroforion.com', 'jogos', 'v2fly:wargaming'),
+    ('miniclip.com', 'jogos', 'https://miniclip.com/'),
+    ('modernwarships.com', 'jogos', 'v2fly:gaijin'),
+    ('nexon.com', 'jogos', 'v2fly:nexon'),
+    ('nexon.net', 'jogos', 'v2fly:nexon'),
+    ('nexoncdn.co.kr', 'jogos', 'v2fly:nexon'),
+    ('nexongames.co.kr', 'jogos', 'v2fly:nexon'),
+    ('nintendo.com', 'jogos', 'v2fly:nintendo'),
+    ('nintendo.net', 'jogos', 'v2fly:nintendo'),
+    ('nintendonetwork.net', 'jogos', 'v2fly:nintendo'),
+    ('nintendostore.com', 'jogos', 'v2fly:nintendo'),
+    ('nintendoswitch.com', 'jogos', 'v2fly:nintendo'),
+    ('now.gg', 'jogos', 'https://now.gg/'),
+    ('noxygames.com', 'jogos', 'v2fly:category-games-!cn'),
+    ('origin.com', 'jogos', 'v2fly:origin'),
+    ('playapex.com', 'jogos', 'v2fly:ea'),
+    ('playartifact.com', 'jogos', 'v2fly:steam'),
+    ('playbattlegrounds.com', 'jogos', 'v2fly:pubg'),
+    ('playgwent.com', 'jogos', 'v2fly:cdprojekt'),
+    ('playhearthstone.com', 'jogos', 'v2fly:blizzard'),
+    ('playoverwatch.com', 'jogos', 'v2fly:blizzard'),
+    ('playstation.com', 'jogos', 'v2fly:playstation'),
+    ('playstation.net', 'jogos', 'v2fly:playstation'),
+    ('playstationnetwork.com', 'jogos', 'v2fly:playstation'),
+    ('playvalorant.com', 'jogos', 'v2fly:riot'),
+    ('playwarcraft3.com', 'jogos', 'v2fly:blizzard'),
+    ('pogo.com', 'jogos', 'v2fly:ea'),
+    ('pogobeta.com', 'jogos', 'v2fly:ea'),
+    ('pokemon.com', 'jogos', 'v2fly:nintendo'),
+    ('poki.com', 'jogos', 'https://poki.com/'),
+    ('popcap.com', 'jogos', 'v2fly:ea'),
+    ('pubg.com', 'jogos', 'v2fly:pubg'),
+    ('pvp.net', 'jogos', 'v2fly:riot'),
+    ('reachthefinals.com', 'jogos', 'v2fly:embark'),
+    ('riotcdn.net', 'jogos', 'v2fly:riot'),
+    ('riotgames.com', 'jogos', 'v2fly:riot'),
+    ('riotgames.net', 'jogos', 'v2fly:riot'),
+    ('roborecall.com', 'jogos', 'v2fly:epicgames'),
+    ('rockstargames.com', 'jogos', 'v2fly:rockstar'),
+    ('rockstarnorth.com', 'jogos', 'v2fly:rockstar'),
+    ('rsg.sc', 'jogos', 'v2fly:rockstar'),
+    ('rstatic.net', 'jogos', 'v2fly:riot'),
+    ('s.team', 'jogos', 'v2fly:steam'),
+    ('sekirothegame.com', 'jogos', 'v2fly:activision'),
+    ('shadowcomplex.com', 'jogos', 'v2fly:epicgames'),
+    ('shellshock.io', 'jogos', 'https://shellshock.io/'),
+    ('sierragames.com', 'jogos', 'v2fly:activision'),
+    ('silicagame.com', 'jogos', 'v2fly:bohemia'),
+    ('skylanders.com', 'jogos', 'v2fly:activision'),
+    ('speedrun.com', 'jogos', 'v2fly:category-games-!cn'),
+    ('spyrothedragon.com', 'jogos', 'v2fly:activision'),
+    ('squadbusters.com', 'jogos', 'v2fly:supercell'),
+    ('star-conflict.com', 'jogos', 'v2fly:gaijin'),
+    ('starcraft.com', 'jogos', 'v2fly:blizzard'),
+    ('starcraft2.com', 'jogos', 'v2fly:blizzard'),
+    ('steam-api.com', 'jogos', 'v2fly:steam'),
+    ('steam-chat.com', 'jogos', 'v2fly:steam'),
+    ('steam.tv', 'jogos', 'v2fly:steam'),
+    ('steamcommunity.com', 'jogos', 'v2fly:steam'),
+    ('steamconnecttest.com', 'jogos', 'v2fly:steam'),
+    ('steamcontent.com', 'jogos', 'v2fly:steam'),
+    ('steamdb.info', 'jogos', 'v2fly:category-games-!cn'),
+    ('steamdeck.com', 'jogos', 'v2fly:steam'),
+    ('steamgames.com', 'jogos', 'v2fly:steam'),
+    ('steampeek.hu', 'jogos', 'v2fly:category-games-!cn'),
+    ('steampowered.com', 'jogos', 'v2fly:steam'),
+    ('steamserver.net', 'jogos', 'v2fly:steam'),
+    ('steamstatic.com', 'jogos', 'v2fly:steam'),
+    ('steamusercontent.com', 'jogos', 'v2fly:steam'),
+    ('stumbleguys.com', 'jogos', 'https://stumbleguys.com/'),
+    ('supercell.com', 'jogos', 'v2fly:supercell'),
+    ('supercell.net', 'jogos', 'v2fly:supercell'),
+    ('supercellgames.com', 'jogos', 'v2fly:supercell'),
+    ('supercellid.com', 'jogos', 'v2fly:supercell'),
+    ('supercellstore.com', 'jogos', 'v2fly:supercell'),
+    ('take2games.com', 'jogos', 'v2fly:take-two'),
+    ('thewitcher.com', 'jogos', 'v2fly:cdprojekt'),
+    ('tonyhawkthegame.com', 'jogos', 'v2fly:activision'),
+    ('ubi.com', 'jogos', 'v2fly:ubisoft'),
+    ('ubisoft.com', 'jogos', 'v2fly:ubisoft'),
+    ('ubisoftconnect.com', 'jogos', 'v2fly:ubisoft'),
+    ('underlords.com', 'jogos', 'v2fly:steam'),
+    ('unrealtournament.com', 'jogos', 'v2fly:epicgames'),
+    ('uplay.com', 'jogos', 'v2fly:ubisoft'),
+    ('vigorgame.com', 'jogos', 'v2fly:bohemia'),
+    ('vrchat.cloud', 'jogos', 'v2fly:vrchat'),
+    ('vrchat.com', 'jogos', 'v2fly:vrchat'),
+    ('vrchat.net', 'jogos', 'v2fly:vrchat'),
+    ('wargaming.net', 'jogos', 'v2fly:wargaming'),
+    ('warnerbrosgames.com', 'jogos', 'v2fly:wbgames'),
+    ('warthunder.com', 'jogos', 'v2fly:gaijin'),
+    ('wbagora.com', 'jogos', 'v2fly:wbgames'),
+    ('wbgames.com', 'jogos', 'v2fly:wbgames'),
+    ('worldoftanks.com', 'jogos', 'v2fly:wargaming'),
+    ('worldoftanks.eu', 'jogos', 'v2fly:wargaming'),
+    ('worldofwarcraft.com', 'jogos', 'v2fly:blizzard'),
+    ('worldofwarplanes.com', 'jogos', 'v2fly:wargaming'),
+    ('worldofwarships.asia', 'jogos', 'v2fly:wargaming'),
+    ('worldofwarships.com', 'jogos', 'v2fly:wargaming'),
+    ('worldseriesofwarzone.com', 'jogos', 'v2fly:activision'),
+    ('wotblitz.com', 'jogos', 'v2fly:wargaming'),
+    ('wowsblitz.com', 'jogos', 'v2fly:wargaming'),
+    ('wtmobile.com', 'jogos', 'v2fly:gaijin'),
+    ('y8.com', 'jogos', 'https://y8.com/'),
+    ('ylands.com', 'jogos', 'v2fly:bohemia'),
+    ('yugioh-card.com', 'jogos', 'v2fly:konami'),
+    ('zenlesszonezero.com', 'jogos', 'v2fly:hoyoverse'),
+    ('zynga.com', 'jogos', 'v2fly:zynga'),
+    ('zyngapoker.com', 'jogos', 'v2fly:zynga'),
+    ('chunkbase.com', 'minecraft', 'v2fly:category-games-!cn'),
+    ('cubecraft.net', 'minecraft', 'https://help.cubecraft.net/en/article/how-do-i-join-cubecraft-java-edition-15kob0/'),
+    ('fabricmc.net', 'minecraft', 'v2fly:category-games-!cn'),
+    ('hypixel.net', 'minecraft', 'https://support.hypixel.net/hc/en-us/articles/360019495360-How-to-Join-the-Hypixel-Server'),
+    ('launchermeta.mojang.com', 'minecraft', 'https://minecraft.wiki/w/Version_manifest.json'),
+    ('libraries.minecraft.net', 'minecraft', 'https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Game_files'),
+    ('mc.hypixel.net', 'minecraft', 'https://support.hypixel.net/hc/en-us/articles/360019495360-How-to-Join-the-Hypixel-Server'),
+    ('minecraftforge.net', 'minecraft', 'v2fly:category-games-!cn'),
+    ('minecraftservices.com', 'minecraft', 'v2fly:mojang'),
+    ('minecraftshop.com', 'minecraft', 'v2fly:mojang'),
+    ('namemc.com', 'minecraft', 'v2fly:category-games-!cn'),
+    ('neoforged.net', 'minecraft', 'v2fly:category-games-!cn'),
+    ('optifine.net', 'minecraft', 'v2fly:category-games-!cn'),
+    ('papermc.io', 'minecraft', 'v2fly:category-games-!cn'),
+    ('piston-data.mojang.com', 'minecraft', 'https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Game_files'),
+    ('piston-meta.mojang.com', 'minecraft', 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'),
+    ('planetminecraft.com', 'minecraft', 'v2fly:category-games-!cn'),
+    ('play.cubecraft.net', 'minecraft', 'https://help.cubecraft.net/en/article/how-do-i-join-cubecraft-java-edition-15kob0/'),
+    ('prismlauncher.org', 'minecraft', 'v2fly:category-games-!cn'),
+    ('quiltmc.org', 'minecraft', 'v2fly:category-games-!cn'),
+    ('resources.download.minecraft.net', 'minecraft', 'https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Game_files'),
+    ('spigotmc.org', 'minecraft', 'v2fly:category-games-!cn'),
+    ('www.minecraft.net', 'minecraft', 'https://www.minecraft.net/en-us/download'),
+    ('api.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('assetgame.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('captcha.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('chat.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('chatsite.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('clientsettings.api.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('js.rbxcdn.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('rblx.co', 'roblox', 'v2fly:roblox'),
+    ('rblx.com', 'roblox', 'v2fly:roblox'),
+    ('rblx.org', 'roblox', 'v2fly:roblox'),
+    ('rbx.com', 'roblox', 'v2fly:roblox'),
+    ('rbxcdn.com', 'roblox', 'v2fly:roblox'),
+    ('rbxinfra.net', 'roblox', 'v2fly:roblox'),
+    ('rbxlabs.com', 'roblox', 'v2fly:roblox'),
+    ('rbxtrk.com', 'roblox', 'v2fly:roblox'),
+    ('roblox-api.arkoselabs.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('roblox.ca', 'roblox', 'v2fly:roblox'),
+    ('roblox.cl', 'roblox', 'v2fly:roblox'),
+    ('roblox.co.jp', 'roblox', 'v2fly:roblox'),
+    ('roblox.co.uk', 'roblox', 'v2fly:roblox'),
+    ('roblox.com', 'roblox', 'v2fly:roblox'),
+    ('roblox.de', 'roblox', 'v2fly:roblox'),
+    ('roblox.eu', 'roblox', 'v2fly:roblox'),
+    ('roblox.fr', 'roblox', 'v2fly:roblox'),
+    ('roblox.it', 'roblox', 'v2fly:roblox'),
+    ('roblox.jp', 'roblox', 'v2fly:roblox'),
+    ('roblox.kr', 'roblox', 'v2fly:roblox'),
+    ('roblox.mx', 'roblox', 'v2fly:roblox'),
+    ('roblox.net', 'roblox', 'v2fly:roblox'),
+    ('roblox.org', 'roblox', 'v2fly:roblox'),
+    ('roblox.pt', 'roblox', 'v2fly:roblox'),
+    ('roblox.tv', 'roblox', 'v2fly:roblox'),
+    ('roblox.uk', 'roblox', 'v2fly:roblox'),
+    ('roblox.us', 'roblox', 'v2fly:roblox'),
+    ('robloxlabs.com', 'roblox', 'v2fly:roblox'),
+    ('setup.rbxcdn.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('setup.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('static.rbxcdn.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('versioncompatibility.api.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+    ('www.roblox.com', 'roblox', 'https://en.help.roblox.com/hc/en-us/articles/115005744663-Troubleshooting-Education-Networks'),
+)
+
+
+# Banco SQLite local. Escritas da TI são transacionais; os leitores abrem a base
+# em modo somente leitura. O chamador mantém a pasta privada à escrita de alunos.
+
+CATALOG_CATEGORIES = ('jogos', 'roblox', 'minecraft', 'adultos', 'apostas', 'ia', 'outros')
+CATALOG_ACTIVE_LIMIT = 975
+_CATALOG_STORED_LIMIT = 10000
+CATALOG_CSV_LIMIT = 2 * 1024 * 1024
+_CATALOG_APP_ID = 0x4C474354  # LGCT
+_CATALOG_SCHEMA = 1
+
+
+def _catalog_domain(domain):
+    return _domain_names([domain])[0]
+
+
+def _catalog_category(value):
+    if isinstance(value, str):
+        value = value.strip().lower()
+    if value not in CATALOG_CATEGORIES:
+        raise ValueError('Categoria inválida. Use ' + ', '.join(CATALOG_CATEGORIES) + '.')
+    return value
+
+
+def _catalog_switch(value):
+    if type(value) is not bool:
+        raise ValueError('Informe se o item está ativo.')
+    return int(value)
+
+
+def _catalog_extras(values):
+    if isinstance(values, (str, bytes)):
+        raise ValueError('Informe uma lista de domínios da política.')
+    return {_catalog_domain(domain) for domain in values}
+
+
+def _catalog_limit(active):
+    if len(active) > CATALOG_ACTIVE_LIMIT:
+        raise ValueError(f'O limite é de {CATALOG_ACTIVE_LIMIT} domínios ativos, incluindo a política da TI. '
+                         'Desative entradas ou categorias antes de continuar.')
+
+
+class ClientCatalog:
+    def __init__(self, path, *, seed_rows=None, seed_version=None):
+        self.path = Path(path)
+        self.seed_rows = CLIENT_CATALOG_ROWS if seed_rows is None else seed_rows
+        self.seed_version = str(CLIENT_CATALOG_VERSION if seed_version is None else seed_version)
+        self.notice = globals().get('CLIENT_CATALOG_NOTICE', '')
+        if not isinstance(self.notice, str) or len(self.notice) > 512_000:
+            raise ValueError('Aviso de licença ou proveniência inválido.')
+        if not self.seed_version or len(self.seed_version) > 80:
+            raise ValueError('Versão do catálogo inválida.')
+
+    def _check_path(self):
+        folder = self.path.parent.lstat()
+        if not stat.S_ISDIR(folder.st_mode) or getattr(folder, 'st_file_attributes', 0) & 0x400:
+            raise ValueError('A pasta do banco de sites precisa ser um diretório local válido.')
+        for suffix in ('', '-journal', '-wal', '-shm'):
+            try:
+                info = self.path.with_name(self.path.name + suffix).lstat()
+            except FileNotFoundError:
+                continue
+            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                    or getattr(info, 'st_file_attributes', 0) & 0x400):
+                raise ValueError('O banco de sites possui um vínculo ou um arquivo especial.')
+
+    @contextmanager
+    def _open(self, *, write=False, create=False):
+        self._check_path()
+        mode = 'rwc' if create else ('rw' if write else 'ro')
+        uri = self.path.absolute().as_uri() + '?mode=' + mode
+        db = sqlite3.connect(uri, uri=True, timeout=8, isolation_level=None)
+        db.row_factory = sqlite3.Row
+        try:
+            db.execute('PRAGMA trusted_schema=OFF')
+            db.execute('PRAGMA foreign_keys=ON')
+            db.execute('BEGIN IMMEDIATE' if write else 'BEGIN')
+            schema = db.execute('PRAGMA user_version').fetchone()[0]
+            app = db.execute('PRAGMA application_id').fetchone()[0]
+            if schema != _CATALOG_SCHEMA or app != _CATALOG_APP_ID:
+                empty = create and schema == app == 0 and not db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").fetchone()
+                if not empty:
+                    raise ValueError('Banco de sites incompatível. Preserve o arquivo e confira a versão do cliente.')
+                self._create(db)
+            yield db
+            db.commit()
+        except BaseException:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    @staticmethod
+    def _create(db):
+        db.execute('CREATE TABLE catalog_meta (id INTEGER PRIMARY KEY CHECK(id=1), '
+                   'revision INTEGER NOT NULL, seed_version TEXT NOT NULL)')
+        db.execute("INSERT INTO catalog_meta VALUES (1, 0, '')")
+        db.execute('CREATE TABLE categories (category TEXT PRIMARY KEY, enabled INTEGER NOT NULL CHECK(enabled IN (0,1)))')
+        db.executemany('INSERT INTO categories VALUES (?,1)', ((name,) for name in CATALOG_CATEGORIES))
+        db.execute('CREATE TABLE domains (domain TEXT PRIMARY KEY, category TEXT NOT NULL REFERENCES categories(category), '
+                   'source TEXT NOT NULL, enabled INTEGER NOT NULL CHECK(enabled IN (0,1)), '
+                   'shipped INTEGER NOT NULL CHECK(shipped IN (0,1)), touched INTEGER NOT NULL CHECK(touched IN (0,1)), '
+                   'deleted INTEGER NOT NULL CHECK(deleted IN (0,1)))')
+        db.execute('CREATE INDEX idx_catalog_category ON domains(category,deleted,enabled,domain)')
+        db.execute(f'PRAGMA application_id={_CATALOG_APP_ID}')
+        db.execute(f'PRAGMA user_version={_CATALOG_SCHEMA}')
+
+    @staticmethod
+    def _revision(db):
+        return db.execute('SELECT revision FROM catalog_meta WHERE id=1').fetchone()[0]
+
+    @staticmethod
+    def _advance(db):
+        db.execute('UPDATE catalog_meta SET revision=revision+1 WHERE id=1')
+
+    @staticmethod
+    def _visible(db, domain):
+        return db.execute('SELECT * FROM domains WHERE domain=? AND deleted=0', (domain,)).fetchone()
+
+    @staticmethod
+    def _active(db, extra):
+        active = set(extra)
+        active.update(row[0] for row in db.execute(
+            'SELECT d.domain FROM domains d JOIN categories c USING(category) '
+            'WHERE d.deleted=0 AND d.enabled=1 AND c.enabled=1'))
+        _catalog_limit(active)
+        return active
+
+    @staticmethod
+    def _size(db):
+        if db.execute('SELECT COUNT(*) FROM domains').fetchone()[0] > _CATALOG_STORED_LIMIT:
+            raise ValueError(f'O banco comporta até {_CATALOG_STORED_LIMIT} registros locais.')
+
+    def ensure(self, *, extra_domains=()):
+        """Seed offline once per dataset version; retain edits, switches and deleted built-ins."""
+        extra = _catalog_extras(extra_domains)
+        def current(db):
+            return db.execute('SELECT seed_version FROM catalog_meta WHERE id=1').fetchone()[0] == self.seed_version
+        def notice_current(db):
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='catalog_notices'").fetchone():
+                return False
+            row = db.execute("SELECT content FROM catalog_notices WHERE key='distribuicao'").fetchone()
+            return bool(row and row[0] == self.notice)
+        if self.path.exists() and self.path.stat().st_size:
+            # Another installer may have created the DB file before committing its first schema.
+            try:
+                with self._open() as db:
+                    if current(db) and notice_current(db):
+                        if extra:
+                            self._active(db, extra)
+                        return self._revision(db)
+            except ValueError:
+                pass
+        with self._open(write=True, create=True) as db:
+            if not notice_current(db):
+                db.execute('CREATE TABLE IF NOT EXISTS catalog_notices(key TEXT PRIMARY KEY,content TEXT NOT NULL)')
+                db.execute("INSERT INTO catalog_notices(key,content) VALUES('distribuicao',?) "
+                           "ON CONFLICT(key) DO UPDATE SET content=excluded.content", (self.notice,))
+            if current(db):
+                if extra:
+                    self._active(db, extra)
+                return self._revision(db)
+            db.execute('CREATE TEMP TABLE incoming(domain TEXT PRIMARY KEY, category TEXT, source TEXT)')
+            for domain, category, source in self.seed_rows:
+                domain, category = _catalog_domain(domain), _catalog_category(category)
+                if not isinstance(source, str) or not source or len(source) > 2048 or not source.isprintable():
+                    raise ValueError('Fonte inválida na lista distribuída.')
+                if db.execute('SELECT 1 FROM incoming WHERE domain=?', (domain,)).fetchone():
+                    raise ValueError(f'O domínio {domain} está repetido na lista distribuída.')
+                db.execute('INSERT INTO incoming VALUES (?,?,?)', (domain, category, source))
+            # Removed seed records disappear unless the TI has customized them.
+            db.execute('DELETE FROM domains WHERE shipped=1 AND touched=0 AND domain NOT IN (SELECT domain FROM incoming)')
+            db.execute('UPDATE domains SET shipped=0 WHERE shipped=1 AND domain NOT IN (SELECT domain FROM incoming)')
+            db.execute('INSERT INTO domains(domain,category,source,enabled,shipped,touched,deleted) '
+                       'SELECT domain,category,source,1,1,0,0 FROM incoming WHERE 1 '
+                       'ON CONFLICT(domain) DO UPDATE SET shipped=1, '
+                       'category=CASE WHEN touched=0 THEN excluded.category ELSE domains.category END, '
+                       'source=CASE WHEN touched=0 THEN excluded.source ELSE domains.source END')
+            self._size(db)
+            self._active(db, extra)
+            db.execute('UPDATE catalog_meta SET seed_version=?,revision=revision+1 WHERE id=1', (self.seed_version,))
+            return self._revision(db)
+
+    def revision(self):
+        with self._open() as db:
+            return self._revision(db)
+
+    def notices(self):
+        with self._open() as db:
+            return dict(db.execute('SELECT key,content FROM catalog_notices'))
+
+    def effective_snapshot(self, extra_domains=()):
+        """Returns (revision, sorted effective domains) from one committed snapshot."""
+        extra = _catalog_extras(extra_domains)
+        with self._open() as db:
+            return self._revision(db), sorted(self._active(db, extra))
+
+    def effective(self, extra_domains=()):
+        return self.effective_snapshot(extra_domains)[1]
+
+    def categories(self):
+        with self._open() as db:
+            rows = db.execute('SELECT c.category,c.enabled,COUNT(d.domain) AS total, '
+                              'COALESCE(SUM(d.enabled*c.enabled),0) AS active FROM categories c '
+                              'LEFT JOIN domains d ON d.category=c.category AND d.deleted=0 GROUP BY c.category,c.enabled')
+            summaries = {r['category']: dict(r, enabled=bool(r['enabled'])) for r in rows}
+            return [summaries[name] for name in CATALOG_CATEGORIES]
+
+    def search(self, query='', category=None, *, limit=100, offset=0):
+        if not isinstance(query, str) or len(query) > 255:
+            raise ValueError('Pesquisa de domínio inválida.')
+        if type(limit) is not int or not 1 <= limit <= 1000 or type(offset) is not int or offset < 0:
+            raise ValueError('Intervalo de consulta inválido.')
+        terms, params = ['d.deleted=0'], []
+        if query.strip():
+            terms.append('instr(d.domain,?)>0')
+            params.append(query.strip().lower())
+        if category is not None:
+            terms.append('d.category=?')
+            params.append(_catalog_category(category))
+        with self._open() as db:
+            rows = db.execute('SELECT d.domain,d.category,d.source,d.enabled,d.touched,d.shipped, '
+                              '(d.enabled AND c.enabled) AS effective FROM domains d JOIN categories c USING(category) '
+                              'WHERE ' + ' AND '.join(terms) + ' ORDER BY d.domain LIMIT ? OFFSET ?', (*params, limit, offset))
+            return [dict(row, enabled=bool(row['enabled']), effective=bool(row['effective']),
+                         touched=bool(row['touched']), shipped=bool(row['shipped'])) for row in rows]
+
+    @staticmethod
+    def _forget(db, domain):
+        row = ClientCatalog._visible(db, domain)
+        if row is None:
+            raise ValueError('Este domínio já foi removido ou não está cadastrado.')
+        if row['shipped']:
+            db.execute('UPDATE domains SET deleted=1,touched=1 WHERE domain=?', (domain,))
+        else:
+            db.execute('DELETE FROM domains WHERE domain=?', (domain,))
+
+    @staticmethod
+    def _save(db, domain, category, enabled, origin):
+        db.execute('INSERT INTO domains(domain,category,source,enabled,shipped,touched,deleted) VALUES(?,?,?,?,0,1,0) '
+                   'ON CONFLICT(domain) DO UPDATE SET category=excluded.category,enabled=excluded.enabled, '
+                   'touched=1,deleted=0', (domain, category, origin, enabled))
+
+    def put(self, domain, category, enabled=True, *, original=None, extra_domains=()):
+        domain, category, enabled = _catalog_domain(domain), _catalog_category(category), _catalog_switch(enabled)
+        original = _catalog_domain(original) if original is not None else None
+        extra = _catalog_extras(extra_domains)
+        with self._open(write=True) as db:
+            target = self._visible(db, domain)
+            if target and original != domain:
+                raise ValueError('Domínio já cadastrado. Selecione a entrada para editá-la.')
+            if original is not None:
+                if original != domain:
+                    self._forget(db, original)
+                elif target is None:
+                    raise ValueError('A entrada original foi removida.')
+                elif target['category'] == category and target['enabled'] == enabled:
+                    return self._revision(db)
+            self._save(db, domain, category, enabled, 'TI')
+            self._size(db)
+            self._active(db, extra)
+            self._advance(db)
+            return self._revision(db)
+
+    def delete(self, domain, *, extra_domains=()):
+        domain = _catalog_domain(domain)
+        extra = _catalog_extras(extra_domains)
+        with self._open(write=True) as db:
+            self._forget(db, domain)
+            self._active(db, extra)
+            self._advance(db)
+            return self._revision(db)
+
+    def set_category(self, category, enabled, *, extra_domains=()):
+        category, enabled = _catalog_category(category), _catalog_switch(enabled)
+        extra = _catalog_extras(extra_domains)
+        with self._open(write=True) as db:
+            changed = db.execute('UPDATE categories SET enabled=? WHERE category=? AND enabled!=?',
+                                 (enabled, category, enabled)).rowcount
+            if changed:
+                self._active(db, extra)
+                self._advance(db)
+            return self._revision(db)
+
+    @staticmethod
+    def _parse_csv(text):
+        if not isinstance(text, str) or len(text) > CATALOG_CSV_LIMIT or len(text.encode('utf8')) > CATALOG_CSV_LIMIT:
+            raise ValueError('O CSV deve ser UTF-8 com no máximo 2 MiB.')
+        text = text.removeprefix('\ufeff')
+        first_line = text.partition('\n')[0]
+        csv_file = csv.reader(io.StringIO(text, newline=''), delimiter=';' if ';' in first_line else ',', strict=True)
+        try:
+            header = next(csv_file, [])
+            if tuple(v.strip().lower() for v in header) not in (('dominio','categoria','ativo'), ('domain','category','enabled')):
+                raise ValueError('O cabeçalho do CSV deve ser dominio,categoria,ativo.')
+            rows = {}
+            for values in csv_file:
+                if not values:
+                    continue
+                line = csv_file.line_num
+                if len(values) != 3:
+                    raise ValueError(f'Linha {line} do CSV com número incorreto de colunas.')
+                try:
+                    domain = _catalog_domain(values[0])
+                    category = _catalog_category(values[1])
+                    switch = values[2].strip().lower()
+                    if switch not in ('1','0','sim','não','nao','true','false'):
+                        raise ValueError('Use 1 ou 0 na coluna ativo.')
+                except ValueError as error:
+                    raise ValueError(f'Linha {line} do CSV. {error}') from None
+                if domain in rows:
+                    raise ValueError(f'Linha {line} do CSV. O domínio {domain} está repetido.')
+                rows[domain] = (category, int(switch in ('1','sim','true')))
+                if len(rows) > _CATALOG_STORED_LIMIT:
+                    raise ValueError(f'O CSV excede {_CATALOG_STORED_LIMIT} registros.')
+        except csv.Error:
+            raise ValueError('Estrutura inválida no arquivo CSV.') from None
+        if not rows:
+            raise ValueError('O CSV não contém domínios.')
+        return rows
+
+    def _plan(self, db, rows, extra):
+        current = {r['domain']:(r['category'],r['enabled']) for r in db.execute(
+            'SELECT domain,category,enabled FROM domains WHERE deleted=0')}
+        enabled = {r[0] for r in db.execute('SELECT category FROM categories WHERE enabled=1')}
+        added = sum(domain not in current for domain in rows)
+        changed = {k:v for k,v in rows.items() if current.get(k) != v}
+        current.update(changed)
+        all_keys = {r[0] for r in db.execute('SELECT domain FROM domains')}
+        if len(all_keys.union(rows)) > _CATALOG_STORED_LIMIT:
+            raise ValueError(f'O banco comporta até {_CATALOG_STORED_LIMIT} registros locais.')
+        active = extra | {domain for domain,(category,on) in current.items() if on and category in enabled}
+        _catalog_limit(active)
+        return {'revision': self._revision(db), 'added': added, 'updated':len(changed)-added,
+                'unchanged':len(rows)-len(changed), 'total':len(rows), 'active':len(active)}, changed
+
+    def preview_import(self, csv_text, *, extra_domains=()):
+        rows, extra = self._parse_csv(csv_text), _catalog_extras(extra_domains)
+        with self._open() as db:
+            return self._plan(db, rows, extra)[0]
+
+    def import_csv(self, csv_text, *, expected_revision, extra_domains=()):
+        rows, extra = self._parse_csv(csv_text), _catalog_extras(extra_domains)
+        with self._open(write=True) as db:
+            if type(expected_revision) is not int or self._revision(db) != expected_revision:
+                raise ValueError('O banco mudou desde a prévia. Confira a importação novamente.')
+            summary, changed = self._plan(db, rows, extra)
+            for domain,(category,on) in changed.items():
+                self._save(db, domain, category, on, 'CSV')
+            if changed:
+                self._size(db)
+                self._advance(db)
+                summary['revision'] = self._revision(db)
+            return summary
+
+    def export_csv(self):
+        stream = io.StringIO(newline='')
+        writer = csv.writer(stream, lineterminator='\r\n')
+        writer.writerow(('dominio','categoria','ativo'))
+        with self._open() as db:
+            rows = db.execute('SELECT domain,category,enabled FROM domains WHERE deleted=0 ORDER BY domain')
+            writer.writerows(tuple(r) for r in rows)
+        return stream.getvalue()
+
+
 # Ciclo de vida da instalação Windows. Uma tarefa nomeada inicia o cliente no boot.
 
 
@@ -192,7 +1467,11 @@ _LC_SID_SYSTEM = 'S-1-5-18'
 _LC_SID_ADMINS = 'S-1-5-32-544'
 _LC_TRUSTED = {_LC_SID_SYSTEM, _LC_SID_ADMINS,
                'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'}
-_LC_KNOWN = {_LC_RECORD, 'politica.json', 'estado.json', 'status.json', 'operacao.lock',
+_LC_DB_SIDECARS = {'banco.sqlite3-journal', 'banco.sqlite3-wal', 'banco.sqlite3-shm'}
+_LC_PREVIOUS = 'cliente.anterior'
+_LC_STAGE = 'cliente.preparado'
+_LC_RECORD_STAGE = 'instalacao.tmp'
+_LC_KNOWN = _LC_DB_SIDECARS | {_LC_PREVIOUS, _LC_STAGE, _LC_RECORD_STAGE, 'banco.sqlite3', _LC_RECORD, 'politica.json', 'estado.json', 'status.json', 'operacao.lock',
              'parar.flag', 'tarefa.xml', 'LabGuardCliente.exe', 'LabGuardCliente.py'}
 _LC_RUN_KEY = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
 
@@ -493,7 +1772,12 @@ def _lc_load(directory):
     for name in _LC_KNOWN:
         target = directory/name
         if os.path.lexists(target):
-            _lc_guard_file(target)
+            try:
+                _lc_guard_file(target)
+            except FileNotFoundError:
+                # SQLite can delete a transient sidecar as a concurrent transaction ends.
+                if name not in _LC_DB_SIDECARS:
+                    raise
     record_path = directory/_LC_RECORD
     if not record_path.exists() or record_path.stat().st_size > 8192:
         raise RuntimeError('Esta pasta já existe sem o registro de instalação do cliente. A TI deve conferir a pasta.')
@@ -516,6 +1800,54 @@ def _lc_executable_source():
     return Path(os.path.abspath(sys.executable if getattr(sys,'frozen',False) else __file__))
 
 
+def _lc_write_record(directory, record):
+    staged=directory/_LC_RECORD_STAGE
+    with staged.open('wb') as f:
+        f.write(json.dumps(record,ensure_ascii=False).encode('utf8'))
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(staged, directory/_LC_RECORD)
+
+
+def _lc_stop_task(directory, task):
+    (directory/'parar.flag').write_text('TI',encoding='ascii')
+    if not task or task['state'] not in (2,4):
+        return
+    deadline=time.monotonic()+6
+    while time.monotonic()<deadline and (_lc_task() or {}).get('state') in (2,4):
+        time.sleep(.35)
+    if (_lc_task() or {}).get('state') in (2,4):
+        _lc_schtasks('/End','/TN',_LC_NAME)
+    deadline=time.monotonic()+12
+    while (_lc_task() or {}).get('state') in (2,4):
+        if time.monotonic()>=deadline:
+            raise RuntimeError('A tarefa ainda está parando. Repita a operação quando ela encerrar.')
+        time.sleep(.5)
+
+
+def _lc_copy_staged(source, target, digest):
+    with source.open('rb') as incoming, target.open('wb') as outgoing:
+        shutil.copyfileobj(incoming,outgoing)
+        outgoing.flush()
+        os.fsync(outgoing.fileno())
+    if _lc_sha(target)!=digest:
+        raise RuntimeError('A cópia não corresponde ao programa de origem. Confira o instalador.')
+
+
+def _lc_recover_copy(directory, record):
+    # A previous upgrade may have lost power between replacing the executable
+    # and atomically committing its manifest. Only restore the recorded digest.
+    live=directory/record['copy']
+    backup=directory/_LC_PREVIOUS
+    if _lc_sha(live)==record['sha256']:
+        return
+    if ((directory/'parar.flag').is_file() and backup.is_file()
+            and _lc_sha(backup)==record['sha256']):
+        os.replace(backup,live)
+        return
+    raise RuntimeError('O programa instalado mudou. Confira a integridade antes de continuar.')
+
+
 def install_client(initialize):
     require_client_admin()
     with _lc_deployment_lock():
@@ -531,31 +1863,41 @@ def install_client(initialize):
         candidate=_lc_runtime(directory)
         src=_lc_executable_source()
         digest=_lc_sha(src)
+        existing=None
         if not fresh:
             existing=_lc_load(directory)
-            if any(existing[k]!=candidate[k] for k in candidate) or existing['sha256']!=digest:
-                raise RuntimeError('Há outra versão instalada. Remova-a pela TI antes de trocar o programa.')
-            copy=directory/existing['copy']
-            if _lc_sha(copy)!=digest:
-                raise RuntimeError('O programa instalado mudou. Confira a instalação antes de continuar.')
+            if any(existing[k]!=candidate[k] for k in candidate):
+                raise RuntimeError('O formato ou o Python da instalação é diferente. Use o mesmo formato para preservar a política.')
             _lc_owned_task(task,directory,existing)
-        record=dict(candidate,owner='LabGuardCliente/1',sha256=digest)
+            _lc_recover_copy(directory,existing)
+        upgrading=bool(existing and existing['sha256']!=digest)
+        record=dict(candidate,owner='LabGuardCliente/1',sha256=digest,version=CLIENT_VERSION)
         run_command=_lc_run_string(directory,record)
         if run is not None and run!=run_command:
             raise RuntimeError('A entrada de inicialização pertence a outro programa.')
-        created_task=created_run=False
+        created_task=created_run=replaced=False
+        old_task_stopped=False
+        dest=directory/record['copy']
+        backup=directory/_LC_PREVIOUS
+        stage=directory/_LC_STAGE
         if fresh:
             _lc_make_directory(directory)
         try:
             if fresh:
-                dest=directory/record['copy']
-                with src.open('rb') as anchor, dest.open('xb') as output:
-                    shutil.copyfileobj(anchor,output)
-                if _lc_sha(dest)!=digest:
-                    raise RuntimeError('O programa de origem mudou durante a cópia.')
-                (directory/_LC_RECORD).write_text(json.dumps(record,ensure_ascii=False),encoding='utf8')
+                _lc_copy_staged(src,dest,digest)
+                _lc_write_record(directory,record)
                 _lc_load(directory)
+            elif upgrading:
+                _lc_copy_staged(src,stage,digest)
+                _lc_stop_task(directory,task)
+                old_task_stopped=True
+                _lc_copy_staged(dest,backup,existing['sha256'])
+                os.replace(stage,dest)
+                replaced=True
+                _lc_write_record(directory,record)
             initialize(directory)
+            if existing and not upgrading and existing.get('version') != CLIENT_VERSION:
+                _lc_write_record(directory,record)
             (directory/'parar.flag').unlink(missing_ok=True)
             if task is None:
                 xml=directory/'tarefa.xml'
@@ -574,12 +1916,26 @@ def install_client(initialize):
                 _lc_schtasks('/Delete','/F','/TN',_LC_NAME)
             if created_run:
                 _lc_user_start(run_command,remove=True)
+            if upgrading:
+                if replaced:
+                    if _lc_sha(backup)!=existing['sha256']:
+                        raise RuntimeError('A atualização parou. Confira o backup do programa antes de continuar.')
+                    os.replace(backup,dest)
+                    _lc_write_record(directory,existing)
+                if old_task_stopped:
+                    (directory/'parar.flag').unlink(missing_ok=True)
+                    if task is not None:
+                        _lc_schtasks('/Run','/TN',_LC_NAME)
             if fresh:
                 for name in _LC_KNOWN:
                     (directory/name).unlink(missing_ok=True)
                 directory.rmdir()
             raise
-        return {'ok':True,'installed':True,'task':_LC_NAME,'directory':str(directory),
+        else:
+            backup.unlink(missing_ok=True)
+        finally:
+            stage.unlink(missing_ok=True)
+        return {'ok':True,'installed':True,'updated':upgrading,'task':_LC_NAME,'directory':str(directory),
                 'message':'Inicialização solicitada. Consulte o status para confirmar os controles aplicados.'}
 
 
@@ -603,6 +1959,7 @@ def client_task_status():
     task=_lc_task()
     _lc_owned_task(task,directory,record)
     return {'installed':True,'running':bool(task and task['state']==4),
+            'installed_version':record.get('version'),'update_available':record.get('version')!=CLIENT_VERSION,
             'task_registered':task is not None,'user_start':_lc_user_start()==_lc_run_string(directory,record),
             'directory':str(directory)}
 
@@ -622,19 +1979,8 @@ def uninstall_client(undo):
         _lc_owned_task(task,directory,record)
         run_command=_lc_run_string(directory,record)
         _lc_user_start(run_command,remove=True)
-        (directory/'parar.flag').write_text('TI',encoding='ascii')
+        _lc_stop_task(directory, task)
         if task:
-            if task['state'] in (2,4):
-                until=time.monotonic()+6
-                while time.monotonic()<until and (_lc_task() or {}).get('state') in (2,4):
-                    time.sleep(.35)
-                if (_lc_task() or {}).get('state') in (2,4):
-                    _lc_schtasks('/End','/TN',_LC_NAME)
-                until=time.monotonic()+12
-                while (_lc_task() or {}).get('state') in (2,4):
-                    if time.monotonic()>=until:
-                        raise RuntimeError('A tarefa ainda está parando. Repita a remoção quando ela encerrar.')
-                    time.sleep(.5)
             _lc_schtasks('/Delete','/F','/TN',_LC_NAME)
         undo(directory)
         # Remove only our named artifacts; keep record until all other deletions succeed.
@@ -777,12 +2123,13 @@ def _reconcile_browser_list(registry, path, desired, records, checkpoint, *, fir
         del records["replacement"]
         checkpoint()
     inactive = []
+    desired_set = set(desired)
     for slot, previous in list(owned.items()):
         if current.get(slot) != (previous, registry.string_type):
             # A GPO or another administrator changed the policy, or an interrupted
             # write left only a journal record. Never overwrite a replaced value.
             del owned[slot]
-        elif previous not in desired:
+        elif previous not in desired_set:
             inactive.append(slot)
     checkpoint()
     available = set(str(i) for i in range(1, _BROWSER_LIMIT + 1))
@@ -828,7 +2175,6 @@ def _reconcile_browser_list(registry, path, desired, records, checkpoint, *, fir
     def remove(slot):
         registry.remove_if_same(path, slot, owned[slot])
         del owned[slot]
-        checkpoint()
 
     # Keep still-protective old rules until additions are accepted when possible.
     while len(free) < len(missing):
@@ -840,12 +2186,17 @@ def _reconcile_browser_list(registry, path, desired, records, checkpoint, *, fir
     if missing and not exists:
         records["created"] = True
         checkpoint()
-    for slot, value in zip(free, missing):
-        owned[slot] = value
+    additions = list(zip(free, missing))
+    for offset in range(0, len(additions), 32):
+        batch = additions[offset:offset+32]
+        owned.update(batch)
+        checkpoint()  # Durable reservations precede every registry write in the batch.
+        for slot, value in batch:
+            registry.add_if_free(path, slot, value)
+    for offset in range(0, len(inactive), 32):
+        for slot in inactive[offset:offset+32]:
+            remove(slot)
         checkpoint()
-        registry.add_if_free(path, slot, value)
-    for slot in inactive:
-        remove(slot)
     if not owned and records.get("created"):
         registry.remove_if_empty(path)
         records.pop("created", None)
@@ -948,6 +2299,9 @@ def _hosts_names(policy):
             names.add("www." + domain)
         if domain == "roblox.com":
             names.update(label + ".roblox.com" for label in _ROBLOX_ENDPOINTS)
+    if policy.get("mode") == "permitidos":
+        allowed = policy.get("allowed_domains", [])
+        names = {name for name in names if not any(name == domain or name.endswith("." + domain) for domain in allowed)}
     return names
 
 
@@ -1472,6 +2826,233 @@ def remove_roblox_for_current_user(policy):
         return {'ok': False, 'status': 'powershell_indisponivel'}
 
 
+# Snapshot is read outside the GUI thread, using the same catalog as the worker.
+def _admin_bank_snapshot(installed, admin):
+    if not installed:
+        rows = [{"domain": d, "category": cat, "source": origin, "enabled": True, "effective": True}
+                for d, cat, origin in CLIENT_CATALOG_ROWS]
+        counts = {cat: sum(row["category"] == cat for row in rows) for cat in CATALOG_CATEGORIES}
+        return rows, [{"category": cat, "enabled": True, "total": count, "active": count}
+                      for cat, count in counts.items()]
+    if not admin:
+        return [], []
+    catalog = get_site_bank()
+    for attempt in range(2):
+        revision = catalog.revision()
+        groups = catalog.categories()
+        rows = []
+        for offset in range(0, sum(group["total"] for group in groups), 500):
+            rows.extend(catalog.search(limit=500, offset=offset))
+        if revision == catalog.revision():
+            return rows, groups
+    raise RuntimeError("O catálogo foi alterado durante a leitura. Atualize o estado.")
+
+
+def _admin_bank_tab(parent, root, submit, read_state, display, *, can_edit, is_installed):
+    import pathlib
+    import tkinter as tk
+    from tkinter import filedialog, messagebox, ttk
+
+    labels = {"jogos": "Jogos", "roblox": "Roblox", "minecraft": "Minecraft",
+              "adultos": "Adultos", "apostas": "Apostas", "ia": "IA", "outros": "Outros"}
+    reverse = {label: key for key, label in labels.items()}
+    all_groups = "Todas"
+    search, category, summary = tk.StringVar(), tk.StringVar(value=all_groups), tk.StringVar()
+    rows, groups, shown = [], {}, {}
+    page = 0
+    per_page = 80
+    parent.columnconfigure(0, weight=1)
+    parent.rowconfigure(2, weight=1)
+    title = tk.Label(parent, textvariable=summary, bg="white", fg="#50318d",
+                     font=("Segoe UI", 10, "bold"), anchor="w", justify="left", wraplength=575)
+    title.grid(row=0, column=0, sticky="ew", pady=(0, 7))
+    filters = ttk.Frame(parent, style="Card.TFrame")
+    filters.grid(row=1, column=0, sticky="ew", pady=(0, 5))
+    filters.columnconfigure(1, weight=1)
+    ttk.Label(filters, text="Buscar", background="white").grid(row=0, column=0, padx=(0, 5))
+    ttk.Entry(filters, textvariable=search).grid(row=0, column=1, sticky="ew")
+    ttk.Label(filters, text="Categoria", background="white").grid(row=0, column=2, padx=(9, 5))
+    ttk.Combobox(filters, textvariable=category, values=[all_groups, *labels.values()], state="readonly",
+                 width=12).grid(row=0, column=3)
+    frame = ttk.Frame(parent, style="Card.TFrame")
+    frame.grid(row=2, column=0, sticky="nsew")
+    frame.rowconfigure(0, weight=1)
+    frame.columnconfigure(0, weight=1)
+    tree = ttk.Treeview(frame, columns=("domain", "cat", "state"), show="headings",
+                        selectmode="browse", height=5)
+    for field, name, width in (("domain", "Domínio", 220), ("cat", "Categoria", 110),
+                                ("state", "Bloqueio no banco", 135)):
+        tree.heading(field, text=name)
+        tree.column(field, width=width, minwidth=65, stretch=(field == "domain"))
+    tree.grid(row=0, column=0, sticky="nsew")
+    scroll = ttk.Scrollbar(frame, command=tree.yview)
+    scroll.grid(row=0, column=1, sticky="ns")
+    tree.configure(yscrollcommand=scroll.set)
+    tools = ttk.Frame(parent, style="Card.TFrame")
+    tools.grid(row=3, column=0, sticky="ew", pady=(5, 0))
+    page_info = tk.StringVar()
+    page_bar = ttk.Frame(parent, style="Card.TFrame")
+    page_bar.grid(row=4, column=0, sticky="ew", pady=(4, 0))
+    def button(bar, text, cb):
+        w = ttk.Button(bar, text=text, command=cb)
+        w.pack(side="left", padx=(0, 4))
+        return w
+    def selected():
+        selection = tree.selection()
+        return shown.get(selection[0]) if selection else None
+    def mutator(action, *args, **kwargs):
+        def operation():
+            bank_change(action, *args, **kwargs)
+            return read_state()
+        submit("Atualizando o banco de sites…", operation,
+               lambda result: display(result, False, "Banco salvo. O cliente confere as novas regras no próximo ciclo."))
+
+    def entry_dialog(edit):
+        original = selected() if edit else {}
+        if not can_edit() or original is None:
+            return
+        dialog = tk.Toplevel(root)
+        dialog.title("Editar domínio" if edit else "Novo domínio")
+        dialog.transient(root)
+        dialog.resizable(False, False)
+        body = ttk.Frame(dialog, style="Card.TFrame", padding=14)
+        body.pack()
+        domain = tk.StringVar(value=original.get("domain", ""))
+        cat = tk.StringVar(value=labels.get(original.get("category"), category.get() if category.get() != all_groups else "Outros"))
+        active = tk.BooleanVar(value=original.get("enabled", True))
+        ttk.Label(body, text="Domínio", background="white").grid(row=0, column=0, sticky="w", pady=4)
+        entry = ttk.Entry(body, textvariable=domain, width=32)
+        entry.grid(row=0, column=1, sticky="ew")
+        ttk.Label(body, text="Categoria", background="white").grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Combobox(body, values=list(labels.values()), textvariable=cat, state="readonly").grid(row=1,column=1,sticky="ew")
+        ttk.Checkbutton(body, text="Ativo para bloqueio", variable=active,
+                        style="LG.TCheckbutton").grid(row=2, column=1, sticky="w", pady=4)
+        def save():
+            name = domain.get().strip()
+            if not name:
+                entry.focus_set()
+                return
+            values = name, reverse[cat.get()], bool(active.get())
+            dialog.destroy()
+            mutator("put", *values, original=original.get("domain"))
+        ttk.Button(body,text="Salvar domínio",command=save).grid(row=3,column=1,sticky="e",pady=(8,0))
+        entry.focus_set()
+        dialog.grab_set()
+
+    def delete():
+        row = selected()
+        if can_edit() and row and messagebox.askyesno("Excluir do banco", f"Excluir {row['domain']} deste banco?", parent=root, default="no"):
+            mutator("delete", row["domain"])
+
+    def toggle_category():
+        code = reverse.get(category.get())
+        if not can_edit() or not code or code not in groups:
+            return
+        active = not groups[code]["enabled"]
+        verb = "Ativar" if active else "Pausar"
+        if messagebox.askyesno("Alterar categoria", f"{verb} a categoria {labels[code]} nesta estação? "
+                    "A escolha individual de cada domínio será mantida.", parent=root, default="no"):
+            mutator("set_category", code, active)
+
+    def import_csv():
+        if not can_edit():
+            return
+        filename = filedialog.askopenfilename(parent=root, title="Importar CSV · dominio, categoria, ativo",
+                                             filetypes=[("Arquivo CSV", "*.csv"), ("Todos", "*.*")])
+        if not filename:
+            return
+        def preview():
+            with open(filename, "rb") as f:
+                raw = f.read(2 * 1024 * 1024 + 1)
+            if len(raw) > 2 * 1024 * 1024:
+                raise ValueError("O arquivo CSV ultrapassa 2 MiB.")
+            data = raw.decode("utf-8-sig")
+            return data, bank_preview_import(data)
+        def confirm(result):
+            data, info = result
+            prompt = (f"Novos: {info['added']}\nAtualizados: {info['updated']}\n"
+                      f"Sem alteração: {info['unchanged']}\n\nImportar esse arquivo para o banco da estação?")
+            if messagebox.askyesno("Revisar importação", prompt, parent=root, default="no"):
+                mutator("import_csv", data, expected_revision=info["revision"])
+        submit("Verificando o CSV…", preview, confirm)
+
+    def export_csv():
+        if not can_edit():
+            return
+        filename = filedialog.asksaveasfilename(parent=root, title="Exportar para um arquivo novo",
+                       defaultextension=".csv", initialfile="labguard-sites.csv", filetypes=[("Arquivo CSV","*.csv")])
+        if not filename:
+            return
+        def export():
+            data = get_site_bank().export_csv()
+            try:
+                with pathlib.Path(filename).open("x", encoding="utf-8-sig", newline="") as out:
+                    out.write(data)
+            except FileExistsError:
+                raise ValueError("Escolha um nome de arquivo novo para exportar o banco.") from None
+        submit("Exportando o banco…", export, lambda _: messagebox.showinfo("Banco de sites", "Arquivo CSV exportado.", parent=root))
+
+    new = button(tools, "Novo", lambda: entry_dialog(False))
+    edit = button(tools, "Editar", lambda: entry_dialog(True))
+    exclude = button(tools, "Excluir", delete)
+    group_button = button(tools, "Pausar categoria", toggle_category)
+    imp = button(tools, "Importar CSV", import_csv)
+    exp = button(tools, "Exportar CSV", export_csv)
+    prev = button(page_bar, "Anterior", lambda: turn(-1))
+    nxt = button(page_bar, "Próxima", lambda: turn(1))
+    ttk.Label(page_bar, textvariable=page_info, background="white").pack(side="left", padx=5)
+    def buttons():
+        mutable = can_edit()
+        chosen = selected() is not None
+        group = groups.get(reverse.get(category.get()))
+        for item, usable in ((new, mutable), (imp, mutable), (exp, mutable),
+                             (edit, mutable and chosen), (exclude, mutable and chosen),
+                             (group_button, mutable and bool(group))):
+            item.state(["!disabled" if usable else "disabled"])
+        group_button.configure(text="Ativar categoria" if group and not group["enabled"] else "Pausar categoria")
+    def render(reset=False):
+        nonlocal page
+        if reset:
+            page = 0
+        term = search.get().strip().lower()
+        code = reverse.get(category.get())
+        filtered = [row for row in rows if term in row["domain"] and (code is None or row["category"] == code)]
+        pages = max(1, (len(filtered) + per_page - 1) // per_page)
+        page = max(0, min(page, pages - 1))
+        old = tree.get_children()
+        if old: tree.delete(*old)
+        shown.clear()
+        for row in filtered[page*per_page:(page+1)*per_page]:
+            state = "Ativo" if row["effective"] else "Inativo"
+            iid = tree.insert("", "end", values=(row["domain"], labels.get(row["category"], row["category"]), state))
+            shown[iid] = row
+        prev.state(["!disabled" if page else "disabled"])
+        nxt.state(["!disabled" if page < pages-1 else "disabled"])
+        page_info.set(f"{len(filtered)} encontrados  •  página {page+1} de {pages}")
+        buttons()
+    def turn(delta):
+        nonlocal page
+        page += delta
+        render()
+    def set_snapshot(values, enabled):
+        nonlocal rows, groups
+        rows, categories = values
+        groups = {g["category"]:g for g in categories}
+        active = sum(bool(row["effective"]) for row in rows)
+        if not is_installed():
+            summary.set(f"Catálogo inicial • {len(rows)} domínios em {sum(g['total'] > 0 for g in categories)} categorias com sites. Instale para gerenciar.")
+        elif enabled:
+            summary.set(f"{active} ativos de {len(rows)} domínios. A TI pode editar um domínio ou pausar uma categoria inteira.")
+        else:
+            summary.set(f"{len(rows)} domínios cadastrados. O uso do banco está desativado na política da estação.")
+        render()
+    category.trace_add("write", lambda *_: render(True))
+    search.trace_add("write", lambda *_: render(True))
+    tree.bind("<<TreeviewSelect>>", lambda _: buttons())
+    tree.bind("<Double-1>", lambda _: entry_dialog(True))
+    return set_snapshot, buttons
+
+
 # Administrative window. It is opened only by the interactive entry point.
 def show_client_ui():
     import json
@@ -1482,7 +3063,7 @@ def show_client_ui():
     root = tk.Tk()
     root.title("LabGuard Cliente | Administração da estação")
     root.geometry("800x650")
-    root.minsize(660, 520)
+    root.minsize(700, 550)
     bg, purple, blue, ink, muted = "#f5f4fa", "#50318d", "#254f9d", "#202739", "#4d576d"
     root.configure(bg=bg)
     style = ttk.Style(root)
@@ -1514,8 +3095,8 @@ def show_client_ui():
     root_body.rowconfigure(0, weight=1)
     tabs = ttk.Notebook(root_body, style="LG.TNotebook")
     tabs.grid(row=0, column=0, sticky="nsew")
-    home, sites, games = [ttk.Frame(tabs, style="Card.TFrame", padding=14) for _ in range(3)]
-    for panel, name in ((home, "Estação"), (sites, "Sites"), (games, "Jogos")):
+    home, sites, games, bank = [ttk.Frame(tabs, style="Card.TFrame", padding=14) for _ in range(4)]
+    for panel, name in ((home, "Estação"), (sites, "Sites"), (games, "Jogos"), (bank, "Banco de sites")):
         tabs.add(panel, text=name)
         panel.columnconfigure(0, weight=1)
 
@@ -1524,17 +3105,18 @@ def show_client_ui():
     feedback = tk.StringVar()
     label(home, "", heading=True, variable=agent_state).grid(row=0, column=0, sticky="w")
     label(home, "", variable=agent_time).grid(row=1, column=0, sticky="w", pady=(4, 10))
-    label(home, "O cliente inicia com o Windows. A proteção funciona em segundo plano. "
+    label(home, "Ao instalar, a proteção inicia em segundo plano nesta estação. A tarefa LabGuardCliente volta a iniciar com o Windows. "
                 "A TI pode consultá-la no Agendador de Tarefas ou nesta janela.").grid(
                     row=2, column=0, sticky="w", pady=(0, 10))
-    label(home, "Use as abas Sites e Jogos para escolher a política desta estação.").grid(
+    label(home, "Em Banco de sites, pesquise domínios e gerencie categorias. Em Sites e Jogos, ajuste o modo de navegação e a remoção dos jogos.").grid(
                     row=3, column=0, sticky="w", pady=(0, 10))
     controls = ttk.Frame(home, style="Card.TFrame")
     controls.grid(row=4, column=0, sticky="w")
     refresh = ttk.Button(controls, text="Atualizar estado", style="LG.TButton")
+    activate = ttk.Button(controls, text="Ativar agora", style="LG.TButton")
     details = ttk.Button(controls, text="Detalhes técnicos", style="LG.TButton")
     remove = ttk.Button(controls, text="Desinstalar cliente", style="LG.TButton")
-    for button in (refresh, details, remove):
+    for button in (activate, refresh, details, remove):
         button.pack(side="left", padx=(0, 5))
 
     mode = tk.StringVar(value="bloqueados")
@@ -1563,8 +3145,11 @@ def show_client_ui():
         sites.rowconfigure(row+1, weight=1)
         return field
 
-    deny = domain_box(3, "Domínios bloqueados • um por linha")
-    allow = domain_box(5, "Domínios permitidos no modo restrito • um por linha")
+    catalog_on = tk.BooleanVar(value=True)
+    ttk.Checkbutton(sites, text="Usar os domínios ativos do Banco de sites", variable=catalog_on,
+                    style="LG.TCheckbutton").grid(row=3, column=0, sticky="w", pady=2)
+    deny = domain_box(4, "Bloqueios adicionais da política • um domínio por linha")
+    allow = domain_box(6, "Domínios permitidos no modo restrito • um por linha")
 
     label(games, "Jogos com execução bloqueada", heading=True).grid(row=0, column=0, sticky="w")
     label(games, "O cliente procura processos conhecidos dos jogos marcados e encerra a execução "
@@ -1625,18 +3210,23 @@ def show_client_ui():
     except Exception:
         admin = False
 
+    bank_controls = lambda: None
+
     def buttons():
         ready = initialized and job is None
         for button, active in ((refresh, job is None), (details, ready and bool(snapshot)),
+                               (activate, ready and installed and editable and admin),
                                (remove, ready and installed and admin),
                                (apply_button, ready and editable and admin)):
             button.state(["!disabled" if active else "disabled"])
-        apply_button.configure(text="Salvar política" if installed else "Instalar proteção")
+        apply_button.configure(text="Salvar política" if installed else "Instalar e proteger agora")
+        bank_controls()
 
     def fill(data):
         nonlocal policy
         policy = dict(data)
         mode.set(data["mode"])
+        catalog_on.set(data.get("catalog_enabled", True))
         for area, key in ((deny, "domains"), (allow, "allowed_domains")):
             area.delete("1.0", "end")
             area.insert("1.0", "\n".join(data.get(key, [])))
@@ -1651,18 +3241,23 @@ def show_client_ui():
         except (ValueError, OSError, RuntimeError) as error:
             if not (client_directory() / "instalacao.json").is_file():
                 raise
-            return {"installed": True, "ok": False, "situacao": "falha na leitura do estado"}, True, None, str(error)
+            return {"installed": True, "ok": False, "situacao": "falha na leitura do estado"}, True, None, str(error), ([], [])
         present = bool(value.get("installed"))
         data, issue = None, None
         try:
             data = (value.get("policy") or read_policy()) if present else default_policy()
         except Exception as error:
             issue = str(error)
-        return value, present, data, issue
+        try:
+            bank_data = _admin_bank_snapshot(present, admin)
+        except Exception as error:
+            bank_data = ([], [])
+            issue = "Falha ao consultar o banco de sites. " + str(error)
+        return value, present, data, issue, bank_data
 
     def display(result, replace_form, note=""):
         nonlocal initialized, snapshot, installed, editable
-        value, present, data, issue = result
+        value, present, data, issue, bank_data = result
         replace_form = replace_form or not initialized or installed != present
         initialized, installed, snapshot = True, present, value
         editable = data is not None
@@ -1673,13 +3268,14 @@ def show_client_ui():
             worker = {}
         if not installed:
             agent_state.set("Cliente ainda não instalado")
-            agent_time.set("Escolha a política e clique em Instalar proteção.")
+            agent_time.set(f"Banco inicial com {len(CLIENT_CATALOG_ROWS)} domínios. Revise a política ou clique em Instalar e proteger agora.")
         else:
             summary = str(value.get("situacao") or "cliente instalado")
             agent_state.set(summary[:1].upper() + summary[1:])
             stamp = worker.get("checked_at")
             agent_time.set("Último registro (UTC)   " + str(stamp) if stamp else
                            "Abra Detalhes técnicos para consultar o estado da proteção.")
+        bank_update(bank_data, bool((data or {}).get("catalog_enabled", True)))
         feedback.set(issue or ("Abra este programa como administrador para alterar a proteção."
                               if not admin else note))
         buttons()
@@ -1710,7 +3306,7 @@ def show_client_ui():
             edited = dict(policy)
             for area, key in ((deny, "domains"), (allow, "allowed_domains")):
                 edited[key] = [line.strip() for line in area.get("1.0", "end").splitlines() if line.strip()]
-            edited.update(mode=mode.get(), games=[k for k, v in game_flags.items() if v.get()],
+            edited.update(mode=mode.get(), catalog_enabled=bool(catalog_on.get()), games=[k for k, v in game_flags.items() if v.get()],
                           remove_roblox=remove_roblox.get(),
                           remove_games=["minecraft"] if remove_minecraft.get() else [])
             checked = validate_policy(edited)
@@ -1737,6 +3333,14 @@ def show_client_ui():
         submit("Salvando a política…" if updating else "Instalando a proteção…", work,
                lambda value: display(value, True, "Política salva. Atualize o estado para acompanhar a verificação."))
 
+    def activate_existing():
+        def work():
+            perform_install(read_policy())
+            return load_state()
+        submit("Ativando a tarefa do cliente…", work,
+               lambda value: display(value, False, "Inicialização solicitada. Atualize o estado para conferir a verificação."))
+    activate.configure(command=activate_existing)
+
     def uninstall():
         if not messagebox.askyesno("Desinstalar cliente",
             "Remover a proteção e as configurações aplicadas pelo LabGuard nesta estação? "
@@ -1759,6 +3363,9 @@ def show_client_ui():
         box.insert("1.0", json.dumps(snapshot, indent=2, ensure_ascii=False))
         box.configure(state="disabled")
 
+    bank_update, bank_controls = _admin_bank_tab(bank, root, submit, load_state, display,
+                       can_edit=lambda: initialized and installed and admin and job is None,
+                       is_installed=lambda: installed)
     refresh.configure(command=lambda: submit("Consultando a estação…", load_state, lambda x: display(x, False)))
     details.configure(command=detail_window)
     remove.configure(command=uninstall)
@@ -1787,10 +3394,13 @@ def perform_install(policy):
                     raise RuntimeError("Instalação incompleta. Confira o estado e remova antes de instalar novamente.")
                 if validate_policy(_json_read(config)) != accepted:
                     raise RuntimeError("Já existe uma política. Edite-a na interface da TI ou use o comando politica.")
-                _json_read(journal)  # Nunca substitua o registro de propriedade de uma instalação ativa.
-                return
-            _atomic_json(config, accepted)
-            _atomic_json(journal, {})
+                _json_read(journal)  # Preserve o registro de propriedade das regras anteriores.
+            else:
+                _atomic_json(config, accepted)
+                _atomic_json(journal, {})
+            db = ClientCatalog(directory / "banco.sqlite3")
+            db.ensure()
+            _effective_domains(accepted, db)
     return install_client(initialize)
 
 
@@ -1804,7 +3414,38 @@ def save_client_policy(policy):
     with _operation_lock(directory):
         if (directory / "parar.flag").exists():
             raise RuntimeError("A remoção do cliente está em andamento. Conclua essa operação primeiro.")
+        _effective_domains(accepted, ClientCatalog(directory / "banco.sqlite3"))
         _atomic_json(directory / "politica.json", accepted)
+
+
+def get_site_bank():
+    require_client_admin()
+    directory = client_directory()
+    _lc_load(directory)
+    return ClientCatalog(directory / "banco.sqlite3")
+
+
+def bank_change(operation, *args, **kwargs):
+    catalog = get_site_bank()
+    directory = client_directory()
+    with _operation_lock(directory):
+        if (directory / "parar.flag").exists():
+            raise RuntimeError("A remoção está em andamento.")
+        names = {"put":catalog.put, "delete":catalog.delete, "set_category":catalog.set_category,
+                 "import_csv":catalog.import_csv}
+        if operation not in names:
+            raise ValueError("Operação de catálogo desconhecida.")
+        kwargs["extra_domains"] = read_policy()["domains"]
+        return names[operation](*args, **kwargs)
+
+
+def bank_preview_import(csv_text):
+    catalog = get_site_bank()
+    return catalog.preview_import(csv_text, extra_domains=read_policy()["domains"])
+
+
+def _effective_domains(policy, catalog):
+    return catalog.effective(policy["domains"]) if policy["catalog_enabled"] else policy["domains"]
 
 
 def perform_uninstall():
@@ -1836,7 +3477,11 @@ def get_client_status():
     worker = report.get("worker", {})
     fresh = _health_time(worker.get("checked_at"))
     pending = (directory / "parar.flag").exists()
-    same = worker.get("policy_revision") == _policy_revision(report.get("policy", {}))
+    catalog = ClientCatalog(directory / "banco.sqlite3")
+    report["bank_revision"] = catalog.revision()
+    report["catalog_enabled"] = report.get("policy", {}).get("catalog_enabled", True)
+    same = (worker.get("policy_revision") == _policy_revision(report.get("policy", {}))
+            and (not report["catalog_enabled"] or worker.get("bank_revision") == report["bank_revision"]))
     task = report["task"]
     startup_ok = task.get("running") and task.get("user_start") and task.get("task_registered")
     report["ok"] = bool(worker.get("ok") and fresh and same and not pending and startup_ok)
@@ -1865,8 +3510,9 @@ def run_client_worker():
     directory = client_directory()
     stop = directory / "parar.flag"
     last_sites = last_store = float("-inf")
-    revision = None
+    revision = bank_revision = None
     sites, system_sites, store_result = {}, {}, None
+    catalog = ClientCatalog(directory / "banco.sqlite3")
     while not stop.exists():
         try:
             with _operation_lock(directory):
@@ -1875,12 +3521,14 @@ def run_client_worker():
                 policy = read_policy()
                 key = _policy_revision(policy)
                 now = time.monotonic()
-                if revision != key or now - last_sites >= 60:
+                latest = catalog.revision() if policy["catalog_enabled"] else None
+                if revision != key or bank_revision != latest or now - last_sites >= 60:
+                    useful = dict(policy, domains=_effective_domains(policy, catalog))
                     state = _json_read(directory / "estado.json")
                     persist = lambda: _atomic_json(directory / "estado.json", state)
-                    sites = _layer("Navegadores", sync_sites, policy, state, checkpoint=persist)
-                    system_sites = _layer("Nomes do Windows", sync_system_sites, policy, state, checkpoint=persist)
-                    last_sites = now
+                    sites = _layer("Navegadores", sync_sites, useful, state, checkpoint=persist)
+                    system_sites = _layer("Nomes do Windows", sync_system_sites, useful, state, checkpoint=persist)
+                    last_sites, bank_revision = now, latest
                 if stop.exists():
                     break
                 maintain = revision != key or now - last_store >= 600
@@ -1891,7 +3539,7 @@ def run_client_worker():
                     games["store"] = store_result
                     games["ok"] = games["ok"] and store_result.get("ok") is True
                 revision = key
-                report = {"version": CLIENT_VERSION, "policy_revision":key, "checked_at":_utc_now(),
+                report = {"version": CLIENT_VERSION, "policy_revision":key, "bank_revision":bank_revision, "active_domains":len(useful["domains"]), "checked_at":_utc_now(),
                           "ok":all(item.get("ok") is True for item in (sites, system_sites, games)),
                           "sites":sites, "system_sites":system_sites, "games":games}
                 _atomic_json(directory / "status.json", report)
@@ -1941,13 +3589,16 @@ def _ensure_interactive_admin():
 def _parse_cli(argv):
     parser = argparse.ArgumentParser(prog="LabGuardCliente", description="Cliente de proteção local da escola.")
     ops = parser.add_subparsers(dest="action")
-    for name in ("instalar", "politica", "remover", "status", "verificar", "worker", "usuario"):
+    for name in ("instalar", "politica", "remover", "status", "verificar", "worker", "usuario", "banco-listar"):
         p = ops.add_parser(name)
         if name in ("instalar", "remover", "politica"):
             p.add_argument("--sim", action="store_true", help="confirmar a operação administrativa")
         if name in ("instalar", "politica"):
             p.add_argument("--politica", type=Path, required=name=="politica", help="arquivo JSON da política")
-        if name in ("status", "verificar", "instalar", "politica", "remover", "usuario"):
+        if name == "banco-listar":
+            p.add_argument("--buscar",default="")
+            p.add_argument("--categoria",default=None)
+        if name in ("status", "verificar", "instalar", "politica", "remover", "usuario", "banco-listar"):
             p.add_argument("--json", action="store_true", help="exibir resultado em JSON")
             p.add_argument("--saida", help="registrar resultado em um arquivo novo")
     return parser.parse_args(argv)
@@ -1957,7 +3608,7 @@ def main_client(argv=None):
     args = _parse_cli(sys.argv[1:] if argv is None else argv)
     try:
         if os.name != "nt":
-            raise RuntimeError("O LabGuard Cliente 1.0 requer Windows 10/11 x64.")
+            raise RuntimeError("O LabGuard Cliente requer Windows 10/11 x64.")
         if not args.action:
             if _ensure_interactive_admin():
                 return show_client_ui() or 0
@@ -1969,6 +3620,11 @@ def main_client(argv=None):
             if (directory / "parar.flag").exists():
                 return 0
             result = remove_roblox_for_current_user(read_policy())
+        elif args.action == "banco-listar":
+            catalog = get_site_bank()
+            categories = catalog.categories()
+            result = {"ok":True,"total":sum(row["total"] for row in categories),"revision":catalog.revision(),
+                      "categories":categories,"rows":catalog.search(args.buscar, args.categoria, limit=100)}
         elif args.action in ("status","verificar"):
             result = get_client_status()
         else:

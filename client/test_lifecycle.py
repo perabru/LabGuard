@@ -16,6 +16,7 @@ except ImportError:
     spec = importlib.util.spec_from_file_location('lg_lifecycle',Path(__file__).with_name('lifecycle.part.py'))
     client = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(client)
+    client.CLIENT_VERSION = '1.1.0'
 
 
 class LifecycleTests(unittest.TestCase):
@@ -87,3 +88,69 @@ class LifecycleTests(unittest.TestCase):
                 client.uninstall_client(lambda d:self.fail('undo must not run'))
         sch.assert_not_called()
         self.assertFalse((self.dir/'parar.flag').exists())
+
+    def test_uninstall_known_sqlite_files_only(self):
+        self.fake_windows()
+        names={'banco.sqlite3','banco.sqlite3-journal','banco.sqlite3-wal','banco.sqlite3-shm'}
+        for name in names | {'outra.sqlite3'}:
+            (self.dir/name).write_bytes(b'fixture')
+        client.uninstall_client(lambda d: None)
+        self.assertTrue((self.dir/'outra.sqlite3').exists())
+        self.assertFalse(any((self.dir/name).exists() for name in names))
+
+    def test_interrupted_upgrade_restores_only_a_matching_owned_copy(self):
+        live=self.dir/self.record['copy']
+        backup=self.dir/client._LC_PREVIOUS
+        backup.write_bytes(b'valid old')
+        self.record['sha256']=client._lc_sha(backup)
+        live.write_bytes(b'new')
+        with self.assertRaisesRegex(RuntimeError,'integridade'):
+            client._lc_recover_copy(self.dir,self.record)
+        (self.dir/'parar.flag').write_text('TI')
+        backup.write_bytes(b'wrong')
+        with self.assertRaisesRegex(RuntimeError,'integridade'):
+            client._lc_recover_copy(self.dir,self.record)
+        backup.write_bytes(b'valid old')
+        client._lc_recover_copy(self.dir,self.record)
+        self.assertEqual(live.read_bytes(),b'valid old')
+
+    def upgrade_fixture(self):
+        from types import SimpleNamespace
+        self.fake_windows()
+        dest=self.dir/self.record['copy']
+        dest.write_bytes(b'old running binary')
+        self.record['sha256']=client._lc_sha(dest)
+        (self.dir/'instalacao.json').write_text(json.dumps(self.record), encoding='utf8')
+        (self.dir/'banco.sqlite3').write_bytes(b'policy-content')
+        source=self.dir.parent/'download'
+        source.write_bytes(b'new binary')
+        stack=contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        for key,v in [('_lc_secure_chain',None),('_lc_runtime',{k:self.record[k] for k in ('mode','copy','command','user_command')}),
+                      ('_lc_executable_source', source),('_lc_schtasks',None)]:
+            stack.enter_context(patch.object(client,key,return_value=v))
+        stack.enter_context(patch.object(client.ctypes,'windll',SimpleNamespace(kernel32=SimpleNamespace(GetDriveTypeW=lambda d:3)),create=True))
+        stack.enter_context(patch.object(client,'_lc_task',return_value={'xml':client._lc_task_xml(self.dir,self.record),'state':3}))
+        return source,dest
+
+    def test_update_preserves_database_and_starts_from_same_task(self):
+        source,dest=self.upgrade_fixture()
+        response=client.install_client(lambda d:self.assertEqual((d/'banco.sqlite3').read_bytes(),b'policy-content'))
+        self.assertTrue(response['updated'])
+        self.assertEqual(dest.read_bytes(),source.read_bytes())
+        record=json.loads((self.dir/'instalacao.json').read_text(encoding='utf8'))
+        self.assertEqual(record['sha256'],client._lc_sha(dest))
+        self.assertFalse((self.dir/client._LC_PREVIOUS).exists())
+        self.assertFalse((self.dir/'parar.flag').exists())
+
+    def test_failed_update_restores_previous_copy_and_restart(self):
+        source,dest=self.upgrade_fixture()
+        previous=dest.read_bytes()
+        def fail(d):
+            raise ValueError('conflito de política')
+        with self.assertRaisesRegex(ValueError,'conflito'):
+            client.install_client(fail)
+        self.assertEqual(dest.read_bytes(),previous)
+        self.assertEqual((self.dir/'banco.sqlite3').read_bytes(),b'policy-content')
+        self.assertFalse((self.dir/'parar.flag').exists())
+        self.assertIn(('/Run','/TN',client._LC_NAME),[call.args for call in client._lc_schtasks.call_args_list])

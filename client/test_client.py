@@ -14,7 +14,7 @@ class ClientPolicyTests(unittest.TestCase):
         self.assertEqual(lg.validate_policy({'domains':['*.ROBLOX.com.', 'roblox.com']})['domains'], ['roblox.com'])
 
     def test_restrictive_mode_requires_explicit_non_conflicting_sites(self):
-        for p in ({'mode':'permitidos'}, {'mode':'permitidos','allowed_domains':['roblox.com']},
+        for p in ({'mode':'permitidos'}, {'mode':'permitidos','allowed_domains':['roblox.com'],'domains':['roblox.com']},
                   {'domains':['8.8.8.8']}, {'domains':['https://www.test.org']}, {'domains':['*']},
                   {'remove_games':['steam']}, {'remove_roblox':True,'games':[]}):
             with self.subTest(policy=p), self.assertRaises(ValueError):
@@ -41,7 +41,9 @@ class ClientPolicyTests(unittest.TestCase):
             (path/'instalacao.json').write_text('{}')
             policy = lg.validate_policy({})
             lg._atomic_json(path/'politica.json',policy)
-            status = {'ok':True,'checked_at':lg._utc_now(),'policy_revision':lg._policy_revision(policy)}
+            catalog=lg.ClientCatalog(path/'banco.sqlite3')
+            revision=catalog.ensure()
+            status = {'ok':True,'checked_at':lg._utc_now(),'bank_revision':revision,'policy_revision':lg._policy_revision(policy)}
             lg._atomic_json(path/'status.json',status)
             task = {'running':True,'user_start':True,'task_registered':True}
             with patch.object(lg,'client_directory', return_value=path), patch.object(lg,'client_task_status', return_value=task):

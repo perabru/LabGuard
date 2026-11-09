@@ -65,13 +65,33 @@ jobs:
       - name: Testar instalação, proteção e restauração no Windows
         shell: pwsh
         run: ./client/smoke_windows.ps1 -Exe (Resolve-Path 'build/cliente/export/LabGuardCliente.exe').Path
+      - name: Exportar cópia íntegra do banco inicial
+        shell: python
+        run: |
+          import pathlib
+          import sqlite3
+          import sys
+          sys.path.insert(0, str(pathlib.Path('client').resolve()))
+          from labguard_cliente import ClientCatalog
+          db = pathlib.Path('build/cliente/export/LabGuard-Catalogo.sqlite3').resolve()
+          if db.exists():
+              raise RuntimeError('Destino de catálogo já existe.')
+          ClientCatalog(db).ensure()
+          with sqlite3.connect(db) as connection:
+              connection.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+              connection.execute('PRAGMA journal_mode=DELETE')
+              if connection.execute('PRAGMA quick_check').fetchall() != [('ok',)]:
+                  raise ValueError('O catálogo exportado não passou na verificação.')
+          for suffix in ('-wal', '-shm', '-journal'):
+              if pathlib.Path(str(db) + suffix).exists():
+                  raise RuntimeError('O banco exportado possui um arquivo transacional pendente.')
       - name: Gerar somas de integridade
         shell: python
         run: |
           import hashlib
           import pathlib
           folder = pathlib.Path('build/cliente/export')
-          files = ['LabGuardCliente.exe', 'labguard_cliente.py', 'LEIA-ME.md']
+          files = ['LabGuardCliente.exe', 'labguard_cliente.py', 'LabGuard-Catalogo.sqlite3', 'LEIA-ME.md']
           (folder / 'SHA256SUMS.txt').write_text(''.join(
               f'{hashlib.sha256((folder / name).read_bytes()).hexdigest()}  {name}\n' for name in files
           ), encoding='utf-8', newline='\n')
@@ -110,7 +130,7 @@ jobs:
             echo "O cliente $tag já está publicado. Os arquivos existentes são preservados."
             exit 0
           fi
-          gh release create "$tag" ./LabGuardCliente.exe ./labguard_cliente.py ./LEIA-ME.md ./SHA256SUMS.txt \
+          gh release create "$tag" ./LabGuardCliente.exe ./labguard_cliente.py ./LabGuard-Catalogo.sqlite3 ./LEIA-ME.md ./SHA256SUMS.txt \
             --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard Cliente ${CLIENT_VERSION} · Windows x64" \
             --notes 'Proteção local do computador escolar. Baixe o executável ou o arquivo Python e consulte as instruções em LEIA-ME.md.' \
             --latest=false
