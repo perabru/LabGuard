@@ -25,7 +25,8 @@ function Test-Txt($server) {
     if ($server) {$options.Server=$server}
     try {
         $records = @(Resolve-DnsName @options | Where-Object {
-            ([string]$_.Type -in @('TXT','16')) -and ([string]$_.Name).TrimEnd('.') -ieq $name.TrimEnd('.')
+            ([string]$_.Type -in @('TXT','16') -or [string]$_.QueryType -in @('TXT','16')) -and
+            ([string]$_.Name).TrimEnd('.') -ieq $name.TrimEnd('.')
         })
         if ($records.Count -eq 1 -and ($records[0].Strings -join '') -ceq $p.token) {return 'ok'}
         if ($records.Count) {return 'different'}

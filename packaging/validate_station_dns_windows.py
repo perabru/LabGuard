@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import ipaddress
 import subprocess
 import sys
 import tempfile
@@ -127,7 +128,7 @@ function Invoke-FixtureDns {
                 DnsOnly=$true;NoHostsFile=$true;QuickTimeout=$true;ErrorAction='Stop'}
     try {
         $answers = @(DnsClient\Resolve-DnsName @params)
-        $types = @($answers | ForEach-Object {[string]$_.Type})
+        $types = @($answers | ForEach-Object {"type=$($_.Type)/$($_.QueryType) fields=$($_.PSObject.Properties.Name -join ',')"})
         [IO.File]::AppendAllText($env:LABGUARD_DNS_TRACE, "$route $Type records=$($types -join ',')`n")
         return $answers
     } catch {
@@ -369,7 +370,7 @@ def run_fixture(fixture, service):
     block = station.test(blocked_domain="blocked.example.org", read_evidence=observed_snapshot)
     require(block["ok"] and block["block_result"] == "nxdomain", "Native A probe failed to report NXDOMAIN")
     require(not block["block_confirmed"], "Loopback query was misattributed to simulated remote IP")
-    require(any(e["client_ip"] == "127.0.0.1" and e["domain"] == "blocked.example.org"
+    require(any(ipaddress.ip_address(e["client_ip"]).is_loopback and e["domain"] == "blocked.example.org"
                 and e["query_type"] == "A" and e["status"] == "Bloqueio DNS confirmado"
                 for e in service.activity()["events"]), "Native A query did not reach active filter rule")
 

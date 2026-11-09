@@ -14,7 +14,7 @@ $state='failed'
 try {
     $answers=@(Resolve-DnsName -Name $domain -Type A -DnsOnly -NoHostsFile -QuickTimeout -ErrorAction Stop)
     foreach ($record in $answers) {
-        if ([string]$record.Type -in @('A','1') -and $record.IPAddress) {$state='resolved';break}
+        if (([string]$record.Type -in @('A','1') -or [string]$record.QueryType -in @('A','1')) -and $record.IPAddress) {$state='resolved';break}
     }
 } catch {
     if ($_.FullyQualifiedErrorId -match 'DNS_ERROR_RCODE_NAME_ERROR' -or $_.Exception.NativeErrorCode -eq 9003) {$state='nxdomain'}
