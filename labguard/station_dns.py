@@ -20,19 +20,21 @@ $p = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__PARAMS__')) 
 $backupKey = 'HKLM:\SOFTWARE\LabGuard\StationDNS'
 function Result($ok,$message) { return @{ok=$ok;message=$message} }
 function Test-Txt($server) {
-    # nslookup uses the station's default DNS server, matching the user-facing
-    # check, without consulting the Windows client's cached negative answer.
-    $ErrorActionPreference='Continue'
-    $query=@('-timeout=2','-retry=1','-type=TXT','labguard-check.invalid.')
-    if ($server) {$query += $server}
-    $rows=@(& "$env:SystemRoot\System32\nslookup.exe" @query 2>&1 | ForEach-Object {"$_"})
-    $txt=@($rows | Where-Object {$_ -match '^\s*"[^"\r\n]*"\s*$'})
-    if ($txt.Count -eq 1 -and $txt[0].Trim().Trim('"') -ceq $p.token) {return 'ok'}
-    if ($txt.Count -gt 0) {return 'different'}
-    $raw=$rows -join "`n"
-    if ($raw -match 'NXDOMAIN|Non-existent domain|dom[ií]nio (?:inexistente|n[aã]o existe)') {return 'nxdomain'}
-    if ($raw -match 'timed out|time-out|tempo (?:de espera )?esgotado|tempo limite') {return 'timeout'}
-    return 'failed'
+    $name = [guid]::NewGuid().ToString('N') + '.labguard-check.test.'
+    $options = @{Name=$name;Type='TXT';DnsOnly=$true;NoHostsFile=$true;QuickTimeout=$true;ErrorAction='Stop'}
+    if ($server) {$options.Server=$server}
+    try {
+        $records = @(Resolve-DnsName @options | Where-Object {
+            ([string]$_.Type -in @('TXT','16')) -and ([string]$_.Name).TrimEnd('.') -ieq $name.TrimEnd('.')
+        })
+        if ($records.Count -eq 1 -and ($records[0].Strings -join '') -ceq $p.token) {return 'ok'}
+        if ($records.Count) {return 'different'}
+        return 'failed'
+    } catch {
+        if ($_.FullyQualifiedErrorId -match 'DNS_ERROR_RCODE_NAME_ERROR' -or $_.Exception.NativeErrorCode -eq 9003) {return 'nxdomain'}
+        if ($_.FullyQualifiedErrorId -match 'TIMEOUT|TIMED_OUT' -or $_.Exception.NativeErrorCode -eq 1460) {return 'timeout'}
+        return 'failed'
+    }
 }
 function Netsh-Read($family,$index) {
     $v = @(& "$env:SystemRoot\System32\netsh.exe" interface $family show dnsservers "name=$index" 2>&1)

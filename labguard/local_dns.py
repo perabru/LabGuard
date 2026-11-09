@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import hashlib
 import ipaddress
 from pathlib import Path
+import re
 import secrets
 import selectors
 import socket
@@ -23,6 +24,8 @@ from .demo import normalize_domain
 
 PRIVATE = tuple(ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
 CHECK_DOMAIN = 'labguard-check.invalid'
+AUTO_CHECK_ZONE = 'labguard-check.test'
+_AUTO_CHECK_NAME = re.compile(r'[0-9a-f]{32}\.' + re.escape(AUTO_CHECK_ZONE))
 MAX_RULES, MAX_EVENTS, MAX_CLIENTS = 5000, 1000, 512
 
 
@@ -212,10 +215,11 @@ class DNSFilter:
             labels = query.q.qname.label
             if any(not label or len(label)>63 or any(c<33 or c>126 for c in label) for label in labels):return None
             name = str(query.q.qname).lower().rstrip('.')
-            diagnostic = name == CHECK_DOMAIN and query.q.qtype == QTYPE.TXT
+            diagnostic = query.q.qtype == QTYPE.TXT and (
+                name == CHECK_DOMAIN or _AUTO_CHECK_NAME.fullmatch(name) is not None)
             blocked = not diagnostic and self._matches(name)
             if diagnostic:
-                reply.add_answer(RR(CHECK_DOMAIN, QTYPE.TXT, ttl=0, rdata=TXT(self.check_token)))
+                reply.add_answer(RR(query.q.qname, QTYPE.TXT, ttl=0, rdata=TXT(self.check_token)))
                 # Local UDP/TCP checks reach the real listener without creating network activity.
                 with self._lock:
                     if client in self._local_ips or ipaddress.IPv4Address(client).is_loopback:
@@ -442,6 +446,14 @@ def smoke_test():
         answer = DNSRecord.parse(DNSRecord.question(CHECK_DOMAIN,'TXT').send('127.0.0.1',service.port,timeout=2))
         if not answer.rr or str(answer.rr[0].rdata).strip('"') != service.check_token:raise DNSError('DNS_LOCAL_STATE: diagnóstico de teste incorreto.')
         result['diagnostic_token_verified'] = True
+        fresh_name = secrets.token_hex(16) + '.' + AUTO_CHECK_ZONE + '.'
+        query = DNSRecord.question(fresh_name, 'TXT')
+        answer = DNSRecord.parse(query.send('127.0.0.1', service.port, tcp=True, timeout=2))
+        if (answer.header.rcode != RCODE.NOERROR or len(answer.rr) != 1
+                or str(answer.rr[0].rname) != fresh_name or answer.rr[0].ttl != 0
+                or str(answer.rr[0].rdata).strip('"') != service.check_token):
+            raise DNSError('DNS_LOCAL_STATE: verificação do nome de teste único falhou.')
+        result['fresh_diagnostic_verified'] = True
     finally:service.close()
     result['listeners_closed'] = not service.running
     result['ok'] = all(result.values())

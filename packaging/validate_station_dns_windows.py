@@ -9,7 +9,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-import socket
 import subprocess
 import sys
 import tempfile
@@ -36,10 +35,11 @@ def require(condition, message):
 class NativeFixture(WindowsSession):
     """Replace the WinRM boundary with a local Windows PowerShell process."""
 
-    def __init__(self, directory, dns_port):
+    def __init__(self, directory, dns_host):
         _Session.__init__(self, TARGET, "windows")
         self.directory = Path(directory)
-        self.dns_port = dns_port
+        self.dns_host = dns_host
+        self.trace_path = self.directory / "dns-trace.log"
         self.powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
         self.state_path = self.directory / "fixture.json"
 
@@ -53,9 +53,9 @@ class NativeFixture(WindowsSession):
         encoded_length = len(base64.b64encode(script.encode("utf-16le")))
         require(encoded_length + 200 < 32767, "Encoded station command exceeds Windows process limit")
         if "# LABGUARD_BLOCK_PROBE" in script:
-            require(script.count(NSLOOKUP) == 1 and NETSH not in script,
-                    "Unexpected native executable in A probe")
-            script = BLOCK_FIXTURE + script.replace(NSLOOKUP, "Invoke-FixtureA")
+            require(script.count("Resolve-DnsName") == 1 and NETSH not in script,
+                    "Unexpected native command in A probe")
+            script = DNS_FIXTURE + script.replace("Resolve-DnsName", "Invoke-FixtureDns")
         else:
             require(script.count(MARKER) == 1, "Station action boundary missing")
             require(script.count(NETSH) == 3, "Missing or new netsh entry point; review fixture isolation")
@@ -64,9 +64,9 @@ class NativeFixture(WindowsSession):
             # An accidental call to an unmocked backup command cannot reach HKLM.
             script = script.replace(registry_key, r"'LabGuardFixture:\unavailable'")
             script = script.replace(NETSH, 'Invoke-FixtureNetsh')
-            require(script.count(NSLOOKUP) == 1, "Review station lookup fixture isolation")
-            script = script.replace(NSLOOKUP, 'Invoke-FixtureNslookup')
-            script = script.replace(MARKER, FIXTURE_POWERSHELL + "\n" + MARKER)
+            require(script.count("Resolve-DnsName") == 1, "Review station lookup fixture isolation")
+            script = script.replace("Resolve-DnsName", "Invoke-FixtureDns")
+            script = script.replace(MARKER, FIXTURE_POWERSHELL + "\n" + DNS_FIXTURE + "\n" + MARKER)
         path = self.directory / "station-fixture.ps1"
         prelude = """
 $ErrorActionPreference = 'Stop'
@@ -81,7 +81,7 @@ if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -n
              "-ExecutionPolicy", "Bypass", "-File", str(path)],
             cwd=self.directory,
             env={**os.environ, "LABGUARD_STATION_FIXTURE": str(self.state_path),
-                 "LABGUARD_STATION_PORT": str(self.dns_port)},
+                 "LABGUARD_STATION_LOOPBACK": self.dns_host, "LABGUARD_DNS_TRACE": str(self.trace_path)},
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45, check=False,
         )
         if completed.returncode:
@@ -90,19 +90,50 @@ if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -n
             raise RemoteError(f"Windows fixture returned {completed.returncode}: {hint}")
         result = json.loads(completed.stdout.decode("utf-8-sig"))
         require(isinstance(result, dict), "PowerShell station output must be an object")
+        if result.get("ok") is False or "failed" in (result.get("direct"), result.get("default"), result.get("status")):
+            trace = self.trace_path.read_text(encoding="utf-8-sig")[-1500:] if self.trace_path.exists() else "no lookup trace"
+            print("Synthetic Windows station trace:", result, trace, flush=True)
         return result
 
 # Intercept the exact netsh boundary; the production argument formatting, mode
 # parser, adapter identity checks and ordered server-list handling still run.
 NETSH = '"$env:SystemRoot\\System32\\netsh.exe"'
 
-NSLOOKUP = r'"$env:SystemRoot\System32\nslookup.exe"'
-
-BLOCK_FIXTURE = r"""
-function Invoke-FixtureA {
-    if ($args.Count -ne 4 -or ($args[0..2] -join '|') -cne '-timeout=2|-retry=1|-type=A' -or
-        $args[3] -cne 'blocked.example.org.') {throw 'unexpected A name or command options'}
-    & "$env:SystemRoot\System32\nslookup.exe" "-port=$env:LABGUARD_STATION_PORT" @args '127.0.0.1'
+# Test the same Windows DNS cmdlet and response handling used by the application.
+# Only destination selection is intercepted. Every query is sent to our listener;
+# the fixture's original alternate resolver returns NXDOMAIN using a second name.
+DNS_FIXTURE = r"""
+function Invoke-FixtureDns {
+    [CmdletBinding()]
+    param([string]$Name,[string]$Type,[switch]$DnsOnly,[switch]$NoHostsFile,
+          [switch]$QuickTimeout,[string]$Server)
+    if (!$DnsOnly -or !$NoHostsFile -or !$QuickTimeout) {throw 'unexpected resolver options'}
+    $query = $Name
+    $route = 'default'
+    if ($Server) {
+        if ($Server -ne '192.168.45.3') {throw 'unexpected explicit server'}
+        $route = 'direct'
+    }
+    if ($Type -eq 'A') {
+        if ($Name -cne 'blocked.example.org.' -or $Server) {throw 'unexpected A probe'}
+    } elseif ($Type -eq 'TXT') {
+        if ($Name -cnotmatch '^[a-f0-9]{32}\.labguard-check\.test\.$') {throw 'invalid diagnostic nonce'}
+        if (!$Server -and ($fixture.forceDefaultFailure -or $fixture.ipv4.mode -ne 'static' -or
+            $fixture.ipv4.servers -notcontains '192.168.45.3' -or $fixture.ipv6.servers.Count)) {
+            $query = $Name.Split('.')[0] + '.ci-negative.test.'
+        }
+    } else {throw 'unexpected query type'}
+    $params = @{Name=$query;Type=$Type;Server=$env:LABGUARD_STATION_LOOPBACK;
+                DnsOnly=$true;NoHostsFile=$true;QuickTimeout=$true;ErrorAction='Stop'}
+    try {
+        $answers = @(DnsClient\Resolve-DnsName @params)
+        $types = @($answers | ForEach-Object {[string]$_.Type})
+        [IO.File]::AppendAllText($env:LABGUARD_DNS_TRACE, "$route $Type records=$($types -join ',')`n")
+        return $answers
+    } catch {
+        [IO.File]::AppendAllText($env:LABGUARD_DNS_TRACE, "$route $Type error=$($_.FullyQualifiedErrorId) code=$($_.Exception.NativeErrorCode)`n")
+        throw
+    }
 }
 """
 
@@ -179,17 +210,7 @@ function Update-Backup($saved) {
     Save-Fixture
 }
 function Remove-Backup {$fixture.backup=$null; Save-Fixture}
-function Invoke-FixtureNslookup {
-    $expected=@('-timeout=2','-retry=1','-type=TXT','labguard-check.invalid.')
-    if (($args.Count -notin @(4,5)) -or (($args[0..3] -join '|') -cne ($expected -join '|'))) {throw 'unexpected probe'}
-    if ($args.Count -eq 5 -and $args[4] -ne $p.listen) {throw 'unexpected DNS server'}
-    if ($args.Count -eq 4 -and ($fixture.forceDefaultFailure -or
-        $fixture.ipv4.mode -ne 'static' -or $fixture.ipv4.servers -notcontains $p.listen -or $fixture.ipv6.servers.Count)) {
-        $expected[3]='blocked.labguard-check.invalid.'
-    }
-    $expected += '127.0.0.1'
-    & "$env:SystemRoot\System32\nslookup.exe" "-port=$env:LABGUARD_STATION_PORT" @expected
-}
+
 """
 
 
@@ -327,7 +348,7 @@ def run_fixture(fixture, service):
     fixture.save(original)
     station = authenticated_station()
     first = station.test()
-    require(first["direct"] == "ok" and first["default"] == "nxdomain", f"Unexpected initial DNS result: {first}")
+    require(first["direct"] == "ok" and first["default"] == "nxdomain", f"Unexpected initial DNS result: {first}. Loopback activity: {service.activity()}")
 
     preview = station.preview()
     require(preview["adapter"] == "Lab CI" and preview["target"] == TARGET, "Wrong adapter preview")
@@ -394,21 +415,21 @@ def run_fixture(fixture, service):
 
 
 def start_loopback_filter():
-    # nslookup accepts a test port, so a DNS service already on the local
-    # machine can keep using port 53 undisturbed.
-    for _ in range(5):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
-        service = DNSFilter("127.0.0.1", "127.0.0.0/8", port=port,
+    # Resolve-DnsName uses port 53. Try loopback aliases if another service
+    # already owns a particular local address, leaving that service untouched.
+    errors = []
+    for address in ("127.0.0.1", "127.0.0.2", "127.99.242.1"):
+        service = DNSFilter(address, "127.0.0.0/8", port=53,
                             upstream="127.0.0.1", upstream_port=9,
-                            rules={"in-addr.arpa": "Teste", "ip6.arpa": "Teste", "blocked.example.org": "Teste"})
+                            rules={"in-addr.arpa": "Teste", "ip6.arpa": "Teste", "ci-negative.test": "Teste",
+                                   "blocked.example.org": "Teste"})
         try:
             service.start()
             return service
-        except DNSError:
+        except DNSError as error:
+            errors.append(str(error))
             service.close()
-    raise AssertionError("Could not start isolated loopback DNS listener")
+    raise AssertionError("Could not bind loopback DNS port 53: " + "; ".join(errors))
 
 
 def main():
@@ -416,7 +437,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="LabGuard-Station-CI-") as directory:
         service = start_loopback_filter()
         try:
-            fixture = NativeFixture(directory, service.port)
+            fixture = NativeFixture(directory, service.listen)
             try:
                 check_bootstrap(fixture)
                 run_fixture(fixture, service)

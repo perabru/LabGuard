@@ -13,6 +13,15 @@ import threading
 def self_test(output=None):
     try:
         from labguard import __version__
+        from labguard.access_setup import prepare_access
+        from labguard.school_policy import SCHOOL_POLICY
+        from labguard.server import asset_directory
+        assets_root = asset_directory()
+        preparation = prepare_access({'management_ip': '192.168.1.10'}, assets_root)
+        if ("$managementIP = '192.168.1.10'" not in preparation['script'] or
+                'school-protect' not in (assets_root / 'index.html').read_text(encoding='utf-8') or
+                ('roblox.com', 'Jogos') not in SCHOOL_POLICY):
+            raise RuntimeError('Recursos de proteção e administração não foram empacotados.')
         from labguard.server import ASSET_TYPES, asset_directory, validate_action
         from labguard.demo import DemoTransport
         from labguard.integrations import IntegrationManager
@@ -23,7 +32,7 @@ def self_test(output=None):
         validate_action("set_ai_block", {"enabled": True})
         snapshot = DemoTransport().request("snapshot")
         result = {"ok": True, "version": __version__, "service": "LabGuard Server", "bind_host": "127.0.0.1",
-                  "assets": len(ASSET_TYPES), "roles": ["viewer", "admin"],
+                  "school_domains": len(SCHOOL_POLICY), "station_web_assets": "ok", "assets": len(ASSET_TYPES), "roles": ["viewer", "admin"],
                   "catalog_services": len(snapshot["policies"]["ai_block"]["services"]),
                   "integration_profiles": len(IntegrationManager(profile_dir=assets / "__none__").list_profiles())}
         code = 0

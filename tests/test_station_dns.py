@@ -31,7 +31,7 @@ class StationDNSTests(unittest.TestCase):
         transport=session();transport._ps.return_value={'direct':'ok','default':'nxdomain'}
         client=StationDNS(transport, **SETTINGS);result=client.test()
         self.assertEqual(result['direct'], 'ok');self.assertEqual(result['default'],'nxdomain');self.assertFalse(result['ok'])
-        self.assertIn('IPv6',result['message']);self.assertIn('nslookup.exe',transport._ps.call_args.args[0])
+        self.assertIn('IPv6',result['message']);self.assertIn('Resolve-DnsName',transport._ps.call_args.args[0]);self.assertIn('NewGuid()',transport._ps.call_args.args[0])
 
     def test_linux_uses_read_only_ssh_and_handles_missing_tool(self):
         transport=session('linux');transport._python.return_value={'direct':'unavailable','default':'unavailable'}

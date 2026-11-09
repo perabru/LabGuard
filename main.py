@@ -12,6 +12,15 @@ def self_test(output: str | None = None) -> int:
     """Verifica os dados empacotados sem iniciar Tk nem comandos de rede."""
     try:
         from labguard import __version__
+        from labguard.access_setup import prepare_access
+        from labguard.school_policy import SCHOOL_POLICY
+        from labguard.server import asset_directory
+        assets_root = asset_directory()
+        preparation = prepare_access({'management_ip': '192.168.1.10'}, assets_root)
+        if ("$managementIP = '192.168.1.10'" not in preparation['script'] or
+                'school-protect' not in (assets_root / 'index.html').read_text(encoding='utf-8') or
+                ('roblox.com', 'Jogos') not in SCHOOL_POLICY):
+            raise RuntimeError('Recursos de proteção e administração não foram empacotados.')
         from labguard.demo import DemoTransport
         from labguard.integrations import IntegrationManager
         from labguard.banlist import BanlistDatabase
@@ -74,7 +83,7 @@ def self_test(output: str | None = None) -> int:
                    "reports": ["svg", "html", "csv", "pdf"],
                    "identification_help_steps": len(identification["steps"]),
                    "inventory_summary_check": "ok",
-                   "local_dns_check": "ok", "preferences_check": "ok", "update_helper_check": "ok",
+                   "school_domains": len(SCHOOL_POLICY), "station_web_assets": "ok", "local_dns_check": "ok", "preferences_check": "ok", "update_helper_check": "ok",
                    "credential_storage": "windows-vault-optional",
                    "startup_mode": "observation", "controller_modes": ["observation", "local_dns", "routeros", "legacy", "demo"]}
         code = 0

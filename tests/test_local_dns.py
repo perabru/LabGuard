@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from dnslib import DNSRecord, DNSQuestion, RR, A, CNAME, TXT, QTYPE, RCODE
-from labguard.local_dns import DNSFilter, LocalDNSTransport, DNSError, CHECK_DOMAIN, validate_config
+from labguard.local_dns import DNSFilter, LocalDNSTransport, DNSError, CHECK_DOMAIN, AUTO_CHECK_ZONE, validate_config
 from labguard.controller import ControllerTransport
 from labguard.dns_gui import dns_instructions, suggest_dns_settings
 
@@ -73,6 +73,43 @@ class FilterTests(unittest.TestCase):
             self.assertEqual([e['status'] for e in activity['events']], ['Consulta de diagnóstico'])
         finally:
             service.close()
+
+    def test_fresh_txt_name_echoes_the_question_and_keeps_local_checks_separate(self):
+        service = DNSFilter('192.168.15.10', '192.168.15.0/24')
+        try:
+            nonce = '0123456789abcdef' * 2
+            name = nonce + '.' + AUTO_CHECK_ZONE + '.'
+            with patch.object(service, '_forward') as forward:
+                for source, question_name in (('192.168.15.10', name), ('192.168.15.22', name.upper())):
+                    query = DNSRecord.question(question_name, 'TXT')
+                    reply = DNSRecord.parse(service.resolve(query.pack(), source))
+                    self.assertEqual(reply.header.rcode, RCODE.NOERROR)
+                    self.assertEqual(len(reply.rr), 1)
+                    self.assertEqual(str(reply.rr[0].rname), question_name)
+                    self.assertEqual(reply.rr[0].ttl, 0)
+                    self.assertEqual(str(reply.rr[0].rdata).strip('"'), service.check_token)
+                forward.assert_not_called()
+            activity = service.activity()
+            self.assertEqual(activity['local_diagnostic_queries'], 1)
+            self.assertEqual(list(activity['clients']), ['192.168.15.22'])
+            self.assertEqual(activity['events'][0]['status'], 'Consulta de diagnóstico')
+        finally:
+            service.close()
+
+    def test_other_names_and_record_types_do_not_get_the_session_token(self):
+        nonce = 'a' * 32
+        forms = [(CHECK_DOMAIN, 'A'), (AUTO_CHECK_ZONE, 'TXT'), (nonce + '.' + AUTO_CHECK_ZONE, 'AAAA'),
+                 (nonce + '.' + AUTO_CHECK_ZONE + '.example', 'TXT'), (nonce + '.x.' + AUTO_CHECK_ZONE, 'TXT'),
+                 ('a' * 31 + '.' + AUTO_CHECK_ZONE, 'TXT'), ('a' * 33 + '.' + AUTO_CHECK_ZONE, 'TXT'),
+                 ('g' + 'a' * 31 + '.' + AUTO_CHECK_ZONE, 'TXT'), (nonce + '.' + CHECK_DOMAIN, 'TXT')]
+        with patch.object(self.filter, '_forward', side_effect=OSError()) as forward:
+            for name, kind in forms:
+                with self.subTest(name=name, kind=kind):
+                    result = self.query(name, kind)
+                    self.assertEqual(result.rr, [])
+                    self.assertEqual(result.header.rcode, RCODE.SERVFAIL)
+            self.assertEqual(forward.call_count, len(forms))
+        self.assertEqual(self.filter.activity()['local_diagnostic_queries'], 0)
 
     def test_outside_subnet_malformed_and_response_packets_are_not_forwarded(self):
         with patch.object(self.filter,'_forward') as forward:

@@ -8,20 +8,21 @@ from .remote import RemoteError
 
 _WINDOWS_A = r'''
 # LABGUARD_BLOCK_PROBE
-$ErrorActionPreference='Continue'
 [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
-$domain='__DOMAIN__'
-$rows=@(& "$env:SystemRoot\System32\nslookup.exe" -timeout=2 -retry=1 -type=A ($domain+'.') 2>&1 | ForEach-Object {"$_"})
+$domain='__DOMAIN__.'
 $state='failed'
-$nameSeen=$false
-foreach ($row in $rows) {
-    if ($row -match ([regex]::Escape($domain)+'\.?(?=[:\s]|$)') -and $row -match 'NXDOMAIN|Non-existent domain|dom[ií]nio (?:inexistente|n[aã]o existe)') {$state='nxdomain';break}
-    if ($row -match '^\s*(Name|Nome)\s*:') {$nameSeen=$true}
-    if ($nameSeen -and $row -match '(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])') {$state='resolved';break}
-    if ($row -match 'timed out|time-out|tempo (?:de espera )?esgotado|tempo limite') {$state='timeout'}
+try {
+    $answers=@(Resolve-DnsName -Name $domain -Type A -DnsOnly -NoHostsFile -QuickTimeout -ErrorAction Stop)
+    foreach ($record in $answers) {
+        if ([string]$record.Type -in @('A','1') -and $record.IPAddress) {$state='resolved';break}
+    }
+} catch {
+    if ($_.FullyQualifiedErrorId -match 'DNS_ERROR_RCODE_NAME_ERROR' -or $_.Exception.NativeErrorCode -eq 9003) {$state='nxdomain'}
+    elseif ($_.FullyQualifiedErrorId -match 'TIMEOUT|TIMED_OUT' -or $_.Exception.NativeErrorCode -eq 1460) {$state='timeout'}
 }
 @{status=$state} | ConvertTo-Json -Compress
 '''
+
 
 _LINUX_A = r'''
 import ipaddress, json, os, re, subprocess
