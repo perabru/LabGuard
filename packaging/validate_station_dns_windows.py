@@ -68,6 +68,9 @@ class NativeFixture(WindowsSession):
             require(script.count("Resolve-DnsName") == 1, "Review station lookup fixture isolation")
             script = script.replace("Resolve-DnsName", "Invoke-FixtureDns")
             script = script.replace(MARKER, FIXTURE_POWERSHELL + "\n" + DNS_FIXTURE + "\n" + MARKER)
+        # Error contents in this harness describe a synthetic adapter only. Keep
+        # these internal errors out of the production station script and its UI.
+        script = script.replace("catch {", "catch { Write-FixtureFailure $_; ")
         path = self.directory / "station-fixture.ps1"
         prelude = """
 $ErrorActionPreference = 'Stop'
@@ -75,6 +78,14 @@ if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -n
     throw 'Windows PowerShell 5.1 required'
 }
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+function Write-FixtureTrace([string]$message) {
+    [IO.File]::AppendAllText($env:LABGUARD_DNS_TRACE, $message + [Environment]::NewLine)
+}
+function Write-FixtureFailure($record) {
+    Write-FixtureTrace ("error=" + $record.Exception.Message + " fqid=" + $record.FullyQualifiedErrorId +
+        " at=" + $record.InvocationInfo.ScriptLineNumber + ":" + $record.InvocationInfo.Line.Trim() +
+        " stack=" + $record.ScriptStackTrace)
+}
 """
         path.write_text(prelude + script, encoding="utf-8-sig")
         completed = subprocess.run(
@@ -92,8 +103,9 @@ if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -n
         result = json.loads(completed.stdout.decode("utf-8-sig"))
         require(isinstance(result, dict), "PowerShell station output must be an object")
         if result.get("ok") is False or "failed" in (result.get("direct"), result.get("default"), result.get("status")):
-            trace = self.trace_path.read_text(encoding="utf-8-sig")[-1500:] if self.trace_path.exists() else "no lookup trace"
+            trace = self.trace_path.read_text(encoding="utf-8-sig")[-9000:] if self.trace_path.exists() else "no lookup trace"
             print("Synthetic Windows station trace:", result, trace, flush=True)
+            print("Synthetic adapter state:", json.dumps(self.read(), ensure_ascii=True), flush=True)
         return result
 
 # Intercept the exact netsh boundary; the production argument formatting, mode
@@ -156,10 +168,13 @@ function Get-DnsClient($InterfaceIndex,$ErrorAction) {
     [pscustomobject]@{RegisterThisConnectionsAddress=$true;UseSuffixWhenRegistering=$false}
 }
 function Get-DnsClientServerAddress($AddressFamily,$InterfaceIndex,$ErrorAction) {
-    [pscustomobject]@{ServerAddresses=$fixture.$AddressFamily.servers}
+    $entry = $fixture.PSObject.Properties[$AddressFamily].Value
+    Write-FixtureTrace ("addresses $AddressFamily " + ($entry | ConvertTo-Json -Depth 3 -Compress))
+    [pscustomobject]@{ServerAddresses=@($entry.servers)}
 }
 function Invoke-FixtureNetsh {
     $global:LASTEXITCODE = 0
+    Write-FixtureTrace ("netsh arguments " + ($args | ConvertTo-Json -Compress))
     $family = $args[1]
     if ($args[0] -ne 'interface' -or $family -notin @('ipv4','ipv6') -or
         $args[3] -ne 'dnsservers' -or $args[4] -ne 'name=19') {throw 'unexpected netsh target'}

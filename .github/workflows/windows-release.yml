@@ -48,8 +48,20 @@ jobs:
       - name: Validar recursos do servidor
         run: python server_main.py --self-test --output /tmp/server-self-test.json
 
+  station-validation:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Instalar dependência do filtro DNS
+        run: python -m pip install dnslib==0.9.26
+      - name: Validar diagnóstico e transação de estação no Windows PowerShell 5.1
+        run: python packaging/validate_station_dns_windows.py
+
   windows:
-    needs: test
+    needs: [test, station-validation]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -79,8 +91,6 @@ jobs:
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
           }
-      - name: Validar diagnóstico e transação de estação no Windows PowerShell 5.1
-        run: python packaging/validate_station_dns_windows.py
       - name: Disponibilizar Inno Setup
         shell: pwsh
         run: |
