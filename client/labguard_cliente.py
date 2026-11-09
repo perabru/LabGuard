@@ -2013,6 +2013,13 @@ _BROWSER_POLICIES = {
     "Firefox": (r"SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter", "Block", "Exceptions"),
 }
 _BROWSER_LIMIT = 1000
+# The Edge web allowlist covers navigations over HTTP and HTTPS. Target those
+# schemes specifically so Edge's internal first-run pages are not blocked.
+_STRICT_BROWSER_BLOCK = {
+    "Edge": ("http://*", "https://*"),
+    "Chrome": ("*",),
+    "Firefox": ("<all_urls>",),
+}
 
 
 def _site_domains(values):
@@ -2239,7 +2246,7 @@ def _browser_policy_run(policy, state, checkpoint, registry, removing=False):
         if removing and browser not in saved:
             continue
         pair = saved.setdefault(browser, {})
-        block = ["<all_urls>" if browser == "Firefox" else "*"] if strict else _browser_patterns(browser, domains)
+        block = list(_STRICT_BROWSER_BLOCK[browser]) if strict else _browser_patterns(browser, domains)
         allow = _browser_patterns(browser, allowed)
         lists = {"block": (block_key, block), "allow": (allow_key, allow)}
         report = {}

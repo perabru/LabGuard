@@ -76,10 +76,23 @@ class BrowserTests(unittest.TestCase):
     def test_strict_installs_exceptions_first_and_undo_removes_global_first(self):
         self.assertTrue(self.apply(["roblox.com"], ["school.example"], True)["ok"])
         ops = self.store.operations
-        self.assertLess(ops.index(("add", self.allow, "school.example")), ops.index(("add", self.edge, "*")))
+        web_schemes = {"http://*", "https://*"}
+        self.assertEqual({row[0] for row in self.store.data[self.edge].values()}, web_schemes)
+        for rule in web_schemes:
+            self.assertLess(ops.index(("add", self.allow, "school.example")), ops.index(("add", self.edge, rule)))
         self.assertTrue(self.apply(remove=True)["ok"])
-        self.assertLess(ops.index(("remove", self.edge, "*")), ops.index(("remove", self.allow, "school.example")))
+        for rule in web_schemes:
+            self.assertLess(ops.index(("remove", self.edge, rule)), ops.index(("remove", self.allow, "school.example")))
         self.assertTrue(self.apply(remove=True)["ok"])
+
+    def test_edge_migrates_older_owned_global_rule_without_touching_foreign_entries(self):
+        self.store.data[self.edge] = {"1": ("*", 1), "999": ("existing.test", 1)}
+        self.state["sites"] = {"Edge": {"block": {"owned": {"1": "*"}}}}
+        self.assertTrue(self.apply(allow=["school.example"], strict=True)["ok"])
+        self.assertEqual({v for v, _ in self.store.data[self.edge].values()},
+                         {"http://*", "https://*", "existing.test"})
+        self.assertTrue(self.apply(remove=True)["ok"])
+        self.assertEqual(self.store.data[self.edge], {"999": ("existing.test", 1)})
 
     def test_denied_allowlist_policy_never_enables_global_block(self):
         self.store.data[self.allow] = {str(i): (str(i)+".existing", 1) for i in range(1, 1001)}

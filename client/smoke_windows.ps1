@@ -201,9 +201,14 @@ with sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri() + "?mode=ro", uri=True) 
     $fixture | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $withBank -Encoding utf8NoBOM
     Invoke-Client @('politica', '--politica', $withBank, '--sim')
     Wait-Until {
-        ('*' -in @(Get-RegistryStrings $edge)) -and ('*' -in @(Get-RegistryStrings $chrome)) -and
-        ('<all_urls>' -in @(Get-RegistryStrings $firefox))
-    } 'Não foi possível ativar o modo de sites permitidos.'
+        ('http://*' -in @(Get-RegistryStrings $edge)) -and ('https://*' -in @(Get-RegistryStrings $edge)) -and
+        ('*' -in @(Get-RegistryStrings $chrome)) -and
+        ('<all_urls>' -in @(Get-RegistryStrings $firefox)) -and
+        ('aula.labguard.test' -in @(Get-RegistryStrings 'SOFTWARE\Policies\Microsoft\Edge\URLAllowlist')) -and
+        ('aula.labguard.test' -in @(Get-RegistryStrings 'SOFTWARE\Policies\Google\Chrome\URLAllowlist')) -and
+        ('*://*.aula.labguard.test/*' -in @(Get-RegistryStrings 'SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter\Exceptions'))
+    } 'Não foi possível ativar as listas de bloqueio e exceções no modo de sites permitidos.'
+    Write-Output 'Verificadas listas de bloqueio HTTP/HTTPS no Edge, curinga no Chrome e exceção aula.labguard.test nos três navegadores.'
     python "$PSScriptRoot/smoke_browser.py" permitidos
     if ($LASTEXITCODE -ne 0) { throw 'O modo de permitidos falhou na navegação local.' }
     Write-Output 'Conferidos SQLite local, seis categorias, aplicação e remoção das regras sem reiniciar a estação.'
