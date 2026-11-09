@@ -1,0 +1,116 @@
+name: Cliente escolar Windows
+on:
+  push:
+    branches: [main]
+    tags: ['cliente-v*']
+    paths:
+      - 'client/**'
+      - '.github/workflows/client-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: labguard-cliente-windows
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Confirmar a versão do código-fonte
+        id: version
+        shell: python
+        run: |
+          import ast
+          import os
+          import pathlib
+          import re
+          source = pathlib.Path('client/labguard_cliente.py').read_text(encoding='utf-8')
+          tree = ast.parse(source)
+          versions = [n.value.value for n in tree.body if isinstance(n, ast.Assign)
+                      and any(isinstance(t, ast.Name) and t.id == 'CLIENT_VERSION' for t in n.targets)
+                      and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)]
+          if len(versions) != 1 or not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)', versions[0]):
+              raise ValueError('CLIENT_VERSION precisa ter uma versão estável X.Y.Z.')
+          version = versions[0]
+          if os.environ['GITHUB_REF_TYPE'] == 'tag' and os.environ['GITHUB_REF_NAME'] != 'cliente-v' + version:
+              raise ValueError('O número da tag difere do cliente.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print('version=' + version, file=output)
+      - name: Executar os testes do cliente
+        shell: pwsh
+        run: |
+          python -m unittest discover -s client -p 'test_*.py' -v
+          if ($LASTEXITCODE -ne 0) { throw 'Falha nos testes do cliente.' }
+      - name: Compilar cliente autônomo para Windows x64
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller==6.22.3
+          if ($LASTEXITCODE -ne 0) { throw 'Erro ao instalar a ferramenta de compilação.' }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --noupx --name LabGuardCliente --distpath build/cliente/export --workpath build/cliente/temp --specpath build/cliente client/labguard_cliente.py
+          if ($LASTEXITCODE -ne 0) { throw 'Falha na compilação do executável.' }
+          Copy-Item client/labguard_cliente.py build/cliente/export/labguard_cliente.py
+          Copy-Item client/README.md build/cliente/export/LEIA-ME.md
+      - name: Testar instalação, proteção e restauração no Windows
+        shell: pwsh
+        run: ./client/smoke_windows.ps1 -Exe (Resolve-Path 'build/cliente/export/LabGuardCliente.exe').Path
+      - name: Gerar somas de integridade
+        shell: python
+        run: |
+          import hashlib
+          import pathlib
+          folder = pathlib.Path('build/cliente/export')
+          files = ['LabGuardCliente.exe', 'labguard_cliente.py', 'LEIA-ME.md']
+          (folder / 'SHA256SUMS.txt').write_text(''.join(
+              f'{hashlib.sha256((folder / name).read_bytes()).hexdigest()}  {name}\n' for name in files
+          ), encoding='utf-8', newline='\n')
+      - name: Preservar o executável e a fonte verificados
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Cliente-Windows-${{ steps.version.outputs.version }}
+          path: build/cliente/export/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: windows
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cliente-v')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: LabGuard-Cliente-Windows-${{ needs.windows.outputs.version }}
+          path: release
+      - name: Publicar o cliente em versão independente do painel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CLIENT_VERSION: ${{ needs.windows.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd release
+          sha256sum --check SHA256SUMS.txt
+          tag="cliente-v${CLIENT_VERSION}"
+          if gh release view "$tag" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "O cliente $tag já está publicado. Os arquivos existentes são preservados."
+            exit 0
+          fi
+          gh release create "$tag" ./LabGuardCliente.exe ./labguard_cliente.py ./LEIA-ME.md ./SHA256SUMS.txt \
+            --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard Cliente ${CLIENT_VERSION} · Windows x64" \
+            --notes 'Proteção local do computador escolar. Baixe o executável ou o arquivo Python e consulte as instruções em LEIA-ME.md.' \
+            --latest=false
