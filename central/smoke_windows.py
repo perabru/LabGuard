@@ -158,6 +158,13 @@ def main():
         print('PASSOU: instalação Windows, TLS, vínculo, bloquear, liberar, excluir, confirmação, reinício e política offline.', flush=True)
     finally:
         cleanup_errors = []
+        runtime_log = central_dir / 'central-erro.log'
+        if runtime_log.is_file():
+            try:
+                detail = runtime_log.read_text(encoding='utf-8', errors='replace')[-4000:]
+                print('Diagnóstico do processo Central: ' + detail.replace(password, '<senha omitida>'), flush=True)
+            except OSError as error:
+                print('Não foi possível ler o diagnóstico Central: ' + type(error).__name__, flush=True)
         try:
             if installed_client:
                 client('remover', '--sim')

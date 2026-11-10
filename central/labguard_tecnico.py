@@ -162,6 +162,8 @@ def _stop_owned_task(directory):
     config = read_config(directory)
     deadline = time.monotonic() + 45
     requested = None
+    details = None
+    instance = None
     while time.monotonic() < deadline:
         details = _task_details()
         inactive = details is None or details["state"] not in {2, 4}
@@ -172,8 +174,13 @@ def _stop_owned_task(directory):
             _request_instance_stop(directory, instance)
             requested = instance
         time.sleep(.3)
+    diagnosis = {"task_state": None if details is None else details["state"],
+                 "instance_present": instance is not None,
+                 "request_written": requested is not None,
+                 "listeners": _listener_states(config)}
     raise RuntimeError("A Central ainda não confirmou o encerramento da tarefa e das duas portas. "
-                       "A instalação foi preservada; confira a instância antes de atualizar ou remover a inicialização.")
+                       "A instalação foi preservada; confira a instância antes de atualizar ou remover a inicialização. "
+                       "Diagnóstico: " + json.dumps(diagnosis, ensure_ascii=True, separators=(",", ":")))
 
 
 def _lifecycle_record(path):
@@ -239,18 +246,30 @@ def _remove_instance_records(directory, instance):
             path.unlink(missing_ok=True)
 
 
+def _listener_states(config):
+    states = {}
+    for name, address, port in (("panel", "127.0.0.1", config["panel_port"]),
+                                ("agents", config["server_host"], config["agent_port"])):
+        started = time.monotonic()
+        try:
+            # Windows retries a refused local SYN before reporting ECONNREFUSED
+            # (about two seconds). Short repeated probes only observe a timeout.
+            # CPython issue85480 documents the operating-system behavior.
+            with socket.create_connection((address, port), timeout=3):
+                result = {"state": "open"}
+        except OSError as error:
+            result = {"state": "closed" if isinstance(error, ConnectionRefusedError) else "unknown",
+                      "error": type(error).__name__, "errno": error.errno,
+                      "winerror": getattr(error, "winerror", None)}
+        result["elapsed_ms"] = round((time.monotonic() - started) * 1000)
+        states[name] = result
+    return states
+
+
 def _listeners_closed(config):
     # A failed HTTP response is insufficient evidence: both TCP listeners must
-    # refuse connections before an update, deletion or offline check succeeds.
-    for address, port in (("127.0.0.1", config["panel_port"]), (config["server_host"], config["agent_port"])):
-        try:
-            with socket.create_connection((address, port), timeout=.5):
-                return False
-        except ConnectionRefusedError:
-            continue
-        except OSError:
-            return False  # An uncertain network result is not confirmation.
-    return True
+    # explicitly refuse connections. A timeout is still an uncertain result.
+    return all(result["state"] == "closed" for result in _listener_states(config).values())
 
 
 def _firewall_owned_script(directory):

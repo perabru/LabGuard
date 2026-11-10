@@ -79,6 +79,26 @@ class LifecycleFilesTests(unittest.TestCase):
         request.assert_called_once_with(self.path, self.a)
 
 
+class ListenerProbeTests(unittest.TestCase):
+    def test_real_os_requires_both_listeners_closed(self):
+        # Deliberately runs on Windows too: a short connect timeout can expire
+        # before Winsock reports a genuinely closed loopback port.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as panel, \
+             socket.socket(socket.AF_INET, socket.SOCK_STREAM) as agent:
+            panel.bind(("127.0.0.1", 0))
+            agent.bind(("127.0.0.1", 0))
+            panel.listen(8)
+            agent.listen(8)
+            panel_port, agent_port = panel.getsockname()[1], agent.getsockname()[1]
+            self.assertNotEqual(panel_port, agent_port)
+            config = {"server_host": "127.0.0.1", "panel_port": panel_port, "agent_port": agent_port}
+            self.assertFalse(launcher._listeners_closed(config), "Active listeners must prevent completion.")
+            panel.close()
+            self.assertFalse(launcher._listeners_closed(config), "The agent listener is still active.")
+            agent.close()
+            self.assertTrue(launcher._listeners_closed(config), "Both loopback ports must be confirmed closed.")
+
+
 @unittest.skipIf(os.name == "nt", "Windows EXE lifecycle is exercised by central/smoke_windows.py")
 class ActualServerLifecycleTests(unittest.TestCase):
     def setUp(self):
