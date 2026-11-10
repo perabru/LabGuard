@@ -9,9 +9,12 @@ import ipaddress
 import json
 import os
 from pathlib import Path
+import re
+import secrets
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -25,6 +28,7 @@ TASK = "LabGuardCentral"
 FIREWALL = "LabGuardCentral-Clientes-TLS"
 MARKER = "instalacao-central.json"
 EXE = "LabGuardTecnico.exe"
+INSTANCE_FILE = "central-instancia.json"
 
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -149,17 +153,104 @@ def owned_task(directory):
 
 
 def _stop_owned_task(directory):
-    if not owned_task(directory):
-        return
-    system, run, *_ = windows_helpers()
-    run([system() / "schtasks.exe", "/End", "/TN", TASK], check=False)
-    deadline = time.monotonic() + 15
+    # Refuse a foreign task, but an absent task is not proof that an earlier
+    # onefile child has stopped. Its protected instance marker still identifies it.
+    owned_task(directory)
+    # The onefile bootloader and the actual Python server are separate Windows
+    # processes. Ending only the scheduled parent can leave its child serving.
+    # Ask the exact running instance to close both listeners and exit itself.
+    config = read_config(directory)
+    deadline = time.monotonic() + 45
+    requested = None
     while time.monotonic() < deadline:
         details = _task_details()
-        if details is None or details["state"] not in {2, 4}:
+        inactive = details is None or details["state"] not in {2, 4}
+        if inactive and _listeners_closed(config):
             return
+        instance = _lifecycle_record(Path(directory) / INSTANCE_FILE)
+        if instance is not None and instance != requested:
+            _request_instance_stop(directory, instance)
+            requested = instance
         time.sleep(.3)
-    raise RuntimeError("A tarefa da central ainda está executando. Aguarde antes de atualizar ou remover a inicialização.")
+    raise RuntimeError("A Central ainda não confirmou o encerramento da tarefa e das duas portas. "
+                       "A instalação foi preservada; confira a instância antes de atualizar ou remover a inicialização.")
+
+
+def _lifecycle_record(path):
+    """Read only a small, regular local record inside the protected directory."""
+    path = Path(path)
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None
+    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+            or getattr(info, "st_file_attributes", 0) & 0x400 or info.st_size > 2048):
+        raise RuntimeError("O registro da instância da Central não é um arquivo local válido.")
+    try:
+        if os.name == "nt":
+            windows_helpers()[2](path)
+        elif stat.S_IMODE(info.st_mode) & 0o077:
+            raise RuntimeError("Restrinja o registro da instância ao proprietário.")
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None  # Its owner may have completed shutdown between the reads.
+    except OSError as error:
+        # GetNamedSecurityInfo can report Win32 ERROR_FILE_NOT_FOUND while an
+        # owner removes its marker. Never hide permission or other ACL failures.
+        if (getattr(error, "winerror", None) == 2 or error.errno == 2) and not path.exists():
+            return None
+        raise
+    except (ValueError, UnicodeError):
+        raise RuntimeError("Registro da instância inválido.") from None
+    if (not isinstance(data, dict) or set(data) != {"instance", "pid"}
+            or not isinstance(data["instance"], str) or not re.fullmatch(r"[a-f0-9]{32}", data["instance"])
+            or type(data["pid"]) is not int or data["pid"] <= 0):
+        raise RuntimeError("Registro da instância inválido.")
+    return data
+
+
+def _write_lifecycle_record(path, record):
+    from labguard_cliente import _atomic_json
+    # Refuse links, malformed records and permissive existing files before replace.
+    _lifecycle_record(path)
+    _atomic_json(Path(path), record)
+
+
+def _stop_request_path(directory, instance):
+    nonce = instance.get("instance") if isinstance(instance, dict) else None
+    if not isinstance(nonce, str) or not re.fullmatch(r"[a-f0-9]{32}", nonce):
+        raise RuntimeError("Identificação de instância inválida.")
+    return Path(directory) / ("parar-central-" + nonce + ".json")
+
+
+def _request_instance_stop(directory, instance):
+    # A delayed request for A has a different filename from a request for B.
+    # It therefore cannot overwrite a new instance's stop request after a restart.
+    _write_lifecycle_record(_stop_request_path(directory, instance), instance)
+
+
+def _instance_stop_requested(directory, instance):
+    return _lifecycle_record(_stop_request_path(directory, instance)) == instance
+
+
+def _remove_instance_records(directory, instance):
+    for path in (Path(directory) / INSTANCE_FILE, _stop_request_path(directory, instance)):
+        if _lifecycle_record(path) == instance:
+            path.unlink(missing_ok=True)
+
+
+def _listeners_closed(config):
+    # A failed HTTP response is insufficient evidence: both TCP listeners must
+    # refuse connections before an update, deletion or offline check succeeds.
+    for address, port in (("127.0.0.1", config["panel_port"]), (config["server_host"], config["agent_port"])):
+        try:
+            with socket.create_connection((address, port), timeout=.5):
+                return False
+        except ConnectionRefusedError:
+            continue
+        except OSError:
+            return False  # An uncertain network result is not confirmation.
+    return True
 
 
 def _firewall_owned_script(directory):
@@ -230,8 +321,11 @@ def install(password=None, server_host=None, allowed_cidr=None):
     else:
         private_directory(directory)
         (directory / MARKER).write_text(json.dumps({"application": TASK, "version": CENTRAL_VERSION}), encoding="utf-8")
-    if owned_task(directory):
+    task_exists = owned_task(directory)
+    if (directory / "config.json").exists():
         _stop_owned_task(directory)
+    elif task_exists:
+        raise RuntimeError("Existe uma tarefa da Central sem configuração. Confira a instalação antes de repará-la.")
     if not (directory / "config.json").exists():
         if not password or not server_host or not allowed_cidr:
             raise RuntimeError("Defina a senha, o IP do técnico e a rede do laboratório.")
@@ -291,10 +385,9 @@ def stop(*, unregister=False):
     windows_helpers()[2](directory)
     _marker(directory)
     system, run, *_ = windows_helpers()
-    if owned_task(directory):
-        _stop_owned_task(directory)
-        if unregister:
-            run([system() / "schtasks.exe", "/Delete", "/TN", TASK, "/F"])
+    _stop_owned_task(directory)
+    if unregister and owned_task(directory):
+        run([system() / "schtasks.exe", "/Delete", "/TN", TASK, "/F"])
     if unregister:
         _ps("$ErrorActionPreference='Stop'; " + _firewall_owned_script(directory))
 
@@ -320,25 +413,41 @@ def run_servers(directory):
         require_admin()
         windows_helpers()[2](Path(directory))
     panel, agents = build_servers(directory)
+    instance = {"instance": secrets.token_hex(16), "pid": os.getpid()}
     stopping = threading.Event()
     threads = [threading.Thread(target=server.serve_forever, kwargs={"poll_interval": .3}, daemon=True)
                for server in (panel, agents)]
     def request_stop(*_):
         stopping.set()
-    for signum in (signal.SIGTERM, signal.SIGINT):
-        signal.signal(signum, request_stop)
-    for thread in threads:
-        thread.start()
+    started = []
     try:
+        # Publication happens only after acquiring BOTH bound sockets. Old stop
+        # requests remain harmless because each process has a fresh nonce.
+        _write_lifecycle_record(Path(directory) / INSTANCE_FILE, instance)
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(signum, request_stop)
+        for server, thread in zip((panel, agents), threads):
+            thread.start()
+            started.append((server, thread))
         while not stopping.wait(.5):
+            if _instance_stop_requested(directory, instance):
+                stopping.set()
+                break
             if not all(thread.is_alive() for thread in threads):
                 raise RuntimeError("Um dos serviços da central encerrou inesperadamente.")
     finally:
-        for server in (panel, agents):
-            server.shutdown()
-            server.server_close()
-        for thread in threads:
-            thread.join(timeout=5)
+        try:
+            for server, thread in started:
+                server.shutdown()
+            # Keep both sockets bound while removing our marker. Because another
+            # process can publish only after both binds, it cannot replace the
+            # marker during our compare/unlink. Never remove another nonce.
+            _remove_instance_records(directory, instance)
+        finally:
+            for server in (panel, agents):
+                server.server_close()
+            for _server, thread in started:
+                thread.join(timeout=5)
     return 0
 
 

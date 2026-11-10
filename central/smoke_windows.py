@@ -133,13 +133,29 @@ def main():
         # Reapply a block and stop the central to verify the station keeps enforcing it.
         change = api('/api/rules', {'domain': domain, 'category': 'outros', 'action': 'block', 'enabled': True})
         wait_for(lambda: acknowledged(change['revision']), 'confirmação antes do modo offline')
+        previous_instance = launcher._lifecycle_record(central_dir / launcher.INSTANCE_FILE)
         launcher.stop()
         wait_for(lambda: not launcher.is_ready(central_dir), 'central realmente desligada para testar modo offline', 20)
+        # Restart on the same ports: stop/start and repair must release their binds.
+        launcher.start()
+        wait_for(lambda: launcher.is_ready(central_dir), 'reinício da Central nas mesmas portas', 60)
+        current_instance = launcher._lifecycle_record(central_dir / launcher.INSTANCE_FILE)
+        assert previous_instance and current_instance and current_instance != previous_instance, 'Instância não foi renovada'
+        csrf = api('/api/login', {'password': password})['csrf']
+        state = api('/api/state')
+        assert state['revision'] == change['revision'], 'A revisão foi perdida ao reiniciar a Central'
+        assert any(row['domain'] == domain and row['action'] == 'block' for row in state['rules']), 'Regra perdida após reiniciar'
+        launcher._request_instance_stop(central_dir, previous_instance)
+        time.sleep(2)
+        assert launcher.is_ready(central_dir), 'Um pedido antigo encerrou a nova instância'
+        launcher._stop_request_path(central_dir, previous_instance).unlink(missing_ok=True)
+        launcher.stop()
+        wait_for(lambda: not launcher.is_ready(central_dir), 'encerramento após reinício', 20)
         time.sleep(20)
         assert domain in entries(block_key), 'A regra foi perdida quando a central parou'
         client('desvincular', '--sim')
         wait_for(lambda: domain not in entries(block_key), 'restauração da política local após desvincular')
-        print('PASSOU: instalação Windows, TLS, vínculo, bloquear, liberar, excluir, confirmação e política offline.', flush=True)
+        print('PASSOU: instalação Windows, TLS, vínculo, bloquear, liberar, excluir, confirmação, reinício e política offline.', flush=True)
     finally:
         cleanup_errors = []
         try:
