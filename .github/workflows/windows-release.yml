@@ -25,7 +25,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "2.4.3"
+  LABGUARD_VERSION: "2.4.4"
 
 jobs:
   test:
@@ -86,7 +86,7 @@ jobs:
       - name: Testar componentes compatíveis com Windows
         shell: pwsh
         run: |
-          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_updater.py", "test_preferences.py", "test_credential_store.py", "test_update_manifest.py", "test_local_dns.py", "test_simple_setup.py", "test_station*.py", "test_access_setup.py", "test_access_push.py", "test_school_policy.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py")
+          $patterns = @("test_desktop.py", "test_gui.py", "test_integrations.py", "test_integration_gui.py", "test_server.py", "test_banlist.py", "test_banlist_gui.py", "test_remote.py", "test_remote_gui.py", "test_network_map_gui.py", "test_reports.py", "test_controller.py", "test_discovery.py", "test_inventory.py", "test_updater.py", "test_preferences.py", "test_credential_store.py", "test_update_manifest.py", "test_local_dns.py", "test_simple_setup.py", "test_station*.py", "test_access_setup.py", "test_access_push.py", "test_school_policy.py", "test_diagnostics.py", "test_direct_routeros.py", "test_simple_gui.py", "test_site_controls.py")
           foreach ($pattern in $patterns) {
             python -m unittest discover -s tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { throw "Testes falharam: $pattern" }
@@ -103,7 +103,7 @@ jobs:
       - name: Gerar painel e servidor Windows
         shell: pwsh
         run: ./scripts/build_windows.ps1 -Version $env:LABGUARD_VERSION
-      - name: Validar atualização real isolada da 2.4.2 para a 2.4.3
+      - name: Validar atualização real isolada da 2.4.3 para a 2.4.4
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,7 +111,7 @@ jobs:
         run: |
           $oldDirectory = Join-Path $env:RUNNER_TEMP "LabGuardPreviousRelease"
           New-Item -ItemType Directory -Path $oldDirectory | Out-Null
-          gh release download v2.4.2 --pattern LabGuard-Setup.exe --dir $oldDirectory
+          gh release download v2.4.3 --pattern LabGuard-Setup.exe --dir $oldDirectory
           if ($LASTEXITCODE -ne 0) { throw "Não foi possível obter o instalador anterior para validação." }
           $oldSetup = Join-Path $oldDirectory "LabGuard-Setup.exe"
           $installDir = Join-Path $env:LOCALAPPDATA "LabGuardUpdateSmoke\Installed App"
@@ -217,6 +217,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-tk xvfb x11-utils openssh-client iproute2 libx11-6 libxext6 libxrender1 libxft2 libfontconfig1 libfreetype6 libxcb1
           python -m pip install -r requirements-build.txt
+      - name: Conferir a tela Sites em duas resoluções
+        run: xvfb-run -a -s "-screen 0 1440x1000x24" python packaging/validate_sites_gui.py --output-dir "${{ runner.temp }}/LabGuardSitesVisual"
+      - name: Preservar conferência visual da tela Sites
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Sites-Visual-${{ github.sha }}
+          path: ${{ runner.temp }}/LabGuardSitesVisual/*
+          if-no-files-found: warn
+          retention-days: 30
       - name: Gerar pacotes Linux desktop e servidor
         run: bash scripts/build_linux.sh "$LABGUARD_VERSION"
       - name: Testar instalação Debian e janela real
@@ -281,10 +291,13 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          O LabGuard 2.4.3 ajuda a TI a identificar por que uma estação Windows não chega ao teste de DNS.
+          O LabGuard 2.4.4 mantém a edição de rede sem cliente nos alunos e facilita a demonstração dos bloqueios.
 
-          Em Administrar estações, escolha o IPv4 do computador e clique em Verificar porta para saber se a porta 5986 responde a partir do PC da TI. Essa verificação dispensa a senha e não modifica a estação. Para testar o DNS, informe a conta autorizada e a senha da sessão. O diagnóstico orienta a próxima ação conforme a resposta recebida.
+          A aba Sites reúne os domínios integrados, o banco de cadastros e as regras da conexão. Use a busca e os filtros para selecionar um site e clicar em Bloquear ou Liberar. Ao liberar no filtro local, o cadastro continua visível para bloquear novamente. A tela diferencia bloqueio local, domínio pai, perfil de IA e estado sem confirmação.
 
-          Quando a conexão de gerenciamento falha, os resultados de DNS ficam sem confirmação. Consulte o guia Comece aqui antes de aplicar mudanças. Os pacotes passam pelos ensaios em Windows e Linux, incluindo a atualização do instalador de 2.4.2 para 2.4.3.
+          Em Configurar → 2. Usar nos computadores, o botão Guia e ferramenta IPv6 abre o procedimento para configurar o DNS IPv4 e desabilitar o vínculo IPv6 somente no adaptador escolhido. A ferramenta auxiliar não instala cliente residente e preserva o estado anterior para restauração.
+
+          Os computadores precisam usar o DNS do LabGuard. DNS seguro, VPN, cache e políticas do resolvedor de saída exigem conferência na estação. A validação inclui testes em Windows e Linux e atualização isolada do instalador Windows de 2.4.3 para 2.4.4. Esses ensaios não substituem o teste na rede da escola.
+
           EOF
           gh release create "$tag" ./* --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard $LABGUARD_VERSION" --notes-file /tmp/release-notes.txt --latest

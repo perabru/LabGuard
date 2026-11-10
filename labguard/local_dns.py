@@ -351,11 +351,20 @@ class LocalDNSTransport:
                 domain = normalize_domain(params.get('domain', ''))
                 if len(self._rules)>=MAX_RULES and domain not in self._rules:raise DNSError('DNS_LOCAL_STATE: limite de regras excedido.')
                 category = params.get('category', 'Outros')
-                self.database.upsert(domain, category); self._rules[domain] = category
+                previous = next((row for row in self.database.list_sites(query=domain, include_deleted=True, limit=50000)
+                                 if row['domain'] == domain), None)
+                self.database.upsert(domain, category, enabled=True, notes=previous['notes'] if previous else '')
+                self._rules[domain] = category
                 self.filter.replace_rules(self._rules)
             elif action == 'remove_domain':
                 domain = normalize_domain(params.get('domain', ''))
-                self.database.delete(domain); self._rules.pop(domain, None); self.filter.replace_rules(self._rules)
+                previous = next((row for row in self.database.list_sites(query=domain, include_deleted=True, limit=50000)
+                                 if row['domain'] == domain), None)
+                if previous is None:raise DNSError('DNS_LOCAL_STATE: domínio não cadastrado neste filtro.')
+                # Release the rule but keep its category, notes and visible record.
+                # A restart or the starter-policy import must not re-enable it.
+                self.database.upsert(domain, previous['category'], enabled=False, notes=previous['notes'])
+                self._rules.pop(domain, None); self.filter.replace_rules(self._rules)
             elif action != 'snapshot':raise DNSError('Este filtro controla somente domínios DNS; não corta internet nem controla MAC ou portas.')
             if action != 'snapshot':self._audit.appendleft({'time':stamp(), 'action':action, 'target':domain, 'outcome':'Regra local aplicada'})
             return self._snapshot()
@@ -377,13 +386,17 @@ class LocalDNSTransport:
                 devices.append({'ip':client, 'mac':'', 'name':'Cliente DNS', 'protected':client==self.filter.listen,
                     'last_seen':last, 'state':'Consulta DNS recebida · presença atual não confirmada'})
         running = self.filter.running
+        entries = self.database.list_sites(limit=50000)
+        records = {row['domain']: row for row in entries}
         return {'mode':'equipment', 'source_type':'local_dns', 'timestamp':stamp(), 'interfaces':[row for row in local.get('interfaces', []) if self._interface_in_scope(row)],
             'local':topology, 'gateway':{'hostname':'LabGuard DNS', 'vendor':'LabGuard', 'model':'Filtro DNS local',
                 'lab_cidr':str(self.filter.network), 'management_host':self.filter.listen},
             'capabilities':{'inventory':True, 'domain_filtering':running, 'dns_history':True, 'device_internet_cut':False,
                 'address_blocking':False, 'ai_block':False, 'port_control':False},
             'health':{'dns':running, 'firewall':False, 'forwarding':False},
-            'devices':devices, 'domains':[{'domain':name, 'category':category, 'source':'manual'} for name,category in sorted(self._rules.items())],
+            'devices':devices, 'domains':[{'domain':name, 'category':category, 'source':'manual',
+                'created_at':records.get(name, {}).get('created_at', '')} for name,category in sorted(self._rules.items())],
+            'site_entries':[{'domain':row['domain'], 'category':row['category'], 'enabled':row['enabled']} for row in entries],
             'events':activity['events'], 'audit':list(self._audit), 'connections':[],
             'metrics':{'queries_window':len(activity['events']), 'blocked_events_window':sum(e['status']=='Bloqueio DNS confirmado' for e in activity['events']),
                 'observed_devices':len(devices), 'blocked_devices':0},

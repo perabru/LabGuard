@@ -368,7 +368,8 @@ class DirectRouterOSTransport:
             owned = bool(meta and meta["k"] == "domain" and meta["a"] == name and _yes(row.get("match-subdomain")) and not row.get("regexp"))
             if owned:
                 own_domains.append((row, meta))
-            domains.append({"domain": name, "category": meta["c"] if owned else "Regra externa", "created_at": meta["t"] if owned else "", "source": "manual" if owned else "external"})
+            domains.append({"domain": name, "category": meta["c"] if owned else "Regra externa", "created_at": meta["t"] if owned else "", "source": "manual" if owned else "external",
+                            "match_subdomains": _yes(row.get("match-subdomain")) if not row.get("regexp") else None})
         domain_counts = Counter(meta["a"] for _, meta in own_domains)
         duplicate_domains = {domain for domain, count in domain_counts.items() if count != 1}
         if duplicate_domains:

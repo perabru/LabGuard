@@ -891,31 +891,50 @@ class App(tk.Tk):
         self._label(parent, textvariable=self.device_selection_text).grid(row=4, column=0, sticky="ew", pady=(11, 0))
 
     def _build_sites(self, parent):
-        parent.columnconfigure(0, weight=1); parent.rowconfigure(4, weight=1)
-        self._label(parent, "Sites e política de IA", fg=TEXT, font=(self.font_family, 20, "bold")).grid(row=0, column=0, sticky="ew")
-        self.site_note = tk.StringVar(value="Organize uma lista local. Aplicar exige um roteador compatível conectado.")
-        self._label(parent, textvariable=self.site_note).grid(row=1, column=0, sticky="ew", pady=(5, 13))
-        card = RoundCard(parent, padding=16); card.grid(row=2, column=0, sticky="ew", pady=(0, 13))
+        parent.columnconfigure(0, weight=1); parent.rowconfigure(5, weight=1)
+        self._label(parent, "Sites cadastrados e integrados", fg=TEXT, font=(self.font_family, 20, "bold")).grid(row=0, column=0, sticky="ew")
+        self.site_note = tk.StringVar(value="Selecione um site para bloquear ou liberar. O cadastro continua na lista.")
+        self._label(parent, textvariable=self.site_note).grid(row=1, column=0, sticky="ew", pady=(5, 10))
+        card = RoundCard(parent, padding=12); card.grid(row=2, column=0, sticky="ew", pady=(0, 10))
         card.body.columnconfigure(0, weight=1)
-        self._label(card.body, "Sua lista de bloqueios", bg=PANEL, fg=TEXT, font=(self.font_family, 12, "bold")).grid(row=0, column=0, sticky="ew")
-        self._label(card.body, "Crie, importe e revise cadastros mesmo sem controle do roteador. O banco só altera a rede ao aplicar.", bg=PANEL).grid(row=1, column=0, sticky="ew", pady=(5, 8))
-        actions = tk.Frame(card.body, bg=PANEL); actions.grid(row=2, column=0, sticky="ew")
-        ActionButton(actions, text="Banco de sites", command=self._open_banlist, style="Purple.TButton", height=37).pack(side="left")
-        ActionButton(actions, text="Adicionar catálogo de IA ao banco", command=self._seed_ai_catalog, height=37).pack(side="left", padx=8)
-        self.ai_button = ActionButton(actions, text="Perfil global de IA", command=self._toggle_ai, height=37)
+        self._label(card.body, "Catálogo escolar, serviços de IA e seus cadastros em uma só lista.", bg=PANEL, fg=TEXT,
+                    font=(self.font_family, 11, "bold")).grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        actions = tk.Frame(card.body, bg=PANEL); actions.grid(row=1, column=0, sticky="ew")
+        ActionButton(actions, text="Banco de sites", command=self._open_banlist, style="Purple.TButton", height=35).pack(side="left")
+        ActionButton(actions, text="Adicionar catálogo de IA ao banco", command=self._seed_ai_catalog, height=35).pack(side="left", padx=8)
+        self.ai_button = ActionButton(actions, text="Perfil global de IA", command=self._toggle_ai, height=35)
         self.ai_button.pack(side="left")
-        bar = tk.Frame(parent, bg=BG); bar.grid(row=3, column=0, sticky="ew", pady=(0, 11))
-        self._label(bar, "Domínio").pack(side="left", padx=(0, 8))
+        bar = tk.Frame(parent, bg=BG); bar.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        self._label(bar, "Novo domínio").pack(side="left", padx=(0, 8))
         self.domain_var = tk.StringVar(); self.category_var = tk.StringVar(value="Jogos")
         ttk.Entry(bar, textvariable=self.domain_var).pack(side="left", fill="x", expand=True, padx=(0, 8))
-        ttk.Combobox(bar, textvariable=self.category_var, values=["Jogos", "Inteligência artificial", "Adultos", "Outros"], state="readonly", width=18).pack(side="left", padx=(0, 8))
-        self.domain_add_button = ActionButton(bar, text="Bloquear domínio", command=self._add_domain, style="Accent.TButton", height=38)
+        ttk.Combobox(bar, textvariable=self.category_var, values=["Jogos", "Inteligência artificial", "Adultos", "Outros"], state="readonly", width=20).pack(side="left", padx=(0, 8))
+        self.domain_add_button = ActionButton(bar, text="Adicionar e bloquear", command=self._add_domain, style="Accent.TButton", height=36)
         self.domain_add_button.pack(side="left")
-        self.domain_remove_button = ActionButton(bar, text="Remover", command=self._remove_domain, height=38)
-        self.domain_remove_button.pack(side="left", padx=(7, 0))
-        frame = tk.Frame(parent, bg=BG); frame.grid(row=4, column=0, sticky="nsew")
-        self.domains_table = self._table(frame, ("domain", "category", "source"), ("Domínio aplicado", "Categoria", "Origem"))
-        self._label(parent, "O filtro cobre os domínios cadastrados. Não identifica toda IA nem revela o conteúdo de páginas HTTPS.").grid(row=5, column=0, sticky="ew", pady=(11, 0))
+        filters = tk.Frame(parent, bg=BG); filters.grid(row=4, column=0, sticky="ew", pady=(0, 9))
+        self._label(filters, "Buscar").pack(side="left", padx=(0, 8))
+        self.site_search = tk.StringVar(); self.site_category = tk.StringVar(value="Todas"); self.site_state = tk.StringVar(value="Todos")
+        ttk.Entry(filters, textvariable=self.site_search, width=23).pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self._label(filters, "Categoria").pack(side="left", padx=(0, 6))
+        ttk.Combobox(filters, textvariable=self.site_category, values=("Todas", "Jogos", "Inteligência artificial", "Adultos", "Outros"), state="readonly", width=21).pack(side="left", padx=(0, 10))
+        self._label(filters, "Estado").pack(side="left", padx=(0, 6))
+        ttk.Combobox(filters, textvariable=self.site_state, values=("Todos", "Bloqueados", "Sem bloqueio", "Sem confirmação"), state="readonly", width=17).pack(side="left")
+        frame = tk.Frame(parent, bg=BG); frame.grid(row=5, column=0, sticky="nsew")
+        self.domains_table = self._table(frame, ("domain", "category", "state", "source"), ("Domínio", "Categoria", "Estado", "Origem"))
+        for column, width in (("domain", 230), ("category", 160), ("state", 240), ("source", 260)):
+            self.domains_table.column(column, width=width, minwidth=110)
+        self.domains_table.bind("<<TreeviewSelect>>", lambda _: self._refresh_mutation_controls())
+        for variable in (self.site_search, self.site_category, self.site_state):
+            variable.trace_add("write", lambda *_: self._render_sites())
+        selected_actions = tk.Frame(parent, bg=BG); selected_actions.grid(row=6, column=0, sticky="ew", pady=(10, 6))
+        self.domain_block_selected_button = ActionButton(selected_actions, text="Bloquear", command=lambda: self._change_selected_site(True), style="Danger.TButton", height=37)
+        self.domain_block_selected_button.pack(side="left")
+        self.domain_remove_button = ActionButton(selected_actions, text="Liberar", command=self._remove_domain, style="Accent.TButton", height=37)
+        self.domain_remove_button.pack(side="left", padx=(8, 12))
+        self.site_count = tk.StringVar()
+        self._label(selected_actions, textvariable=self.site_count).pack(side="left", fill="x", expand=True)
+        self.site_selection_text = tk.StringVar(value="Selecione um site. Liberar retira o bloqueio deste filtro e mantém o cadastro.")
+        self._label(parent, textvariable=self.site_selection_text).grid(row=7, column=0, sticky="ew", pady=(3, 0))
 
     def _build_activity(self, parent):
         parent.columnconfigure(0, weight=1); parent.rowconfigure(2, weight=1)
@@ -931,6 +950,7 @@ class App(tk.Tk):
 
     def show_page(self, name):
         self._pages[name].tkraise(); self._page = name
+        if name == "sites":self._render_sites(); self._refresh_mutation_controls()
         for key, button in self._nav.items():
             button.configure(face=PURPLE if key == name else "#EEE8FA", fg="white" if key == name else PURPLE)
 
@@ -1277,7 +1297,50 @@ class App(tk.Tk):
              "Esta tela controla a regra de IP. MAC e outros bloqueios são independentes; revise o mapa." if self.snapshot.get("mode") == "equipment" else
              "Selecione o alvo e confira as capacidades antes de agir."))
 
+    def _site_records(self):
+        from .banlist import BanlistDatabase, BanlistError, MAX_SITES
+        self._site_catalog_warning = ""
+        if "_banks" not in self.__dict__:return []
+        try:
+            database = BanlistDatabase(self._banlist_path())
+            try:return database.list_sites(limit=MAX_SITES)
+            finally:database.close()
+        except (BanlistError, OSError):
+            self._site_catalog_warning = " O banco local não pôde ser lido; cadastros do filtro e catálogo integrado continuam disponíveis."
+            return []
+
     def _render_sites(self):
+        # Keep the previous applied-rule view for older embedded UI harnesses.
+        if "site_search" not in self.__dict__:return self._render_applied_sites()
+        from .site_controls import builtin_sites, filter_sites, site_rows
+        fresh = not self._snapshot_stale and monotonic() - self._last_snapshot_monotonic <= FRESH_SECONDS
+        self._site_display_fresh = fresh
+        records = self._site_records()
+        try:catalog = builtin_sites()
+        except (OSError, ValueError, KeyError):
+            catalog = ()
+            self._site_catalog_warning += " O catálogo integrado ficou indisponível; confira a instalação."
+        all_rows = site_rows(self.snapshot, records, fresh=fresh, catalog=catalog)
+        visible = filter_sites(all_rows, query=self.site_search.get(), category=self.site_category.get(), state=self.site_state.get())
+        self._site_catalog_rows = {row["domain"]:row for row in all_rows}
+        self._domain_rows = {row["domain"]:row for row in visible}
+        self._fill(self.domains_table, [(row["domain"], (row["domain"], row["category"], row["state"], row["origin"])) for row in visible])
+        count = sum(row["blocked"] is True for row in all_rows)
+        self.site_count.set(f"{len(visible)} de {len(all_rows)} sites · {count} com bloqueio nesta leitura")
+        self.site_note.set("Escolha Bloquear ou Liberar; o cadastro permanece visível. Visualizar o catálogo não aplica regras." + self._site_catalog_warning)
+        policy = self.snapshot.get("policies", {}).get("ai_block", {})
+        if not isinstance(policy, dict):policy = {}
+        self.ai_button.configure(text="Desativar perfil de IA" if policy.get("enabled") else "Ativar perfil de IA")
+        self._site_selection_note()
+
+    def _site_selection_note(self):
+        if "site_selection_text" not in self.__dict__:return
+        selected = self.domains_table.selection()
+        row = self._domain_rows.get(selected[0]) if selected else None
+        self.site_selection_text.set((row["domain"] + " · " + row["state"] + ". " + row["detail"]) if row else
+            "Selecione um site. Liberar mantém o cadastro; DNS de saída, cache, VPN e DNS seguro podem interferir na navegação.")
+
+    def _render_applied_sites(self):
         rows, self._domain_rows, occurrences = [], {}, {}
         for index, row in enumerate(self.snapshot.get("domains", [])):
             if not isinstance(row, dict):continue
@@ -1320,6 +1383,14 @@ class App(tk.Tk):
     def _refresh_mutation_controls(self):
         dns = self._mutation_allowed(("dns",), notify=False, capability="domain_filtering")
         for button in (self.domain_add_button, self.domain_remove_button):button.configure(state="normal" if dns else "disabled")
+        if "domain_block_selected_button" in self.__dict__:
+            fresh = not self._snapshot_stale and monotonic() - self._last_snapshot_monotonic <= FRESH_SECONDS
+            if self.__dict__.get("_site_display_fresh") is not fresh:self._render_sites()
+            selected = self.domains_table.selection()
+            row = self.__dict__.get("_domain_rows", {}).get(selected[0]) if selected else None
+            self.domain_block_selected_button.configure(state="normal" if dns and row and row["can_block"] else "disabled")
+            self.domain_remove_button.configure(state="normal" if dns and row and row["can_release"] else "disabled")
+            self._site_selection_note()
         ai = self._mutation_allowed(("dns",), notify=False, capability="ai_block")
         self.ai_button.configure(state="normal" if ai else "disabled")
         device = self._selected_device(); protected = not device or device.get("protected") or self._device_identity_uncertain(device)
@@ -1370,13 +1441,58 @@ class App(tk.Tk):
         if not self._mutation_allowed(("dns",), capability="domain_filtering"):return False
         try:domain = normalize_domain(self.domain_var.get())
         except ValueError as error:self.status.set(str(error)); return False
+        if "site_search" in self.__dict__:
+            return self._change_site(domain, self.category_var.get(), True, clear_entry=True)
         if not self._confirm("Bloquear domínio", f"Bloquear {domain} e seus subdomínios usando este roteador?\n\nO efeito depende do DNS e do caminho da rede. Conexões já abertas podem continuar."):return False
         if not self._mutation_allowed(("dns",), capability="domain_filtering"):return False
         transport = self.transport; category = self.category_var.get()
         def done(snapshot):self.domain_var.set(""); self._apply_snapshot(snapshot)
         return self._run_job(lambda: transport.request("add_domain", domain=domain, category=category), label="Aplicando bloqueio", on_success=done, alert=True)
 
+    def _change_selected_site(self, blocked):
+        if not self._mutation_allowed(("dns",), capability="domain_filtering"):return False
+        selected = self.domains_table.selection()
+        row = self.__dict__.get("_domain_rows", {}).get(selected[0]) if selected else None
+        if not row:return False
+        if not row["can_block" if blocked else "can_release"]:
+            self.status.set(row["detail"]); return False
+        return self._change_site(row["domain"], row["category"], blocked)
+
+    def _change_site(self, domain, category, blocked, *, clear_entry=False):
+        from .banlist import BanlistDatabase, BanlistError
+        from .site_controls import apply_site_change
+        if not self._mutation_allowed(("dns",), capability="domain_filtering"):return False
+        verb = "Bloquear" if blocked else "Liberar"
+        message = (f"Bloquear {domain} e seus subdomínios neste filtro?" if blocked else
+                   f"Liberar {domain} retirando a regra deste filtro? O cadastro será mantido na lista.")
+        if not self._confirm(verb + " site", message + "\n\nO efeito depende do DNS usado pela estação. Cache, DNS de saída e outras políticas podem continuar valendo."):return False
+        if not self._mutation_allowed(("dns",), capability="domain_filtering"):return False
+        try:path = self._banlist_path()
+        except (BanlistError, OSError) as error:
+            self.status.set(str(error)); return False
+        transport = self.transport
+        def work():
+            database = BanlistDatabase(path)
+            try:return apply_site_change(transport, database, domain=domain, category=category, blocked=blocked)
+            finally:database.close()
+        def done(result):
+            self.site_state.set("Todos")
+            if not self._apply_snapshot(result["snapshot"]):return
+            if clear_entry:self.domain_var.set("")
+            if self.domains_table.exists(domain):
+                self.domains_table.selection_set(domain); self.domains_table.see(domain)
+            row = self._site_catalog_rows.get(domain, {})
+            self.status.set(domain + ": " + row.get("state", "Confira o estado") + ". Cadastro mantido. " +
+                (result["warning"] or "Confira a navegação em uma estação que usa o DNS do filtro."))
+            self._refresh_mutation_controls()
+        def failed(_error):
+            self._snapshot_stale = True
+            self._render_sites()
+            self.status.set("Alteração sem confirmação. O cadastro foi preservado; atualize a leitura antes de repetir.")
+        return self._run_job(work, label=verb + " site", on_success=done, on_error=failed, alert=True)
+
     def _remove_domain(self):
+        if "site_search" in self.__dict__:return self._change_selected_site(False)
         if not self._mutation_allowed(("dns",), capability="domain_filtering"):return False
         selected = self.domains_table.selection()
         if not selected:return False

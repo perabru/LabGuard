@@ -2,6 +2,7 @@
 from __future__ import annotations
 import ipaddress
 import tkinter as tk
+import webbrowser
 from tkinter import ttk, messagebox
 from .ui import ActionButton, RoundCard, BG, PANEL, TEXT, MUTED, PURPLE, BLUE
 from .local_dns import validate_config, DNSError, CHECK_DOMAIN
@@ -9,6 +10,7 @@ from .local_dns import validate_config, DNSError, CHECK_DOMAIN
 
 FAMILY_RESOLVER = '1.1.1.3'
 DEFAULT_RESOLVER = '1.1.1.1'
+NETWORK_TOOLS_GUIDE = 'https://perabru.github.io/LabGuard/tecnico/dns-ipv6.html'
 
 
 def initial_resolver(service, saved):
@@ -157,9 +159,12 @@ class DNSSetupWindow(tk.Toplevel):
         self._label(setup, textvariable=self.protection_report, color=PURPLE).grid(row=9, column=0, sticky='ew', pady=(8,0))
         self._label(clients,'Use este DNS nos computadores',size=15,color=TEXT).grid(row=0,column=0,sticky='ew')
         self.client_ip=tk.StringVar();self._label(clients,textvariable=self.client_ip,size=23,color=PURPLE).grid(row=1,column=0,sticky='ew',pady=12)
-        self._label(clients, 'Selecione uma máquina com gestão remota habilitada para conferir o DNS, aplicar a configuração autorizada ou restaurar a anterior.').grid(row=2,column=0,sticky='ew')
-        self.manage_clients_button = ActionButton(clients, text='Administrar estações', command=self._open_stations, style='Accent.TButton')
-        self.manage_clients_button.grid(row=3, column=0, sticky='w', pady=10)
+        self._label(clients, 'Sem cliente instalado: configure o DNS na estação. O guia inclui uma ferramenta para ajustar o DNS IPv4 e desabilitar IPv6 no adaptador escolhido, com restauração. A administração remota é opcional e exige um canal já preparado.').grid(row=2,column=0,sticky='ew')
+        client_actions = tk.Frame(clients, bg=PANEL)
+        client_actions.grid(row=3, column=0, sticky='ew', pady=10)
+        ActionButton(client_actions, text='Guia e ferramenta IPv6', command=self._open_network_tool_guide, style='Accent.TButton').pack(side='left')
+        self.manage_clients_button = ActionButton(client_actions, text='Administrar estações', command=self._open_stations)
+        self.manage_clients_button.pack(side='left', padx=8)
         bar = tk.Frame(clients, bg=PANEL)
         bar.grid(row=4, column=0, sticky='ew', pady=(0,8))
         ActionButton(bar, text='Copiar IP', command=self.copy_ip).pack(side='left')
@@ -199,6 +204,15 @@ class DNSSetupWindow(tk.Toplevel):
     def _open_stations(self):
         from .station_dns_gui import open_station_dns
         return open_station_dns(self)
+
+    def _open_network_tool_guide(self):
+        try:
+            opened = webbrowser.open(NETWORK_TOOLS_GUIDE)
+        except Exception:
+            opened = False
+        if not opened:
+            self.state.set('Abra no navegador: ' + NETWORK_TOOLS_GUIDE)
+        return opened
 
     def _station_commands(self):
         snapshot = self.owner.snapshot

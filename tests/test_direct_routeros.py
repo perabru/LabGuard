@@ -193,6 +193,21 @@ class DirectRouterOSTests(unittest.TestCase):
         self.assertFalse(self.transport.request("snapshot")["capabilities"]["domain_filtering"])
         self.assertEqual(self.router.mutations, [])
 
+    def test_external_exact_dns_rule_does_not_claim_subdomain_coverage(self):
+        from labguard.site_controls import site_rows
+        self.router.data["ip/dns/static"].append({".id": "*A", "name": "example.org", "type": "NXDOMAIN", "match-subdomain": "false"})
+        snapshot = self.transport.request("snapshot")
+        external = next(row for row in snapshot["domains"] if row["domain"] == "example.org")
+        self.assertIs(external["match_subdomains"], False)
+        child = next(row for row in site_rows(snapshot, catalog=({"domain": "child.example.org", "category": "Outros"},))
+                     if row["domain"] == "child.example.org")
+        self.assertEqual(child["state"], "Sem bloqueio neste filtro")
+        self.assertTrue(child["can_block"])
+        after = self.transport.request("add_domain", domain="child.example.org", category="Outros")
+        added = next(row for row in after["domains"] if row["domain"] == "child.example.org")
+        self.assertIs(added["match_subdomains"], True)
+        self.assertEqual(added["source"], "manual")
+
     def test_incomplete_duplicate_and_edited_own_filter_are_not_confirmed_or_removed(self):
         self.transport.request("set_address_block", kind="ip", address="192.168.88.101", blocked=True)
         original = copy.deepcopy(self.router.data["ip/firewall/filter"])
