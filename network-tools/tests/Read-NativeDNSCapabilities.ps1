@@ -20,9 +20,11 @@ try {
     if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) {
         throw 'Use native Windows PowerShell 5.1 for this probe.'
     }
-    $adapter = Get-NetAdapter -ErrorAction Stop | Where-Object {$_.Status -eq 'Up'} |
+    $dnsInterfaces=@(Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction Stop |
+        Where-Object {@($_.ServerAddresses).Count -gt 0} | Select-Object -ExpandProperty InterfaceIndex)
+    $adapter = Get-NetAdapter -ErrorAction Stop | Where-Object {$_.Status -eq 'Up' -and $_.ifIndex -in $dnsInterfaces} |
         Sort-Object InterfaceIndex | Select-Object -First 1
-    if ($null -eq $adapter) { throw 'The runner has no active adapter for read-only validation.' }
+    if ($null -eq $adapter) { throw 'The runner has no active adapter with an IPv4 DNS configuration for read-only validation.' }
     $index = [int]$adapter.ifIndex
     $ipv4 = @(Get-DnsClientServerAddress -InterfaceIndex $index -AddressFamily IPv4 -ErrorAction Stop)
     $binding = @(Get-NetAdapterBinding -Name $adapter.Name -ComponentID ms_tcpip6 -ErrorAction Stop)

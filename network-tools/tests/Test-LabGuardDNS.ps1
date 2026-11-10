@@ -81,7 +81,9 @@ try {
     . $testSource
     # Exercise the production reader once on a real runner NIC, before any mocks.
     # This reads bindings, registration and DNS; it does not change them.
-    $nativeAdapter=Get-NetAdapter -ErrorAction Stop | Where-Object {$_.Status -eq 'Up'} |
+    $nativeDnsInterfaces=@(Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction Stop |
+        Where-Object {@($_.ServerAddresses).Count -gt 0} | Select-Object -ExpandProperty InterfaceIndex)
+    $nativeAdapter=Get-NetAdapter -ErrorAction Stop | Where-Object {$_.Status -eq 'Up' -and $_.ifIndex -in $nativeDnsInterfaces} |
         Sort-Object InterfaceIndex | Select-Object -First 1
     Assert-Test ($null -ne $nativeAdapter) 'No real adapter was available for read-only validation.'
     $nativeState=Get-LabGuardAdapterState -InterfaceIndex ([int]$nativeAdapter.ifIndex)
