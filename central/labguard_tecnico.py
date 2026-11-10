@@ -75,9 +75,18 @@ def read_config(directory):
 
 def _ps(script):
     system, run, *_ = windows_helpers()
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
-    return run([system() / "WindowsPowerShell/v1.0/powershell.exe", "-NoProfile",
-                "-NonInteractive", "-EncodedCommand", encoded], timeout=60)
+    # Estes scripts administrativos contêm somente a tarefa e a regra locais,
+    # nunca a senha do painel ou credenciais dos vínculos.
+    wrapped = ("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); try {\n" + script +
+               "\n} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }")
+    encoded = base64.b64encode(wrapped.encode("utf-16-le")).decode("ascii")
+    result = run([system() / "WindowsPowerShell/v1.0/powershell.exe", "-NoProfile",
+                  "-NonInteractive", "-EncodedCommand", encoded], timeout=60, check=False)
+    if result.returncode:
+        detail = (result.stderr or result.stdout).decode("utf-8-sig", errors="replace").strip()
+        detail = " ".join(detail.split())[-1800:] or "sem diagnóstico adicional"
+        raise RuntimeError(f"A administração do Windows falhou (código {result.returncode}): {detail}")
+    return result
 
 
 def _ps_literal(text):
@@ -158,7 +167,8 @@ def _firewall_owned_script(directory):
             "if($null -ne $rule){ "
             "$application=$rule | Get-NetFirewallApplicationFilter; "
             f"if($rule.Description -ne 'LabGuardCentral/1' -or $application.Program -ine {_ps_literal(directory / EXE)})"
-            "{ throw 'A regra de firewall existente pertence a outra configuração; confira sua origem.' }; "
+            "{ throw ('A regra de firewall existente pertence a outra configuração; confira sua origem. ' + "
+            "'Descrição=' + [string]$rule.Description + '; Programa=' + [string]$application.Program) }; "
             "$rule | Remove-NetFirewallRule }; ")
 
 

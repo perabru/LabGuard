@@ -134,23 +134,29 @@ def main():
         change = api('/api/rules', {'domain': domain, 'category': 'outros', 'action': 'block', 'enabled': True})
         wait_for(lambda: acknowledged(change['revision']), 'confirmação antes do modo offline')
         launcher.stop()
+        wait_for(lambda: not launcher.is_ready(central_dir), 'central realmente desligada para testar modo offline', 20)
         time.sleep(20)
         assert domain in entries(block_key), 'A regra foi perdida quando a central parou'
         client('desvincular', '--sim')
         wait_for(lambda: domain not in entries(block_key), 'restauração da política local após desvincular')
-        print('PASSOU: instalação Windows, TLS, vínculo, bloquear, liberar, excluir, confirmação e política offline.')
+        print('PASSOU: instalação Windows, TLS, vínculo, bloquear, liberar, excluir, confirmação e política offline.', flush=True)
     finally:
         cleanup_errors = []
         try:
             if installed_client:
                 client('remover', '--sim')
         except Exception as error:
-            cleanup_errors.append('cliente: ' + type(error).__name__)
+            cleanup_errors.append('cliente: ' + type(error).__name__ + ': ' + str(error).replace(password, '<senha omitida>')[:1800])
+        central_stage = 'parar e desregistrar'
         try:
             if central_dir.exists():
+                print('Limpeza: parando e desregistrando a Central.', flush=True)
                 launcher.stop(unregister=True)
                 # Directory did not exist before this test, and is owned by this CI run.
+                central_stage = 'aguardar o encerramento HTTP'
+                print('Limpeza: aguardando o encerramento HTTP da Central.', flush=True)
                 wait_for(lambda: not launcher.is_ready(central_dir), 'encerramento da central', 20)
+                central_stage = 'remover a pasta criada pelo teste'
                 for attempt in range(20):
                     try:
                         shutil.rmtree(central_dir)
@@ -160,11 +166,11 @@ def main():
                             raise
                         time.sleep(.5)
         except Exception as error:
-            cleanup_errors.append('central: ' + type(error).__name__)
+            cleanup_errors.append('central/' + central_stage + ': ' + type(error).__name__ + ': ' + str(error).replace(password, '<senha omitida>')[:1800])
         try:
             shutil.rmtree(temp)
         except Exception as error:
-            cleanup_errors.append('temporários: ' + type(error).__name__)
+            cleanup_errors.append('temporários: ' + type(error).__name__ + ': ' + str(error).replace(password, '<senha omitida>')[:1800])
         if cleanup_errors:
             raise RuntimeError('Limpeza da VM não foi concluída: ' + ', '.join(cleanup_errors))
 
