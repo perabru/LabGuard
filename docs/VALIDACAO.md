@@ -1,4 +1,26 @@
-# Validação da versão 2.4.3
+# Validação da versão 2.4.4
+
+A aba **Sites cadastrados e integrados** reúne 8 domínios escolares, 23 do catálogo de IA, cadastros locais e regras da fonte. **Bloquear** e **Liberar** confirmam o resultado na fonte conectada e preservam o cadastro para novas alterações. A leitura distingue regra direta, domínio pai, perfil global, regra externa e ausência de confirmação.
+
+Os **530 testes de regressão** passaram no ambiente local. Os ensaios novos verificaram bloquear, liberar, bloquear novamente, reiniciar o filtro e sincronizar o banco sem reativar um domínio liberado. Usaram consultas DNS A e AAAA reais em loopback, com respostas do resolvedor de saída simuladas. Categorias externas e escopo de subdomínios do RouterOS foram conferidos com fixtures; nenhum roteador físico foi alterado.
+
+A conferência visual é executada em Xvfb nas dimensões **1240×820** e **1000×700**, com DemoTransport, dados fictícios, perfil temporário e atualizações desativadas. Verifica limites dos filtros, botões e tabela, além da presença do domínio selecionado. A primeira execução identificou a falta de espaço para linhas na janela mínima; o layout foi compactado e 76 testes de GUI/Sites passaram após o ajuste. O novo ensaio gráfico passou nas duas dimensões: a tabela tem 284 px na janela maior e 147 px na mínima, com três linhas legíveis e o domínio selecionado visível. As duas capturas foram inspecionadas; a [prévia publicada](https://perabru.github.io/LabGuard/assets/sites-v2.4.4.png) identifica explicitamente o modo demonstração.
+
+Windows e Linux concluíram compilação, instalação, abertura da interface e testes DNS dos executáveis empacotados. Os serviços SCM/systemd passaram em ambientes isolados. No Windows, a atualização real isolada **2.4.3 → 2.4.4** confirmou encerramento, instalação, versão e autoteste. [Fluxo completo aprovado](https://github.com/perabru/LabGuard/actions/runs/42840270226), no commit `461229633bd370133cbbef442338ec5231f989bc`.
+
+O [instalador Windows 2.4.4](https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Setup.exe) publicado tem **25.590.438 bytes**, com SHA-256 `20e5484d593db43242c562aa2f24ba02fc64ba4766af38d179763933f5a827a5`. A [publicação 2.4.4](https://github.com/perabru/LabGuard/releases/tag/v2.4.4) contém os pacotes, manifesto, somas e relatórios de autoteste.
+
+## Ferramenta DNS e IPv6 sem cliente 1.0.0
+
+O auxiliar configura o DNS IPv4 e desabilita o binding `ms_tcpip6` somente no adaptador escolhido. O estado anterior é preservado para restauração, inclusive quando IPv6 já estava desabilitado. Não instala cliente, serviço ou tarefa na estação.
+
+A [validação em Windows PowerShell 5.1](https://github.com/perabru/LabGuard/actions/runs/42837148775) passou em **20 de 20 cenários**: aplicação, confirmação da sessão DNS, restauração, falha parcial, rollback e preservação de mudanças concorrentes. Adaptadores, Registro e consultas DNS foram simulados. Uma etapa separada fez leitura dos comandos nativos DNS e IPv6, sem modificar a rede do runner. Esses testes não exercitaram o navegador nem a LAN da escola.
+
+O script distribuído no ZIP usa as mesmas terminações de linha Windows e os mesmos bytes do ensaio aprovado: SHA-256 `320f8850987c95e698c5dcd5a3c7e749772170ec66f1ce599d9271770494c2d5`. O ZIP contém também as instruções atuais e somas internas. SHA-256 do ZIP 1.0.0: `9b3dc8b5e936fed7ca5d6e408ec5b622db4f48177d702aced1c90e7fe8d2413a`.
+
+A configuração precisa ser aplicada e conferida na estação piloto da escola. O estado do binding e a resposta DNS não certificam que todos os navegadores ou aplicativos usam esse caminho; DNS seguro, outra interface, VPN e regras externas exigem conferência no ambiente real.
+
+## Evidência anterior da versão 2.4.3
 
 Em **Administrar estações → Verificar porta**, o PC da TI testa a porta TCP 5986 do endereço selecionado. Os ensaios da interface cobriram porta acessível e recusada, troca de estação, limpeza da senha e manutenção das três indicações de DNS sem confirmação após falha no login. Em loopback, o cliente WinRM fez conexões HTTPS reais para conferir recusa TCP, cadeia de confiança, nome do certificado e respostas HTTP 401 e 403. O destino utilizado foi um servidor de teste local. O acesso à estação da escola depende da configuração dela e precisa ser verificado a partir do laboratório.
 

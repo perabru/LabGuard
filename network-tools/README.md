@@ -1,6 +1,6 @@
 # LabGuard — DNS sem cliente 1.0.0
 
-Ferramenta administrativa para estações Windows que devem usar o filtro DNS do **LabGuard 2.4.3**, com **IPv6 desabilitado no adaptador escolhido**, conforme a configuração definida pela TI para o laboratório. O script executa uma configuração pontual; não instala cliente, serviço ou tarefa em segundo plano.
+Ferramenta administrativa para estações Windows que devem usar o filtro DNS do **LabGuard 2.4.4** (também compatível com o 2.4.3), com **IPv6 desabilitado no adaptador escolhido**, conforme a configuração definida pela TI para o laboratório. O script executa uma configuração pontual; não instala cliente, serviço ou tarefa em segundo plano.
 
 **Comece em uma estação piloto.** O modo padrão, `Diagnosticar`, apenas consulta a configuração e faz testes DNS. `Aplicar` e `Restaurar` exigem administrador, um adaptador escolhido e confirmação.
 
@@ -16,6 +16,8 @@ Os computadores podem estar usando servidores DNS diferentes. Alterar o DNS IPv4
 **IPv6 habilitado não significa, por si só, desvio do filtro.** Consultas A e AAAA são tipos de registro; o transporte da consulta pode ser IPv4 ou IPv6. O LabGuard pode receber pelo seu IPv4 uma consulta AAAA e bloquear o domínio. A tela `DNS_PROBE_FINISHED_NXDOMAIN` mostra uma falha de resolução, mas não identifica quem respondeu. Compare o diagnóstico da estação com a sessão ativa do LabGuard. Veja as [referências](#referências).
 
 ## Antes de executar
+
+No aplicativo 2.4.4, o atalho é **Configurar → 2. Usar nos computadores → Guia e ferramenta IPv6**. Ele abre a página de instruções e download. A ferramenta deve ser executada na estação escolhida; o atalho não configura os alunos nem desabilita IPv6 no PC da TI.
 
 1. No PC da TI, mantenha o LabGuard e seu filtro ligados. Confira o **IPv4 real exibido pelo aplicativo**, a rede autorizada e o acesso da estação às portas UDP/TCP 53.
 2. O IP do filtro deve permanecer estável. O endereço a informar é o do PC que executa o filtro, não o do modem Vivo nem o da estação do aluno.
@@ -149,6 +151,8 @@ Confira `Enabled : False` para `ms_tcpip6` no adaptador escolhido. Teste A e AAA
 
 O diagnóstico comprova somente os caminhos efetivamente testados. Um resultado de DNS não certifica todos os navegadores, aplicativos, VPNs ou acessos futuros.
 
+Para demonstrar **abriu → bloqueou → liberou** na lista de sites do LabGuard 2.4.4, use `poki.com` e siga o [roteiro do técnico](https://perabru.github.io/LabGuard/tecnico/#demonstrar). Mantenha **Estado → Todos** para acompanhar o mesmo item; liberar preserva o cadastro.
+
 ## 4. DNS seguro no Chrome e no Edge
 
 Um navegador configurado para consultar um provedor DoH próprio pode não usar o DNS do Windows. A TI deve alinhar essa configuração à política da escola. Para navegadores administrados, Chrome e Edge documentam a política **`DnsOverHttpsMode`**, com valor **`off`** para desativar o resolvedor DoH do navegador. Confira a política aplicada em `chrome://policy` ou `edge://policy`.
@@ -193,4 +197,4 @@ Carregar o arquivo por *dot-source* apenas disponibiliza suas funções; não ex
 - [Microsoft: Clear-DnsClientCache](https://learn.microsoft.com/en-us/powershell/module/dnsclient/clear-dnsclientcache).
 - [RFC 3596: registros IPv6 e transporte das consultas DNS](https://www.rfc-editor.org/rfc/rfc3596.html).
 
-A edição principal do aplicativo continua sendo **2.4.3**. **1.0.0** é a versão desta ferramenta auxiliar.
+A edição principal do aplicativo é **2.4.4**. **1.0.0** é a versão desta ferramenta auxiliar, que também pode ser usada com o filtro da edição 2.4.3.

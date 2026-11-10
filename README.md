@@ -1,15 +1,15 @@
-# LabGuard 2.4.3
+# LabGuard 2.4.4
 
-**Edição de rede, administrada pelo técnico, sem instalar o LabGuard nos computadores dos alunos.** O painel 2.4.3 e seu filtro DNS rodam no PC da TI. As estações usam o IP desse computador como DNS, distribuído pelo DHCP/LAN do roteador quando disponível ou configurado no Windows. O Vivo e o switch Mercusys simples continuam no lugar.
+**Edição de rede, administrada pelo técnico, sem instalar o LabGuard nos computadores dos alunos.** O painel 2.4.4 e seu filtro DNS rodam no PC da TI. As estações usam o IP desse computador como DNS, distribuído pelo DHCP/LAN do roteador quando disponível ou configurado no Windows. O Vivo e o switch Mercusys simples continuam no lugar.
 
 ## Baixar a versão de rede
 
-- **[LabGuard-Setup.exe 2.4.3 — instalar no PC do técnico](https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Setup.exe)**
-- [LabGuard-Portable.zip 2.4.3 — pacote portátil](https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Portable.zip)
+- **[LabGuard-Setup.exe 2.4.4 — instalar no PC do técnico](https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Setup.exe)**
+- [LabGuard-Portable.zip 2.4.4 — pacote portátil](https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Portable.zip)
 - **[Guia do técnico sem cliente](https://perabru.github.io/LabGuard/tecnico/)**
-- [Todos os pacotes 2.4.3 e SHA-256](https://github.com/perabru/LabGuard/releases/tag/v2.4.3)
+- [Todos os pacotes 2.4.4 e SHA-256](https://github.com/perabru/LabGuard/releases/tag/v2.4.4)
 
-Esta retomada usa o aplicativo 2.4.3 já publicado. O executável principal permanece igual ao dessa versão; o site e este guia voltam a apresentar o funcionamento pela rede.
+A versão **2.4.4** acrescenta uma lista de sites cadastrados e integrados com busca, filtros e ações **Bloquear** e **Liberar**. Liberar mantém o site na lista para poder bloqueá-lo novamente. O painel continua sendo a edição de rede sem cliente instalado nos alunos e inclui um atalho para o guia e a ferramenta de configuração IPv4/IPv6 da estação.
 
 ## Começar sem cliente nas estações
 
@@ -17,11 +17,30 @@ Esta retomada usa o aplicativo 2.4.3 já publicado. O executável principal perm
 2. Reserve o IPv4 desse PC. Em **Configurar → 1. Ligar filtro**, escolha a conexão do laboratório; use **Ajustar IP / DNS** para conferir o **IP deste PC**, a **Rede autorizada (CIDR)** e o resolvedor de saída adequado à escola. Autorize e use **Iniciar filtro DNS**. **Proteger laboratório** permite revisar e aplicar a lista inicial de domínios de jogos e adultos.
 3. Permita **UDP e TCP 53** entre a rede do laboratório e o filtro. No DHCP/LAN do Vivo, quando o modelo permitir, distribua o IP do PC da TI como DNS. Outra opção é a configuração de DNS do adaptador Windows. O [guia sem cliente](https://perabru.github.io/LabGuard/tecnico/#dns) detalha os dois caminhos. Preserve o IP, o gateway e os serviços internos da escola.
 4. No PC do técnico, abra **Configurar → 3. Testar → Diagnóstico manual**. Copie os testes direto e padrão e execute-os no CMD de uma estação piloto. Os dois precisam retornar o mesmo código `LabGuard-...` da sessão ativa. Esse caminho não exige WinRM, pareamento nem aplicativo instalado no aluno.
-5. Em **Sites**, adicione um domínio com **Bloquear domínio**. Para retirar um bloqueio manual, selecione a regra e clique **Remover**. Em **Banco de sites**, salvar ou excluir altera o cadastro; use **Aplicar ao gateway** para refletir a lista no filtro e confira o resultado.
+5. Abra **Sites → Sites cadastrados e integrados**, procure o domínio, selecione a linha e use **Bloquear** ou **Liberar**. O item permanece visível ao ser liberado. Em **Banco de sites**, criar, salvar ou excluir altera o cadastro; use **Aplicar ao gateway** para refletir essas alterações do banco no filtro e confira o resultado.
 
 **Mantenha o PC da TI e o LabGuard ligados enquanto as estações usarem esse DNS.** A opção **Ligar este filtro ao abrir o LabGuard** retoma o filtro ao abrir o aplicativo; não instala uma inicialização automática com o Windows. Antes de parar o filtro, restaure o DNS anterior nas estações ou no DHCP.
 
 A filtragem cobre as consultas DNS que chegam ao LabGuard. Um bloqueio em domínio pai, no perfil de IA ou no resolvedor de saída pode continuar valendo após remover uma regra manual. O DNS não desinstala jogos; VPN, DNS seguro do navegador e resolvedores alternativos podem exigir políticas adicionais da escola. Não configure um DNS público alternativo que contorne o filtro.
+
+**Funciona na TI, mas não no aluno, e o Vivo continua anunciando DNS por IPv6?** Consulte o [diagnóstico e ajuste DNS sem cliente](https://perabru.github.io/LabGuard/tecnico/dns-ipv6.html). A [ferramenta auxiliar 1.0.0](network-tools/README.md), compatível com o aplicativo 2.4.4, consulta primeiro e permite uma configuração administrativa pontual por adaptador, com backup e restauração. Ela configura o DNS IPv4 e desabilita IPv6 no adaptador escolhido, sem instalar agente residente. A restauração devolve o estado IPv6 que estava registrado antes da aplicação. Abra pelo aplicativo em **Configurar → 2. Usar nos computadores → Guia e ferramenta IPv6**. Esse atalho abre as instruções; execute a ferramenta na estação escolhida. O resultado precisa ser conferido nessa estação e no navegador.
+
+### Lista de sites e demonstração antes/depois
+
+A tela **Sites cadastrados e integrados** reúne os **8 domínios da lista escolar**, os **23 do catálogo de IA**, seus cadastros e as regras disponíveis no filtro. Abrir a lista não aplica todos os bloqueios. Use **Buscar**, **Categoria** e **Estado** para localizar um item.
+
+| Estado exibido | Significado |
+|---|---|
+| **Bloqueado neste filtro** | Existe uma regra aplicada ao domínio no filtro consultado |
+| **Sem bloqueio neste filtro** | Não há bloqueio local identificado para aquele domínio; outros controles ainda podem restringi-lo |
+| **Bloqueado por domínio pai** | Uma regra do domínio principal continua abrangendo o endereço |
+| **Bloqueado pelo perfil de IA** | O perfil global de IA continua restringindo o endereço |
+| **Regras sobrepostas** | Há mais de uma regra para o mesmo domínio; revise a origem antes de alterar |
+| **Sem confirmação** | A leitura atual não permite confirmar o estado no filtro |
+
+**Liberar** retira a regra aplicável e preserva o cadastro inativo, inclusive após reiniciar o aplicativo. Assim, você pode selecionar o mesmo item e usar **Bloquear** novamente. Use **Estado → Todos** para acompanhar o item durante as duas ações. Um domínio pai ou perfil de IA exige revisão da regra principal; o botão não cria uma exceção universal.
+
+Para demonstrar, use **poki.com** em uma estação piloto que passou no teste de DNS: se estiver **Bloqueado neste filtro**, clique em **Liberar**; com **Sem bloqueio neste filtro**, confirme que abre na estação. Clique **Bloquear** e teste novamente; depois use **Liberar** para conferir a volta do acesso. Limpe o cache DNS e feche/reabra o navegador entre as etapas. Confira cada consulta em **Atividade**. Se não abrir já na primeira etapa, resolva DNS seguro, DNS de saída, regra de domínio pai ou outras restrições antes de atribuir o resultado ao botão. O [roteiro de demonstração](https://perabru.github.io/LabGuard/tecnico/#demonstrar) detalha a sequência.
 
 ### Se a edição Cliente já estiver instalada
 

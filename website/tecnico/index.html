@@ -6,8 +6,8 @@
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="theme-color" content="#462389">
-  <title>LabGuard 2.4.3 | Guia do técnico sem cliente</title>
-  <meta name="description" content="Use o LabGuard 2.4.3 no PC do técnico e filtre os sites por DNS. Guia para Vivo e switch Mercusys, sem instalar cliente nos computadores dos alunos.">
+  <title>LabGuard 2.4.4 | Guia do técnico sem cliente</title>
+  <meta name="description" content="Use o LabGuard 2.4.4 no PC do técnico e filtre os sites por DNS. Guia para Vivo e switch Mercusys, sem instalar cliente nos computadores dos alunos.">
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="guia.css">
 </head>
@@ -20,14 +20,14 @@
   <main id="conteudo">
     <section class="hero"><div class="wrap hero-inner">
       <div>
-        <p class="platform">LabGuard 2.4.3 <span>/</span> Edição de rede · Windows x64</p>
+        <p class="platform">LabGuard 2.4.4 <span>/</span> Edição de rede · Windows x64</p>
         <h1>Controle pela rede.<br>Sem cliente nos alunos.</h1>
         <p class="lead">Instale o painel no PC do técnico. Os computadores do laboratório usam seu DNS, e você administra os bloqueios em um só lugar.</p>
         <div class="actions">
-          <a class="cta" href="https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Setup.exe">↓ Baixar LabGuard-Setup.exe</a>
-          <a class="pdf" href="https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Portable.zip">Versão portátil <span class="link-arrow" aria-hidden="true"></span></a>
+          <a class="cta" href="https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Setup.exe">↓ Baixar LabGuard-Setup.exe</a>
+          <a class="pdf" href="https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Portable.zip">Versão portátil <span class="link-arrow" aria-hidden="true"></span></a>
         </div>
-        <p class="hero-footnote">Aplicativo anterior 2.4.3, com Python incluído. A configuração necessária nas estações é o DNS, distribuído pela rede ou ajustado no Windows.</p>
+        <p class="hero-footnote">Versão 2.4.4, com Python incluído e lista de sites para bloquear e liberar sem perder o cadastro. As estações precisam usar o DNS do filtro.</p>
       </div>
       <div class="overview">
         <span class="eyebrow">VIVO + SWITCH MERCUSYS SIMPLES</span>
@@ -44,8 +44,10 @@
         <p>Comece aqui</p>
         <a href="#tecnico">1. PC do técnico</a>
         <a href="#dns">2. Configurar o DNS</a>
+        <a href="dns-ipv6.html">DNS IPv6: funciona só na TI?</a>
         <a href="#sites">3. Gerenciar sites</a>
         <a href="#testar">4. Testar sem WinRM</a>
+        <a href="#demonstrar">Demonstrar Bloquear / Liberar</a>
         <a href="#migrar">Se já instalou o Cliente</a>
         <a href="#duvidas">Dúvidas práticas</a>
         <a href="#arquivos">Downloads</a>
@@ -54,7 +56,7 @@
         <section class="section" id="tecnico">
           <span class="section-number">01 / COMPUTADOR DA TI</span>
           <h2>Prepare o PC do técnico</h2>
-          <p>Use o <strong>LabGuard-Setup.exe 2.4.3</strong>. Ele instala o painel no computador da TI. Comece com uma estação piloto para conferir a rede antes de ampliar para a turma.</p>
+          <p>Use o <strong>LabGuard-Setup.exe 2.4.4</strong>. Ele instala o painel no computador da TI. Comece com uma estação piloto para conferir a rede antes de ampliar para a turma.</p>
           <ol class="steps">
             <li>Reserve o IPv4 desse computador no DHCP do roteador, ou defina uma configuração fixa com a TI. O IP precisa permanecer estável.</li>
             <li>Abra o LabGuard e entre em <strong>Configurar → 1. Ligar filtro</strong>. A observação que aparece ao abrir o aplicativo ainda não aplica bloqueios.</li>
@@ -85,21 +87,28 @@
               <li>Confirme a alteração com a conta autorizada da TI e execute os <a href="#testar">dois testes de DNS</a>.</li>
             </ol>
           </details>
-          <p class="note">Confira também os resolvedores anunciados por IPv6 e por outros adaptadores. Mantenha IPv6 habilitado; a distribuição de DNS precisa seguir a política da escola. Se o teste direto funcionar e o padrão falhar, as consultas usuais ainda estão seguindo outro caminho.</p>
+          <p class="note">Confira também os resolvedores anunciados por IPv6 e por outros adaptadores. Para usar o DNS IPv4 com IPv6 desabilitado no adaptador da estação, siga o procedimento específico abaixo. Se o teste direto funcionar e o padrão falhar, as consultas usuais ainda estão seguindo outro caminho. <a href="dns-ipv6.html"><strong>Funciona no PC da TI, mas não no aluno? Siga o diagnóstico e o ajuste DNS sem cliente.</strong></a> No aplicativo, o atalho é <strong>Configurar → 2. Usar nos computadores → Guia e ferramenta IPv6</strong>. Ele abre as instruções; a ferramenta deve ser executada na estação escolhida.</p>
           <p>O switch Mercusys não gerenciável continua funcionando normalmente. O LabGuard não precisa estar entre o Vivo e os alunos e não altera automaticamente os menus do roteador.</p>
         </section>
 
         <section class="section" id="sites">
           <span class="section-number">03 / REGRAS DO LABORATÓRIO</span>
-          <h2>Adicione, retire e organize os sites</h2>
-          <p>Com o filtro ativo, abra <strong>Sites</strong> ou <strong>Gerenciar sites</strong>. As ações abaixo correspondem aos controles da versão 2.4.3.</p>
+          <h2>Encontre o site. Bloqueie ou libere.</h2>
+          <p>Abra <strong>Sites</strong> ou <strong>Gerenciar sites</strong>. A tela <strong>Sites cadastrados e integrados</strong> reúne os <strong>8 domínios da lista escolar</strong>, os <strong>23 do catálogo de IA</strong>, seus cadastros e as regras disponíveis no filtro. Visualizar o catálogo não ativa todos os bloqueios.</p>
+          <figure class="site-preview"><a href="../assets/sites-v2.4.4.png"><img src="../assets/sites-v2.4.4.png" width="1240" height="820" loading="lazy" alt="Tela Sites do LabGuard 2.4.4, em demonstração, com busca, filtros, Poki selecionado e botões Bloquear e Liberar."></a><figcaption>Tela real em modo demonstração, com dados fictícios. Selecione a linha e use Bloquear ou Liberar. Clique na imagem para ampliar.</figcaption></figure>
           <div class="operation-grid">
-            <article><h3>Adicionar e bloquear</h3><p>Informe um domínio, como <code>roblox.com</code>, escolha a categoria e clique em <strong>Bloquear domínio</strong>. Confira a confirmação. A regra abrange o domínio e seus subdomínios.</p></article>
-            <article><h3>Liberar um bloqueio manual</h3><p>Selecione a regra na tabela e clique em <strong>Remover</strong>. Confirme <strong>Remover bloqueio</strong>. Essa ação retira a regra manual selecionada.</p></article>
-            <article><h3>Excluir um cadastro</h3><p>No <strong>Banco de sites</strong>, selecione o domínio e clique em <strong>Excluir</strong>. Depois use <strong>Aplicar ao gateway</strong> para refletir a lista no filtro e confira o resultado.</p></article>
-            <article><h3>Preparar uma lista</h3><p>Use <strong>Novo</strong>, <strong>Salvar</strong>, <strong>Bloqueio ativo</strong> e <strong>Importar TXT</strong> no Banco de sites. Salvar organiza o cadastro; a aplicação ao filtro é uma etapa explícita.</p></article>
+            <article><h3>Localizar um domínio</h3><p>Use <strong>Buscar</strong>, <strong>Categoria</strong> e <strong>Estado</strong>. A tabela mostra <strong>Domínio, Categoria, Estado e Origem</strong>. Selecione a linha do site desejado.</p></article>
+            <article><h3>Bloquear</h3><p>Com o filtro ativo e autorizado, clique em <strong>Bloquear</strong>. Confira a confirmação e o estado <strong>Bloqueado neste filtro</strong>. A regra também abrange subdomínios.</p></article>
+            <article><h3>Liberar e manter na lista</h3><p>Selecione um item com bloqueio direto e clique em <strong>Liberar</strong>. A regra é retirada e o cadastro inativo continua visível, inclusive após reiniciar o aplicativo. Use <strong>Estado → Todos</strong> para acompanhar as duas ações no mesmo item.</p></article>
+            <article><h3>Adicionar e organizar cadastros</h3><p>Em <strong>Banco de sites</strong>, use <strong>Novo</strong>, <strong>Salvar</strong>, <strong>Importar TXT</strong> ou <strong>Excluir</strong>. Para refletir alterações feitas no banco, use <strong>Aplicar ao gateway</strong> e confira o resultado.</p></article>
           </div>
-          <p class="note">O botão do banco se chama <strong>Aplicar ao gateway</strong> também ao usar o filtro DNS local. Regras manuais e do perfil de IA são preservadas pela aplicação do banco. Se outro bloqueio, um domínio pai ou o DNS de saída ainda restringir o endereço, remover uma regra específica pode não liberar o acesso.</p>
+          <dl class="status-list">
+            <div><dt>Sem bloqueio neste filtro</dt><dd>Não há bloqueio local identificado para o domínio. Isso não confirma que outros controles da rede ou o DNS de saída permitem o acesso.</dd></div>
+            <div><dt>Bloqueado por domínio pai / Bloqueado pelo perfil de IA</dt><dd>Revise a regra do domínio principal ou o perfil global. Liberar um item não cria uma exceção sobre esses bloqueios.</dd></div>
+            <div><dt>Regras sobrepostas</dt><dd>Há mais de uma regra para o mesmo domínio. Revise a origem na integração antes de alterar.</dd></div>
+            <div><dt>Sem confirmação</dt><dd>Confira a conexão e atualize a leitura do filtro. Não use esse estado como prova de que o site está liberado ou bloqueado.</dd></div>
+          </dl>
+          <p class="note">O botão do banco se chama <strong>Aplicar ao gateway</strong> também ao usar o filtro DNS local. As ações <strong>Bloquear</strong> e <strong>Liberar</strong> da lista atuam individualmente no filtro. A exclusão no banco é uma ação de cadastro; os domínios do catálogo integrado continuam disponíveis na lista.</p>
           <p>A tela <strong>Atividade</strong> mostra as consultas recebidas pelo filtro e seu resultado. Ela não confirma que cada aluno visitou uma página, nem coleta o conteúdo HTTPS. Se o roteador encaminhar as consultas, o IP registrado poderá ser o do roteador.</p>
         </section>
 
@@ -117,6 +126,20 @@
           </dl>
           <p>Se você bloqueou <code>roblox.com</code>, execute <code>nslookup roblox.com</code> pelo DNS padrão e confira o resultado em <strong>Atividade</strong>. A indicação <strong>Bloqueio DNS confirmado</strong> se refere à consulta recebida. Confira também um site permitido e a navegação na conta do aluno; cache e conexões já abertas podem exigir uma nova sessão do navegador.</p>
           <p>As ferramentas <strong>Administrar estações</strong> e <strong>Painel web → Estações</strong> são opcionais para redes que já possuem administração remota preparada. Um erro de WinRM não impede o teste manual por DNS.</p>
+        </section>
+
+        <section class="section" id="demonstrar">
+          <h2>Demonstre: abriu, bloqueou, liberou</h2>
+          <p>Use <strong>poki.com</strong> em uma estação piloto que já passou nos testes de DNS. Faça a demonstração na conta do aluno e mantenha o filtro ligado no PC da TI.</p>
+          <ol class="steps">
+            <li>No PC da TI, abra <strong>Sites</strong>, deixe <strong>Estado → Todos</strong>, busque <code>poki.com</code> e selecione a linha. Se estiver <strong>Bloqueado neste filtro</strong>, clique em <strong>Liberar</strong>. Com <strong>Sem bloqueio neste filtro</strong>, siga para o teste de abertura.</li>
+            <li>Na estação do aluno, execute <code>ipconfig /flushdns</code>, feche/reabra o navegador e acesse <code>https://poki.com</code>. Confirme que a página abre antes de continuar.</li>
+            <li>No painel da TI, selecione a mesma linha e clique em <strong>Bloquear</strong>. Confira <strong>Bloqueado neste filtro</strong>.</li>
+            <li>Na estação, limpe o cache DNS, feche/reabra o navegador e tente novamente. Confira a consulta e o bloqueio em <strong>Atividade</strong>, com o domínio, IP e horário correspondentes.</li>
+            <li>Clique em <strong>Liberar</strong> no painel. O item permanece na lista. Repita o teste na estação para conferir a volta do acesso.</li>
+          </ol>
+          <p class="note">Se a página já não abrir na primeira etapa, confira o domínio pai, o perfil de IA, o DNS de saída e outras regras da escola antes de atribuir o resultado ao LabGuard. Cache, conexões anteriores, DNS seguro e VPN também podem alterar o teste. Uma mensagem NXDOMAIN isolada não identifica quem respondeu.</p>
+          <p>O estado na lista representa a leitura do filtro. A prova da demonstração combina essa leitura, o registro em <strong>Atividade</strong> e a navegação na estação. O <a href="dns-ipv6.html">guia de DNS e IPv6</a> mostra como investigar quando o PC da TI e o aluno se comportam de forma diferente.</p>
         </section>
 
         <section class="section" id="migrar">
@@ -142,18 +165,18 @@
         </section>
 
         <section class="section" id="arquivos">
-          <h2>Downloads da edição de rede 2.4.3</h2>
+          <h2>Downloads da edição de rede 2.4.4</h2>
           <div class="files">
-            <a href="https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Setup.exe"><span><strong>Instalador Windows — PC do técnico</strong><small>LabGuard-Setup.exe · Python incluído</small></span><span aria-hidden="true">↓</span></a>
-            <a href="https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Portable.zip"><span><strong>Pacote portátil Windows</strong><small>Extraia a pasta inteira antes de abrir o programa</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Setup.exe"><span><strong>Instalador Windows — PC do técnico</strong><small>LabGuard-Setup.exe · Python incluído</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Portable.zip"><span><strong>Pacote portátil Windows</strong><small>Extraia a pasta inteira antes de abrir o programa</small></span><span aria-hidden="true">↓</span></a>
             <a href="../manual2/index.html"><span><strong>Manual de rede 2.4</strong><small>Banco de sites, relatórios e integrações avançadas</small></span><span class="link-arrow" aria-hidden="true"></span></a>
-            <a href="https://github.com/perabru/LabGuard/releases/tag/v2.4.3"><span><strong>Publicação 2.4.3</strong><small>Pacotes Windows/Linux, fonte e somas SHA-256</small></span><span class="link-arrow" aria-hidden="true"></span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/tag/v2.4.4"><span><strong>Publicação 2.4.4</strong><small>Pacotes Windows/Linux, fonte e somas SHA-256</small></span><span class="link-arrow" aria-hidden="true"></span></a>
           </div>
           <p class="sources">Referências de apoio: <a href="https://support.microsoft.com/pt-br/windows/experience/connectivity-networking/essential-network-settings-and-tasks-in-windows">configurações de rede do Windows</a> e <a href="https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/nslookup">comando nslookup</a>.</p>
         </section>
       </div>
     </div>
   </main>
-  <footer><div class="wrap"><span>LabGuard 2.4.3 · Guia do técnico sem cliente</span><a href="../">Site do LabGuard</a></div></footer>
+  <footer><div class="wrap"><span>LabGuard 2.4.4 · Guia do técnico sem cliente</span><a href="../">Site do LabGuard</a></div></footer>
 </body>
 </html>

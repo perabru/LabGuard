@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="theme-color" content="#462389">
+  <title>LabGuard | Corrigir DNS e IPv6 sem instalar cliente</title>
+  <meta name="description" content="Diagnostique por que o bloqueio funciona na TI e não nos alunos. Ajuste o DNS IPv4 da estação Windows e desabilite IPv6 no adaptador escolhido, sem instalar cliente.">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="guia.css">
+</head>
+<body>
+  <a class="skip" href="#conteudo">Ir ao conteúdo</a>
+  <header class="top"><div class="wrap top-inner">
+    <a class="brand" href="../"><img src="../assets/favicon.svg" alt="" width="31" height="35"><span>LabGuard</span></a>
+    <a class="back" href="index.html">Guia do técnico <span class="link-arrow" aria-hidden="true"></span></a>
+  </div></header>
+  <main id="conteudo">
+    <section class="hero"><div class="wrap hero-inner">
+      <div>
+        <p class="platform">Ferramenta 1.0.0 <span>/</span> Para o LabGuard 2.4.4 · Windows</p>
+        <h1>O DNS certo.<br>Em cada estação.</h1>
+        <p class="lead">O bloqueio funciona no PC da TI, mas o aluno ainda acessa? Confira o caminho do DNS e ajuste uma estação piloto com IPv6 desabilitado no adaptador escolhido.</p>
+        <div class="actions">
+          <a class="cta" href="ferramentas/LabGuard-DNS-Sem-Cliente-1.0.0.zip" download>↓ Baixar ferramenta sem cliente</a>
+          <a class="pdf" href="#diagnosticar">Começar pelo diagnóstico <span class="link-arrow" aria-hidden="true"></span></a>
+        </div>
+        <p class="hero-footnote">Script de configuração pontual. Não instala agente, serviço ou tarefa em segundo plano. O modo inicial apenas consulta e testa.</p>
+      </div>
+      <div class="overview">
+        <span class="eyebrow">COMECE POR UMA ESTAÇÃO</span>
+        <h2>Três verificações necessárias</h2>
+        <ul>
+          <li><span>1</span><div><strong>O filtro responde?</strong><p>A consulta direta precisa chegar ao LabGuard no PC da TI.</p></div></li>
+          <li><span>2</span><div><strong>O Windows usa esse DNS?</strong><p>Confira IPv4, o estado IPv6 da interface e os outros adaptadores.</p></div></li>
+          <li><span>3</span><div><strong>O navegador segue o caminho?</strong><p>Teste a navegação e confira DNS seguro, cache e VPN.</p></div></li>
+        </ul>
+      </div>
+    </div></section>
+    <div class="wrap layout">
+      <aside class="nav"><nav aria-label="Etapas do diagnóstico DNS">
+        <p>Passo a passo</p>
+        <a href="#entender">Por que os PCs diferem?</a>
+        <a href="#preparar">1. Preparar</a>
+        <a href="#diagnosticar">2. Diagnosticar</a>
+        <a href="#aplicar">3. Ajustar um adaptador</a>
+        <a href="#conferir">4. Conferir o resultado</a>
+        <a href="#navegador">DNS seguro do navegador</a>
+        <a href="#restaurar">Como restaurar</a>
+        <a href="#arquivos">Arquivos e referências</a>
+      </nav></aside>
+      <div class="contents">
+        <section class="section" id="entender">
+          <span class="section-number">ENTENDA O SINTOMA</span>
+          <h2>Mesma rede, servidores DNS diferentes</h2>
+          <p>O computador do técnico pode estar consultando o LabGuard enquanto a estação usa o DNS anunciado pelo Vivo via IPv6. Outra conexão ativa, o DNS seguro do navegador ou uma resposta em cache também podem explicar a diferença. Alterar só o DNS IPv4 não comprova que todos esses caminhos foram tratados.</p>
+          <p><strong>Ter IPv6 ativo não significa que o bloqueio foi contornado.</strong> A e AAAA são tipos de registro DNS. Uma consulta AAAA, que procura um endereço IPv6, também pode chegar ao filtro pelo IPv4. O que importa é qual servidor recebeu a consulta. Essa distinção está descrita no <a href="https://www.rfc-editor.org/rfc/rfc3596.html">RFC 3596</a>.</p>
+          <p class="note"><strong>A mensagem DNS_PROBE_FINISHED_NXDOMAIN não identifica quem bloqueou.</strong> Ela informa uma falha de resolução do nome. Para atribuir o resultado ao LabGuard, confira a sessão do filtro e as consultas recebidas em <strong>Atividade</strong>.</p>
+          <p>No aplicativo 2.4.4, acesse <strong>Configurar → 2. Usar nos computadores → Guia e ferramenta IPv6</strong>. O atalho abre esta página. Execute a ferramenta na estação que será configurada; clicar no atalho não modifica os adaptadores do PC da TI.</p>
+          <p>Este procedimento trata o DNS da estação. O filtro no PC da TI precisa continuar ligado, com seu IPv4 estável e as portas UDP/TCP 53 acessíveis pela rede autorizada.</p>
+        </section>
+
+        <section class="section" id="preparar">
+          <span class="section-number">01 / ESTAÇÃO PILOTO</span>
+          <h2>Prepare o arquivo e confira o filtro</h2>
+          <ol class="steps">
+            <li>No PC da TI, abra <strong>Configurar → 1. Ligar filtro</strong>. Confira o <strong>IPv4 real exibido pelo LabGuard</strong> e mantenha o filtro iniciado.</li>
+            <li>Se a escola usa domínio ou nomes internos, confirme que o DNS de saída do LabGuard atende esses serviços antes de trocar o DNS de uma estação.</li>
+            <li>Na estação piloto, baixe o <a href="ferramentas/LabGuard-DNS-Sem-Cliente-1.0.0.zip" download>ZIP da ferramenta</a>, confira sua integridade e extraia a pasta inteira.</li>
+            <li>Abra <strong>Windows PowerShell como administrador</strong>, com a conta autorizada da TI, na pasta que contém <code>LabGuard-DNS-Sem-Cliente.ps1</code>.</li>
+          </ol>
+          <div class="command"><strong>Conferir o ZIP antes de extrair</strong><pre><code>Get-FileHash .\LabGuard-DNS-Sem-Cliente-1.0.0.zip -Algorithm SHA256</code></pre><p>Compare o resultado com o <a href="ferramentas/LabGuard-DNS-Sem-Cliente-1.0.0.sha256">SHA-256 publicado</a>. Uma soma de integridade não equivale a uma assinatura digital do script.</p></div>
+          <details>
+            <summary>O PowerShell impediu a execução?</summary>
+            <p>Consulte <code>Get-ExecutionPolicy -List</code> e siga o processo de autorização ou assinatura de scripts da escola. Quando a política permitir, depois de revisar o arquivo e sua origem, a TI pode retirar a marca de download apenas desse script com <code>Unblock-File .\LabGuard-DNS-Sem-Cliente.ps1</code>.</p>
+            <p>Isso não substitui uma assinatura exigida nem uma política de grupo. Não reduza <code>MachinePolicy</code>/<code>UserPolicy</code> e não configure bypass global para executar a ferramenta.</p>
+          </details>
+        </section>
+
+        <section class="section" id="diagnosticar">
+          <span class="section-number">02 / PRIMEIRO, CONSULTAR</span>
+          <h2>Descubra o adaptador e o DNS usado</h2>
+          <p>Execute na estação que continua abrindo o site. Anote o índice da conexão Ethernet ou Wi-Fi usada no laboratório; não escolha automaticamente VPNs ou adaptadores virtuais.</p>
+          <div class="command"><strong>Listar interfaces ativas e servidores DNS</strong><pre><code>Get-NetAdapter | Where-Object Status -eq 'Up' |
+  Format-Table ifIndex, Name, InterfaceDescription, Status -Auto
+
+Get-DnsClientServerAddress |
+  Format-Table InterfaceIndex, InterfaceAlias, AddressFamily, ServerAddresses -Auto</code></pre><p>As linhas IPv4 e IPv6 mostram famílias diferentes de servidores. <code>ifIndex</code> e <code>InterfaceIndex</code> identificam o adaptador.</p></div>
+          <div class="command"><strong>Diagnosticar sem alterar configurações</strong><pre><code>$Filtro = Read-Host 'IPv4 real mostrado no LabGuard, no PC da TI'
+.\LabGuard-DNS-Sem-Cliente.ps1 -Modo Diagnosticar -FiltroIPv4 $Filtro</code></pre><p>Informe o IP do computador que executa o filtro. O script não consegue deduzir esse endereço a partir do IP do modem ou do aluno.</p></div>
+          <div class="command"><strong>Acrescentar um domínio já bloqueado</strong><pre><code>$Dominio = Read-Host 'Domínio já bloqueado, sem https, caminho ou espaços'
+.\LabGuard-DNS-Sem-Cliente.ps1 -Modo Diagnosticar -FiltroIPv4 $Filtro -DominioTeste $Dominio</code></pre><p>Para o site da imagem relatada, use <code>www.meutimao.com.br</code> somente se ele estiver coberto por uma regra aplicada no LabGuard.</p></div>
+          <p>Na saída JSON do PowerShell, confira <code>Paths.Direct: ok</code>, <code>Paths.Default: ok</code> e <code>Paths.SameSession: true</code>. <strong>Ok: true, sozinho, significa que o diagnóstico foi executado.</strong> O estado IPv6 de cada adaptador aparece em <code>State.IPv6BindingEnabled</code>; após a aplicação, o adaptador escolhido deve mostrar <code>false</code>.</p>
+          <p>O campo <code>BrowserPolicies</code> lê políticas registradas do Chrome e do Edge. Uma política <code>Nao definida</code> não comprova que o DNS seguro está desligado; confira o navegador.</p>
+          <p>Depois de validar a estação, use o <a href="index.html#demonstrar">roteiro com poki.com</a> para demonstrar abriu → bloqueou → liberou na lista de sites do aplicativo. O cadastro permanece disponível para a próxima ação.</p>
+          <p class="note">Se a consulta direta não alcançar o filtro, resolva primeiro o IP, a rede autorizada, o acesso UDP/TCP 53 ou o isolamento da rede. Mudar o DNS padrão para um filtro inacessível pode interromper a resolução de nomes.</p>
+        </section>
+
+        <section class="section" id="aplicar">
+          <span class="section-number">03 / CONFIGURAÇÃO PONTUAL</span>
+          <h2>Ajuste somente o adaptador escolhido</h2>
+          <p>Com o filtro respondendo diretamente, informe o índice da interface identificada no diagnóstico. O comando abaixo pede confirmação no PowerShell antes de alterar a configuração.</p>
+          <div class="command"><strong>Aplicar na estação piloto</strong><pre><code>$Indice = [int](Read-Host 'InterfaceIndex da conexão do laboratório nesta estação')
+.\LabGuard-DNS-Sem-Cliente.ps1 -Modo Aplicar -FiltroIPv4 $Filtro -InterfaceIndex $Indice</code></pre><p>Leia o resumo antes de confirmar. O parâmetro opcional <code>-ConfirmarAlteracao</code> destina-se à execução não interativa autorizada pela TI; não é necessário no procedimento manual.</p></div>
+          <div class="operation-grid">
+            <article><h3>DNS pelo filtro</h3><p>A ferramenta guarda o DNS IPv4 anterior e define o IPv4 do LabGuard como DNS da interface escolhida.</p></article>
+            <article><h3>IPv6 desabilitado</h3><p>A ferramenta guarda o estado Enabled de ms_tcpip6 e desabilita o vínculo IPv6 nesse adaptador. A configuração é feita na estação, sem depender de um menu no Vivo.</p></article>
+          </div>
+          <p>Esse ajuste usa <a href="https://learn.microsoft.com/en-us/powershell/module/netadapter/disable-netadapterbinding">Disable-NetAdapterBinding</a>, documentado pela Microsoft. A alteração pode reiniciar a interface e interromper momentaneamente a conexão; execute com acesso local à estação. O script não altera manualmente os anúncios do roteador nem a lista DNS IPv6.</p>
+          <p class="note">Se a ferramenta não conseguir identificar o estado anterior, encontrar um comando indisponível ou falhar na verificação, siga o diagnóstico apresentado. Não complete a operação apagando configurações manualmente. Em falha de aplicação, confira também o resultado da tentativa de restauração.</p>
+          <details>
+            <summary>Comandos manuais para um adaptador chamado Ethernet</summary>
+            <p>Confira o nome real com <code>Get-NetAdapter</code>. Se a conexão se chamar <strong>Ethernet</strong>, registre primeiro o estado anterior:</p>
+            <div class="command"><strong>Consultar antes de alterar</strong><pre><code>Get-NetAdapterBinding -Name "Ethernet" -ComponentID ms_tcpip6 |
+  Format-List Name, Enabled</code></pre></div>
+            <p>Depois, execute o procedimento da TI:</p>
+            <div class="command"><strong>PowerShell como administrador</strong><pre><code>Disable-NetAdapterBinding -Name "Ethernet" -ComponentID ms_tcpip6
+Get-NetAdapterBinding -Name "Ethernet" -ComponentID ms_tcpip6 |
+  Format-List Name, Enabled
+ipconfig /flushdns</code></pre><p>O resultado esperado é <strong>Enabled : False</strong>. Se o nome for outro, substitua <code>Ethernet</code> pelo nome exato. Feche e reabra o navegador e teste na conta do aluno.</p></div>
+            <p>Esses comandos desabilitam IPv6 nesse adaptador, mas não apontam o DNS IPv4 para o LabGuard. A ferramenta acima configura ambos com backup. Para desfazer uma alteração manual cujo estado anterior era <code>True</code>, use <code>Enable-NetAdapterBinding -Name "Ethernet" -ComponentID ms_tcpip6</code> e confira novamente.</p>
+          </details>
+          <p>O backup é mantido no registro protegido da própria estação, identificado pelo adaptador. Preserve esse estado para a restauração. Uma segunda conexão ativa pode oferecer outro DNS; cada adaptador precisa ser revisado. O programa principal permanece instalado apenas no PC da TI.</p>
+        </section>
+
+        <section class="section" id="conferir">
+          <span class="section-number">04 / TESTAR NA CONTA DO ALUNO</span>
+          <h2>Confira a resolução e a navegação</h2>
+          <p>Rode <strong>Diagnosticar</strong> novamente com o filtro e o domínio escolhidos. Os testes direto e padrão precisam identificar a sessão ativa do LabGuard. Confira as consultas recebidas em <strong>Atividade</strong> no computador da TI.</p>
+          <dl class="status-list">
+            <div><dt>Só o teste direto responde pelo LabGuard</dt><dd>O filtro está acessível, mas o caminho padrão ainda precisa ser corrigido. Revise DNS IPv4/IPv6, outros adaptadores e políticas que possam ter reaplicado a configuração.</dd></div>
+            <div><dt>O DNS passa, mas o navegador abre o site</dt><dd>Confira a regra e o domínio exato, o DNS seguro do navegador, VPN, cache e conexões anteriores. Faça também o teste com a conta usada pelo aluno.</dd></div>
+            <div><dt>Enabled ainda aparece como True para ms_tcpip6</dt><dd>Confira o adaptador selecionado, o resultado da aplicação e se alguma política reativou o vínculo. O resultado esperado para a interface escolhida é Enabled : False.</dd></div>
+          </dl>
+          <ol class="steps">
+            <li>Confira <strong>Enabled : False</strong> para <code>ms_tcpip6</code> no adaptador escolhido. Teste as consultas <strong>A e AAAA</strong> de um domínio bloqueado e também um domínio permitido.</li>
+            <li>Execute <code>ipconfig /flushdns</code> (ou <code>Clear-DnsClientCache</code>) e feche/reabra o navegador antes do teste. O cache DNS do Windows não representa todo o estado do navegador.</li>
+            <li>Reinicie a estação ou reconecte a interface e repita a conferência antes de ampliar para a turma.</li>
+          </ol>
+          <p>Ao abrir outra janela do PowerShell, informe novamente as variáveis <code>$Filtro</code>, <code>$Indice</code> e <code>$Dominio</code>. Elas não ficam salvas entre sessões.</p>
+          <p class="note">O resultado confirma os caminhos testados naquele momento. Um teste DNS não certifica todos os navegadores, aplicativos, VPNs ou acessos futuros. Mantenha o PC do filtro e o LabGuard ligados enquanto as estações usarem esse DNS.</p>
+        </section>
+
+        <section class="section" id="navegador">
+          <h2>Confira o DNS seguro do Chrome e do Edge</h2>
+          <p>Um navegador configurado para usar um provedor próprio de DNS sobre HTTPS, ou <strong>DoH</strong>, pode resolver os nomes fora do DNS do Windows. A TI precisa alinhar essa escolha à política da escola.</p>
+          <p>Para navegadores administrados, Chrome e Edge oferecem a política <strong>DnsOverHttpsMode</strong>. O valor <strong>off</strong> desativa o resolvedor DoH do navegador. Confira a política efetiva em <code>chrome://policy</code> ou <code>edge://policy</code> e preserve a configuração anterior para uma eventual restauração.</p>
+          <div class="operation-grid">
+            <article><h3>Google Chrome</h3><p>Consulte o valor e a aplicação da política na <a href="https://chromeenterprise.google/policies/#DnsOverHttpsMode">documentação do Chrome Enterprise</a>.</p></article>
+            <article><h3>Microsoft Edge</h3><p>Consulte as opções de GPO e registro na <a href="https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/dnsoverhttpsmode">documentação do Microsoft Edge</a>.</p></article>
+          </div>
+          <p>O script de DNS não modifica automaticamente as políticas dos navegadores. A política citada trata da resolução DNS; as páginas HTTPS continuam usando HTTPS.</p>
+        </section>
+
+        <section class="section" id="restaurar">
+          <h2>Volte à configuração anterior</h2>
+          <p>Antes de desligar o filtro ou retirar a estação desse modelo, restaure a configuração usando o backup daquele computador e adaptador.</p>
+          <div class="command"><strong>Restaurar o adaptador</strong><pre><code>$Indice = [int](Read-Host 'InterfaceIndex da conexão configurada nesta estação')
+.\LabGuard-DNS-Sem-Cliente.ps1 -Modo Restaurar -InterfaceIndex $Indice</code></pre><p>Leia o resumo, confirme no PowerShell e confira a conclusão. Teste a resolução de nomes depois da restauração.</p></div>
+          <p>A restauração devolve o DNS IPv4 e o estado IPv6 registrados: se <code>Enabled</code> já era <code>False</code>, mantém <code>False</code>; se era <code>True</code>, volta a <code>True</code>. Isso inclui estações nas quais a TI já havia desabilitado IPv6 manualmente antes de executar a ferramenta.</p>
+          <p>Não transplante o backup de outra estação e não remova o estado salvo no registro enquanto a configuração estiver em uso. Se outra política ou administrador mudou a configuração depois, a ferramenta pode preservar o backup e pedir revisão em vez de sobrescrever a alteração. Se a TI alterou políticas dos navegadores separadamente, restaure-as pelo mesmo procedimento institucional utilizado para aplicá-las.</p>
+          <p>Deixar a estação apontada para um DNS desligado pode interromper a resolução de nomes. O <a href="index.html">guia principal</a> explica o funcionamento contínuo do filtro e a administração dos sites.</p>
+        </section>
+
+        <section class="section" id="arquivos">
+          <h2>Arquivos e referências</h2>
+          <div class="files">
+            <a href="ferramentas/LabGuard-DNS-Sem-Cliente-1.0.0.zip" download><span><strong>Ferramenta DNS sem cliente 1.0.0</strong><small>Script PowerShell e instruções · para o LabGuard 2.4.4</small></span><span aria-hidden="true">↓</span></a>
+            <a href="ferramentas/LabGuard-DNS-Sem-Cliente-1.0.0.sha256"><span><strong>Soma SHA-256 do ZIP</strong><small>Compare com Get-FileHash antes de extrair</small></span><span class="link-arrow" aria-hidden="true"></span></a>
+            <a href="https://github.com/perabru/LabGuard/tree/main/network-tools"><span><strong>Código e instruções completas</strong><small>Modos, parâmetros, execução e restauração</small></span><span class="link-arrow" aria-hidden="true"></span></a>
+            <a href="index.html"><span><strong>Guia principal do técnico</strong><small>Instalação 2.4.4 e gerenciamento de sites</small></span><span class="link-arrow" aria-hidden="true"></span></a>
+          </div>
+          <p class="sources">Referências: <a href="https://learn.microsoft.com/en-us/powershell/module/netadapter/disable-netadapterbinding">Disable-NetAdapterBinding</a>, <a href="https://learn.microsoft.com/en-us/powershell/module/netadapter/get-netadapterbinding">Get-NetAdapterBinding</a>, <a href="https://learn.microsoft.com/en-us/powershell/module/netadapter/enable-netadapterbinding">Enable-NetAdapterBinding</a>, <a href="https://learn.microsoft.com/en-us/powershell/module/dnsclient/set-dnsclientserveraddress">DNS estático no Windows</a>, <a href="https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/dns-client-resolution-timeouts">respostas e tentativas de resolução</a>, <a href="https://learn.microsoft.com/en-us/powershell/module/dnsclient/clear-dnsclientcache">cache DNS do Windows</a> e <a href="https://www.rfc-editor.org/rfc/rfc3596.html">registros A/AAAA e transporte DNS</a>.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+  <footer><div class="wrap"><span>LabGuard · DNS sem cliente 1.0.0</span><a href="index.html">Guia do técnico 2.4.4</a></div></footer>
+</body>
+</html>
