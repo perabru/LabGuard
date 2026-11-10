@@ -6,31 +6,154 @@
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="theme-color" content="#462389">
-  <title>LabGuard Central | Controle do técnico do laboratório</title>
-  <meta name="description" content="Adicione, exclua, libere e bloqueie sites de todos os PCs vinculados. Central com senha, cliente Windows, guia de instalação e sincronização.">
+  <title>LabGuard 2.4.3 | Guia do técnico sem cliente</title>
+  <meta name="description" content="Use o LabGuard 2.4.3 no PC do técnico e filtre os sites por DNS. Guia para Vivo e switch Mercusys, sem instalar cliente nos computadores dos alunos.">
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="guia.css">
 </head>
 <body>
   <a class="skip" href="#conteudo">Ir ao conteúdo</a>
-  <header class="top"><div class="wrap top-inner"><a class="brand" href="../"><img src="../assets/favicon.svg" alt="" width="31" height="35"><span>LabGuard</span></a><a class="back" href="../">Voltar ao site <span class="link-arrow" aria-hidden="true"></span></a></div></header>
+  <header class="top"><div class="wrap top-inner">
+    <a class="brand" href="../"><img src="../assets/favicon.svg" alt="" width="31" height="35"><span>LabGuard</span></a>
+    <a class="back" href="../">Voltar ao site <span class="link-arrow" aria-hidden="true"></span></a>
+  </div></header>
   <main id="conteudo">
     <section class="hero"><div class="wrap hero-inner">
-      <div><p class="platform">Central 1.0.0 <span>/</span> Cliente 1.2.0 · Windows x64</p><h1>Um painel.<br>Todos os PCs.</h1><p class="lead">O técnico adiciona, exclui, libera e bloqueia sites em um só lugar. Os computadores vinculados recebem as regras e confirmam a aplicação.</p><div class="actions"><a class="cta" href="https://github.com/perabru/LabGuard/releases/download/central-v1.0.0/LabGuardTecnico.exe">↓ Baixar Central do técnico</a><a class="pdf" href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.2.0/LabGuardCliente.exe">Baixar cliente dos alunos <span class="link-arrow" aria-hidden="true"></span></a></div></div>
-      <div class="overview"><span class="eyebrow">NA ROTINA DO LABORATÓRIO</span><h2>O controle fica com a TI.</h2><ul><li><span>+</span><div><strong>Adicionar</strong><p>Cadastre um domínio e sua categoria.</p></div></li><li><span>⊘</span><div><strong>Bloquear</strong><p>Restrinja sites e seus subdomínios.</p></div></li><li><span>✓</span><div><strong>Liberar</strong><p>Abra uma exceção para a aula.</p></div></li><li><span>×</span><div><strong>Excluir</strong><p>Retire uma regra do cadastro.</p></div></li></ul></div>
+      <div>
+        <p class="platform">LabGuard 2.4.3 <span>/</span> Edição de rede · Windows x64</p>
+        <h1>Controle pela rede.<br>Sem cliente nos alunos.</h1>
+        <p class="lead">Instale o painel no PC do técnico. Os computadores do laboratório usam seu DNS, e você administra os bloqueios em um só lugar.</p>
+        <div class="actions">
+          <a class="cta" href="https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Setup.exe">↓ Baixar LabGuard-Setup.exe</a>
+          <a class="pdf" href="https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Portable.zip">Versão portátil <span class="link-arrow" aria-hidden="true"></span></a>
+        </div>
+        <p class="hero-footnote">Aplicativo anterior 2.4.3, com Python incluído. A configuração necessária nas estações é o DNS, distribuído pela rede ou ajustado no Windows.</p>
+      </div>
+      <div class="overview">
+        <span class="eyebrow">VIVO + SWITCH MERCUSYS SIMPLES</span>
+        <h2>Três partes do funcionamento</h2>
+        <ul>
+          <li><span>1</span><div><strong>PC do técnico</strong><p>O LabGuard responde às consultas DNS e aplica os domínios bloqueados.</p></div></li>
+          <li><span>2</span><div><strong>DNS das estações</strong><p>O DHCP/LAN do roteador, quando disponível, ou o Windows informa o IP do filtro.</p></div></li>
+          <li><span>3</span><div><strong>Rede existente</strong><p>Vivo e switch continuam transportando o tráfego. Os cabos permanecem no lugar.</p></div></li>
+        </ul>
+      </div>
     </div></section>
     <div class="wrap layout">
-      <aside class="nav"><nav aria-label="Etapas do guia"><p>Comece aqui</p><a href="#tecnico">1. PC do técnico</a><a href="#alunos">2. PCs dos alunos</a><a href="#sites">3. Gerenciar sites</a><a href="#estado">4. Conferir aplicação</a><a href="#duvidas">Dúvidas práticas</a><a href="#arquivos">Downloads</a></nav></aside>
+      <aside class="nav"><nav aria-label="Etapas do guia">
+        <p>Comece aqui</p>
+        <a href="#tecnico">1. PC do técnico</a>
+        <a href="#dns">2. Configurar o DNS</a>
+        <a href="#sites">3. Gerenciar sites</a>
+        <a href="#testar">4. Testar sem WinRM</a>
+        <a href="#migrar">Se já instalou o Cliente</a>
+        <a href="#duvidas">Dúvidas práticas</a>
+        <a href="#arquivos">Downloads</a>
+      </nav></aside>
       <div class="contents">
-        <section class="section" id="tecnico"><span class="section-number">01 / CENTRAL</span><h2>Prepare o PC do técnico</h2><p>Reserve um IP para este computador no DHCP do roteador. Ele precisa estar ligado para distribuir novas regras.</p><ol class="steps"><li>Abra <strong>LabGuardTecnico.exe</strong> e confirme a solicitação de administrador do Windows.</li><li>Informe o <strong>IPv4 real do PC do técnico</strong> e a <strong>rede autorizada em CIDR</strong>. Exemplo: <code>192.168.15.10</code> e <code>192.168.15.0/24</code>, somente se essa for a rede do laboratório.</li><li>Crie uma senha com pelo menos <strong>12 caracteres</strong> e clique em <strong>Instalar e abrir painel</strong>.</li><li>Entre no painel aberto em <code>http://127.0.0.1:8787/</code>. Para voltar depois, abra o programa e clique em <strong>Abrir painel</strong>.</li></ol><p class="note">A Central inicia com o Windows pela tarefa identificada <strong>LabGuardCentral</strong>. A instalação permite a conexão dos clientes na porta TCP 8788 somente para a rede informada. Esta versão usa o painel no próprio computador do técnico.</p></section>
-        <section class="section" id="alunos"><span class="section-number">02 / VÍNCULO</span><h2>Conecte os computadores dos alunos</h2><p>Comece com uma estação e depois repita o procedimento nas demais.</p><ol class="steps"><li>Na Central, abra <strong>Computadores → Vincular computador → Gerar e baixar vínculo</strong>.</li><li>Leve o arquivo à estação correspondente. Cada vínculo cadastra <strong>um computador</strong> e expira em <strong>uma hora</strong>.</li><li>Abra <strong>LabGuardCliente.exe 1.2.0</strong> como administrador. Revise as opções de sites e jogos e use <strong>Instalar e proteger agora</strong> se o cliente ainda não estiver instalado.</li><li>Abra a aba <strong>Técnico → Importar vínculo</strong> e selecione o arquivo. A importação pelo novo EXE também atualiza uma instalação 1.1.0 existente.</li><li>Aguarde a confirmação da revisão em <strong>Computadores</strong>. Teste um site bloqueado e um permitido na conta padrão do aluno.</li></ol><p class="note">Enquanto vinculada, a estação usa as listas de sites da Central. Os controles locais de jogos continuam independentes. A política inicial do cliente inclui remoção do Roblox identificado: revise essa opção antes de instalar. <a href="../cliente/">Consultar o guia do cliente</a>.</p></section>
-        <section class="section" id="sites"><span class="section-number">03 / SITES</span><h2>Altere as regras no painel</h2><p>A Central começa com os <strong>831 domínios</strong> do catálogo do cliente. Pesquise pelo site, filtre por categoria ou cadastre um novo domínio.</p><div class="operation-grid"><article><h3>Adicionar site</h3><p>Informe o domínio, como <code>poki.com</code>, escolha a categoria e selecione <strong>Bloquear</strong> ou <strong>Liberar</strong>. Salve a regra.</p></article><article><h3>Liberar / bloquear</h3><p>Use o botão da linha para trocar a ação. Uma liberação também abrange os subdomínios. Os clientes recebem a nova revisão.</p></article><article><h3>Excluir</h3><p>Use o botão de exclusão e confirme. Para criar uma exceção dentro de um domínio pai bloqueado, use <strong>Liberar</strong>.</p></article><article><h3>Pausar categoria</h3><p>Escolha uma categoria no filtro e use <strong>Pausar categoria</strong>. Ative novamente quando quiser retomar suas regras.</p></article></div><p class="note">A liberação de um domínio pai suspende os bloqueios dos filhos na política enviada. Os cadastros permanecem no banco. Sites escolares podem depender de outros domínios para login, vídeos e arquivos.</p></section>
-        <section class="section" id="estado"><span class="section-number">04 / ACOMPANHAMENTO</span><h2>Saiba quem recebeu a alteração</h2><p>A estação consulta a Central aproximadamente a cada <strong>15 segundos</strong>. A confirmação da aplicação pode chegar no ciclo seguinte.</p><dl class="status-list"><div><dt>Atualizado</dt><dd>O cliente confirmou a aplicação da revisão atual nas suas regras de navegador e hosts.</dd></div><div><dt>Pendente</dt><dd>A estação ainda precisa aplicar ou confirmar a revisão mais recente.</dd></div><div><dt>Sem contato</dt><dd>O computador não se comunicou recentemente. A última lista válida permanece ativa no cliente.</dd></div><div><dt>Erro</dt><dd>A aplicação apresentou uma falha. Confira o diagnóstico na estação.</dd></div></dl><p>Essa confirmação deve ser acompanhada de um teste de navegação no perfil usado pelo aluno. O painel não coleta páginas visitadas.</p></section>
-        <section class="section" id="duvidas"><h2>Dúvidas práticas</h2><details><summary>Preciso alterar o DNS ou configurar WinRM?</summary><p>Para esta versão com Central e clientes vinculados, não. O cliente aplica as regras localmente e consulta a Central por HTTPS na rede do laboratório. Cada estação precisa receber o cliente e o primeiro vínculo pela TI.</p></details><details><summary>O que acontece se o PC do técnico desligar?</summary><p>Os clientes mantêm a última política válida. Novas alterações serão recebidas quando a Central e a conexão estiverem disponíveis novamente.</p></details><details><summary>Como voltar à administração local?</summary><p>No cliente, como administrador, use <strong>Técnico → Desvincular</strong>. As listas locais preservadas voltam a valer. Para retirar a proteção, use a desinstalação do próprio cliente.</p></details><details><summary>Liberar o site também libera o jogo instalado?</summary><p>Não automaticamente. As regras de sites e o controle de execução dos jogos são configurações separadas. Revise a aba Jogos na estação quando a atividade precisar do aplicativo.</p></details><details><summary>Todos os acessos ficam bloqueados?</summary><p>O cliente administra Edge, Chrome e Firefox e nomes exatos no hosts. Políticas corporativas existentes, outros navegadores, VPN, resolvedores próprios, acesso por IP e jogos offline podem exigir controles adicionais da escola. A Central não inspeciona o conteúdo HTTPS.</p></details></section>
-        <section class="section" id="arquivos"><h2>Downloads da versão</h2><div class="files"><a href="https://github.com/perabru/LabGuard/releases/download/central-v1.0.0/LabGuardTecnico.exe"><span><strong>Central do técnico — Windows</strong><small>Programa com instalação e início automático</small></span><span aria-hidden="true">↓</span></a><a href="https://github.com/perabru/LabGuard/releases/download/cliente-v1.2.0/LabGuardCliente.exe"><span><strong>Cliente dos alunos — Windows</strong><small>Versão 1.2.0 com aba Técnico</small></span><span aria-hidden="true">↓</span></a><a href="https://github.com/perabru/LabGuard/releases/download/central-v1.0.0/LabGuardCentral-Fonte.zip"><span><strong>Código-fonte completo</strong><small>Central, cliente, instruções e testes</small></span><span aria-hidden="true">↓</span></a><a href="https://github.com/perabru/LabGuard/blob/main/central/README.md"><span><strong>Manual técnico</strong><small>Operação, recuperação e implantação pelo Python</small></span><span class="link-arrow" aria-hidden="true"></span></a></div><p><a class="github" href="https://github.com/perabru/LabGuard/releases/tag/central-v1.0.0">Ver a publicação e as somas SHA-256 no GitHub ↗</a></p></section>
+        <section class="section" id="tecnico">
+          <span class="section-number">01 / COMPUTADOR DA TI</span>
+          <h2>Prepare o PC do técnico</h2>
+          <p>Use o <strong>LabGuard-Setup.exe 2.4.3</strong>. Ele instala o painel no computador da TI. Comece com uma estação piloto para conferir a rede antes de ampliar para a turma.</p>
+          <ol class="steps">
+            <li>Reserve o IPv4 desse computador no DHCP do roteador, ou defina uma configuração fixa com a TI. O IP precisa permanecer estável.</li>
+            <li>Abra o LabGuard e entre em <strong>Configurar → 1. Ligar filtro</strong>. A observação que aparece ao abrir o aplicativo ainda não aplica bloqueios.</li>
+            <li>Escolha a conexão do laboratório. Em <strong>Ajustar IP / DNS</strong>, confira <strong>IP deste PC</strong>, <strong>Rede autorizada (CIDR)</strong> e o resolvedor de saída. Use o IP real do PC da TI, não o IP do Vivo.</li>
+            <li>Marque a autorização e clique em <strong>Iniciar filtro DNS</strong>. Para revisar e aplicar a lista inicial de jogos e adultos, use <strong>Proteger laboratório</strong>.</li>
+            <li>Permita que a rede do laboratório alcance esse PC pelas portas <strong>UDP e TCP 53</strong> no firewall. Confira se outro serviço DNS já ocupa a porta antes de mudar qualquer configuração.</li>
+          </ol>
+          <p class="note"><strong>Mantenha o PC e o LabGuard ligados durante o uso.</strong> A opção <strong>Ligar este filtro ao abrir o LabGuard</strong> retoma o filtro ao abrir o aplicativo. Ela não configura o início automático com o Windows.</p>
+          <p>Se a escola usa Active Directory ou nomes internos, mantenha um resolvedor de saída que consiga atendê-los. A opção de Cloudflare Families pode filtrar conteúdo adulto e malware também na saída; isso influencia quais domínios poderão ser liberados.</p>
+          <p>Se a edição Cliente ou a Central anterior já foi instalada, conclua a <a href="#migrar">migração para o filtro de rede</a> antes de validar o resultado.</p>
+        </section>
+
+        <section class="section" id="dns">
+          <span class="section-number">02 / CAMINHO DAS CONSULTAS</span>
+          <h2>Faça as estações usarem o filtro</h2>
+          <p>O endereço DNS dos alunos deve ser o <strong>IPv4 do PC que executa o LabGuard</strong>. Estar no mesmo switch ou Wi-Fi, sozinho, não faz as consultas passarem pelo filtro.</p>
+          <div class="operation-grid">
+            <article><h3>Pelo roteador Vivo</h3><p>Na configuração de <strong>LAN/DHCP</strong>, quando o modelo permitir, distribua o IP do filtro como DNS. Renove a configuração de uma estação piloto e confira o teste padrão antes de ampliar o escopo.</p></article>
+            <article><h3>Pelo Windows</h3><p>Se o Vivo não oferecer esse ajuste, a TI pode definir o DNS no adaptador ativo do Windows, mantendo os endereços IP e gateway atuais. Não é necessário instalar um programa na estação.</p></article>
+          </div>
+          <details open>
+            <summary>Passo a passo do DNS no Windows</summary>
+            <ol class="steps">
+              <li>Na estação piloto, anote ou registre a configuração atual de DNS para poder restaurá-la.</li>
+              <li>Pressione <strong>Win + R</strong>, digite <code>ncpa.cpl</code> e abra as propriedades do adaptador ativo, Ethernet ou Wi-Fi.</li>
+              <li>Selecione <strong>Protocolo IP Versão 4 (TCP/IPv4) → Propriedades</strong>. Preserve a configuração atual de endereço IP e gateway.</li>
+              <li>Em <strong>Usar os seguintes endereços de servidor DNS</strong>, informe o IP real do filtro como <strong>Servidor DNS preferencial</strong>. Como alternativa, use apenas outro filtro com a mesma política; um DNS público alternativo pode contornar os bloqueios.</li>
+              <li>Confirme a alteração com a conta autorizada da TI e execute os <a href="#testar">dois testes de DNS</a>.</li>
+            </ol>
+          </details>
+          <p class="note">Confira também os resolvedores anunciados por IPv6 e por outros adaptadores. Mantenha IPv6 habilitado; a distribuição de DNS precisa seguir a política da escola. Se o teste direto funcionar e o padrão falhar, as consultas usuais ainda estão seguindo outro caminho.</p>
+          <p>O switch Mercusys não gerenciável continua funcionando normalmente. O LabGuard não precisa estar entre o Vivo e os alunos e não altera automaticamente os menus do roteador.</p>
+        </section>
+
+        <section class="section" id="sites">
+          <span class="section-number">03 / REGRAS DO LABORATÓRIO</span>
+          <h2>Adicione, retire e organize os sites</h2>
+          <p>Com o filtro ativo, abra <strong>Sites</strong> ou <strong>Gerenciar sites</strong>. As ações abaixo correspondem aos controles da versão 2.4.3.</p>
+          <div class="operation-grid">
+            <article><h3>Adicionar e bloquear</h3><p>Informe um domínio, como <code>roblox.com</code>, escolha a categoria e clique em <strong>Bloquear domínio</strong>. Confira a confirmação. A regra abrange o domínio e seus subdomínios.</p></article>
+            <article><h3>Liberar um bloqueio manual</h3><p>Selecione a regra na tabela e clique em <strong>Remover</strong>. Confirme <strong>Remover bloqueio</strong>. Essa ação retira a regra manual selecionada.</p></article>
+            <article><h3>Excluir um cadastro</h3><p>No <strong>Banco de sites</strong>, selecione o domínio e clique em <strong>Excluir</strong>. Depois use <strong>Aplicar ao gateway</strong> para refletir a lista no filtro e confira o resultado.</p></article>
+            <article><h3>Preparar uma lista</h3><p>Use <strong>Novo</strong>, <strong>Salvar</strong>, <strong>Bloqueio ativo</strong> e <strong>Importar TXT</strong> no Banco de sites. Salvar organiza o cadastro; a aplicação ao filtro é uma etapa explícita.</p></article>
+          </div>
+          <p class="note">O botão do banco se chama <strong>Aplicar ao gateway</strong> também ao usar o filtro DNS local. Regras manuais e do perfil de IA são preservadas pela aplicação do banco. Se outro bloqueio, um domínio pai ou o DNS de saída ainda restringir o endereço, remover uma regra específica pode não liberar o acesso.</p>
+          <p>A tela <strong>Atividade</strong> mostra as consultas recebidas pelo filtro e seu resultado. Ela não confirma que cada aluno visitou uma página, nem coleta o conteúdo HTTPS. Se o roteador encaminhar as consultas, o IP registrado poderá ser o do roteador.</p>
+        </section>
+
+        <section class="section" id="testar">
+          <span class="section-number">04 / VERIFICAÇÃO NA ESTAÇÃO</span>
+          <h2>Teste pelo CMD, sem WinRM</h2>
+          <p>No PC da TI, abra <strong>Configurar → 3. Testar → Diagnóstico manual</strong>. Use <strong>Copiar teste direto</strong> e <strong>Copiar teste padrão</strong> e execute os comandos no Prompt de Comando da estação piloto.</p>
+          <div class="command"><strong>1. Consultar o filtro diretamente</strong><pre><code>nslookup -type=TXT labguard-check.invalid. IP_REAL_DO_FILTRO</code></pre><p>Substitua <code>IP_REAL_DO_FILTRO</code> pelo IPv4 mostrado no LabGuard. O botão do aplicativo já copia o endereço correto.</p></div>
+          <div class="command"><strong>2. Consultar o DNS padrão da estação</strong><pre><code>nslookup -type=TXT labguard-check.invalid.</code></pre><p>Use o ponto final do nome nos dois comandos. O segundo comando verifica o caminho que a estação usa normalmente.</p></div>
+          <p><strong>Os dois resultados precisam trazer o mesmo código <code>LabGuard-...</code> da sessão ativa.</strong> O código muda ao reiniciar o filtro. O autoteste no PC da TI não comprova sozinho que o aluno está usando esse DNS.</p>
+          <dl class="status-list">
+            <div><dt>Os dois códigos coincidem</dt><dd>A estação alcançou o filtro pelo caminho direto e pelo DNS padrão. Teste agora um domínio bloqueado e outro permitido.</dd></div>
+            <div><dt>Só o teste direto funciona</dt><dd>Revise o DNS do adaptador ou do DHCP, incluindo IPv6, outros adaptadores e resolvedores alternativos.</dd></div>
+            <div><dt>O teste direto expira</dt><dd>Confira o IP real, o filtro ligado, as portas UDP/TCP 53 e eventual isolamento de rede ou Wi-Fi.</dd></div>
+          </dl>
+          <p>Se você bloqueou <code>roblox.com</code>, execute <code>nslookup roblox.com</code> pelo DNS padrão e confira o resultado em <strong>Atividade</strong>. A indicação <strong>Bloqueio DNS confirmado</strong> se refere à consulta recebida. Confira também um site permitido e a navegação na conta do aluno; cache e conexões já abertas podem exigir uma nova sessão do navegador.</p>
+          <p>As ferramentas <strong>Administrar estações</strong> e <strong>Painel web → Estações</strong> são opcionais para redes que já possuem administração remota preparada. Um erro de WinRM não impede o teste manual por DNS.</p>
+        </section>
+
+        <section class="section" id="migrar">
+          <h2>Se já instalou a edição Cliente</h2>
+          <p>Para passar a usar somente a filtragem pela rede, remova a proteção local instalada anteriormente antes de conferir os bloqueios do DNS.</p>
+          <ol class="steps">
+            <li>Registre as regras que deseja conservar. Se necessário, exporte os cadastros locais pela função <strong>Banco de sites → Exportar CSV</strong> do Cliente.</li>
+            <li>Na estação, abra a <strong>cópia baixada de LabGuardCliente.exe como administrador</strong> e use <strong>Estação → Desinstalar cliente</strong>. A operação restaura as alterações gerenciadas de políticas e hosts e remove a proteção do Cliente.</li>
+            <li>Se a Central anterior estiver instalada no PC da TI, use <strong>LabGuardTecnico.exe → Remover inicialização automática</strong> após remover os clientes. Isso para a Central e retira sua inicialização, preservando os cadastros.</li>
+            <li>Configure o DNS da edição de rede e repita os testes acima. Recrie no painel de rede as regras que deseja usar; não há migração automática entre os dois modelos.</li>
+          </ol>
+          <p class="note"><strong>Desvincular não desinstala o Cliente:</strong> apenas retoma sua política local. Use a desinstalação do próprio programa, sem apagar as pastas manualmente. Jogos já removidos não são reinstalados por essa operação.</p>
+          <p>Consulte o <a href="../cliente/#remover">guia preservado de desinstalação do Cliente</a> ou o <a href="https://github.com/perabru/LabGuard/blob/main/central/README.md">manual da Central anterior</a> quando necessário.</p>
+        </section>
+
+        <section class="section" id="duvidas">
+          <h2>Dúvidas práticas</h2>
+          <details><summary>Preciso instalar algum programa nos alunos?</summary><p>Para esta edição de rede, o LabGuard fica no PC da TI. As estações precisam usar seu DNS; esse endereço pode ser distribuído pela rede ou configurado no Windows. Os testes pelo CMD usam ferramentas que já existem no sistema.</p></details>
+          <details><summary>O PC do técnico pode desligar depois de configurar?</summary><p>O PC e o LabGuard precisam continuar ligados para responder às consultas. Antes de parar o filtro, restaure o DNS anterior no DHCP ou nas estações. Deixar um computador usando um DNS desligado pode interromper a resolução de nomes.</p></details>
+          <details><summary>Ele remove Roblox, Minecraft ou outros jogos?</summary><p>O filtro DNS bloqueia os domínios aplicados, não desinstala programas. Jogos offline e aplicativos com outros domínios ou resolvedores próprios exigem outras políticas da escola. A administração remota avançada possui requisitos separados.</p></details>
+          <details><summary>Um site continua abrindo. O que conferir?</summary><p>Verifique a regra aplicada, o teste padrão da estação, domínios de autenticação e conteúdo, cache, DNS seguro do navegador e VPN. O filtro trata as consultas que efetivamente chegam a ele. Ele não inspeciona o conteúdo HTTPS nem corta toda a internet por IP/MAC.</p></details>
+          <details><summary>Como manter o filtro iniciado ao abrir o aplicativo?</summary><p>Marque <strong>Ligar este filtro ao abrir o LabGuard</strong> na configuração e inicie o filtro com sucesso. Com o filtro ativo, use <strong>Salvar início automático</strong> para alterar essa preferência. Para execução contínua como serviço, consulte a <a href="https://github.com/perabru/LabGuard/blob/main/docs/SERVIDORES.md">documentação avançada do servidor</a>.</p></details>
+        </section>
+
+        <section class="section" id="arquivos">
+          <h2>Downloads da edição de rede 2.4.3</h2>
+          <div class="files">
+            <a href="https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Setup.exe"><span><strong>Instalador Windows — PC do técnico</strong><small>LabGuard-Setup.exe · Python incluído</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Portable.zip"><span><strong>Pacote portátil Windows</strong><small>Extraia a pasta inteira antes de abrir o programa</small></span><span aria-hidden="true">↓</span></a>
+            <a href="../manual2/index.html"><span><strong>Manual de rede 2.4</strong><small>Banco de sites, relatórios e integrações avançadas</small></span><span class="link-arrow" aria-hidden="true"></span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/tag/v2.4.3"><span><strong>Publicação 2.4.3</strong><small>Pacotes Windows/Linux, fonte e somas SHA-256</small></span><span class="link-arrow" aria-hidden="true"></span></a>
+          </div>
+          <p class="sources">Referências de apoio: <a href="https://support.microsoft.com/pt-br/windows/experience/connectivity-networking/essential-network-settings-and-tasks-in-windows">configurações de rede do Windows</a> e <a href="https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/nslookup">comando nslookup</a>.</p>
+        </section>
       </div>
     </div>
   </main>
-  <footer><div class="wrap"><span>LabGuard Central · Guia do técnico</span><a href="../">Site do LabGuard</a></div></footer>
+  <footer><div class="wrap"><span>LabGuard 2.4.3 · Guia do técnico sem cliente</span><a href="../">Site do LabGuard</a></div></footer>
 </body>
 </html>

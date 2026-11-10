@@ -18,6 +18,7 @@
     <a class="back" href="../">Voltar ao site <span class="link-arrow" aria-hidden="true"></span></a>
   </div></header>
   <main id="conteudo">
+    <aside class="archive-banner"><div class="wrap"><strong>Edição alternativa com instalação na estação.</strong> Para usar o LabGuard pela rede, sem cliente nos alunos, siga o <a href="../tecnico/">guia atual do técnico</a>. Se este Cliente já foi instalado, veja <a href="#remover">como desinstalá-lo</a> antes da migração.</div></aside>
     <section class="hero"><div class="wrap hero-inner">
       <div>
         <p class="platform">Cliente 1.2.0 <span> / </span> Windows 10 e 11 · 64 bits</p>
@@ -55,7 +56,7 @@
           </ol>
           <details><summary>Como o cliente trata o Roblox e o Minecraft?</summary><p>O cliente verifica as edições reconhecidas do Roblox da Microsoft Store. Para o Roblox clássico instalado no perfil do aluno, tenta usar o desinstalador registrado e assinado pelo fabricante na entrada do usuário. Instalações desconhecidas podem exigir remoção pela TI. A opção de remoção do Minecraft da Store precisa ser marcada separadamente e pode apagar mundos locais.</p></details>
         </section>
-        <section id="central" class="section"><h2>Controle os sites pela Central do técnico</h2><p>Na versão 1.2.0, a aba <strong>Técnico</strong> permite importar o arquivo de vínculo gerado na Central. Os computadores vinculados recebem as listas de bloqueio e liberação definidas pelo técnico e mantêm a última lista válida quando ele estiver offline.</p><p>Abra o novo EXE como administrador e selecione <strong>Técnico → Importar vínculo</strong>. Uma instalação 1.1.0 existente é atualizada antes da conexão. <a href="../tecnico/"><strong>Instalar a Central e seguir o guia completo →</strong></a></p></section>
+        <section id="central" class="section"><h2>Controle os sites pela Central do técnico</h2><p>Na versão 1.2.0, a aba <strong>Técnico</strong> permite importar o arquivo de vínculo gerado na Central. Os computadores vinculados recebem as listas de bloqueio e liberação definidas pelo técnico e mantêm a última lista válida quando ele estiver offline.</p><p>Abra o novo EXE como administrador e selecione <strong>Técnico → Importar vínculo</strong>. Uma instalação 1.1.0 existente é atualizada antes da conexão. <a href="https://github.com/perabru/LabGuard/blob/main/central/README.md"><strong>Consultar o manual da Central com clientes →</strong></a></p></section>
         <section id="catalogo" class="section">
           <h2>Banco de sites</h2>
           <p>A instalação já inclui <strong>831 domínios</strong> em seis categorias com sites. A TI pode usar a categoria <strong>Outros</strong> para novos cadastros.</p>
@@ -83,6 +84,7 @@
         <section id="remover" class="section">
           <h2>Desinstalar</h2>
           <p>Em <strong>Banco de sites → Exportar CSV</strong>, salve os cadastros que deseja conservar e anote quais categorias estavam pausadas. Abra a cópia baixada como administrador e selecione <strong>Estação → Desinstalar cliente</strong>.</p>
+          <p><strong>Desvincular</strong> da Central apenas retoma a política local; para migrar ao filtro de rede sem Cliente, use <strong>Desinstalar cliente</strong>. Não apague as pastas manualmente.</p>
           <p>A remoção desfaz as regras gerenciadas e remove o banco local. Para voltar a usar um jogo desinstalado, reinstale-o e restaure os dados a partir do backup da escola.</p>
         </section>
         <section id="arquivos" class="section">

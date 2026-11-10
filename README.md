@@ -1,30 +1,39 @@
 # LabGuard 2.4.3
 
-No PC da TI, escolha **Proteger laboratório** para aplicar a lista inicial de jogos e sites adultos. Use **Administrar estações** ou **Painel web → Estações** para conferir o resultado em um PC do laboratório. O LabGuard testa o DNS diretamente na estação Windows por WinRM HTTPS e permite revisar, aplicar e restaurar o ajuste. A opção **Preparar acesso remoto** no painel web gera um script para a TI distribuir por GPO ou MDM a computadores com certificado de máquina confiável. No Windows da TI, **Preparar nesta estação** usa WMI/DCOM com Kerberos quando esse canal está disponível. Sem WinRM, WMI, domínio, MDM ou outro canal autorizado, a estação precisa de um primeiro provisionamento para receber comandos.
+**Edição de rede, administrada pelo técnico, sem instalar o LabGuard nos computadores dos alunos.** O painel 2.4.3 e seu filtro DNS rodam no PC da TI. As estações usam o IP desse computador como DNS, distribuído pelo DHCP/LAN do roteador quando disponível ou configurado no Windows. O Vivo e o switch Mercusys simples continuam no lugar.
 
-Painel em Python para conhecer a rede do laboratório e administrar os equipamentos compatíveis que já estão nela. A nova interface reúne **Início, Dispositivos, Sites e Atividade**.
+## Baixar a versão de rede
 
-**Começa em Observação real:** consulta o computador, a rota padrão e os vizinhos conhecidos, com leituras locais alternativas quando o método principal falha. O resumo indica origem, recência e limites da amostra. Para começar, não precisa trocar cabos, instalar gateway ou informar credenciais.
+- **[LabGuard-Setup.exe 2.4.3 — instalar no PC do técnico](https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Setup.exe)**
+- [LabGuard-Portable.zip 2.4.3 — pacote portátil](https://github.com/perabru/LabGuard/releases/download/v2.4.3/LabGuard-Portable.zip)
+- **[Guia do técnico sem cliente](https://perabru.github.io/LabGuard/tecnico/)**
+- [Todos os pacotes 2.4.3 e SHA-256](https://github.com/perabru/LabGuard/releases/tag/v2.4.3)
 
-[Comece aqui](docs/COMECE_AQUI.md) · [Manual 2.4](https://perabru.github.io/LabGuard/manual2/index.html) · [Manual em PDF](docs/Manual_LabGuard_2.pdf) · [Versões e downloads](https://github.com/perabru/LabGuard/releases) · [Site](https://perabru.github.io/LabGuard/)
+Esta retomada usa o aplicativo 2.4.3 já publicado. O executável principal permanece igual ao dessa versão; o site e este guia voltam a apresentar o funcionamento pela rede.
 
-## Cliente Windows para o computador do aluno
+## Começar sem cliente nas estações
 
-Instale a proteção diretamente na estação Windows para que ela comece na mesma sessão e volte a cada boot. A TI gerencia um banco SQLite de 831 domínios, o modo de sites permitidos e o controle local de jogos. A edição da estação funciona com o painel da TI desligado. [Baixar o cliente 1.2.0, a fonte Python e o catálogo](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.2.0) · [Guia rápido do cliente](https://perabru.github.io/LabGuard/cliente/) · [Guia rápido em PDF da instalação local 1.1](https://perabru.github.io/LabGuard/cliente/Guia_Rapido_LabGuard_Cliente.pdf) · [Instalação e uso](client/README.md).
+1. Instale o **LabGuard-Setup.exe** no PC do técnico. Ao abrir, o programa começa em **Observação real**; essa leitura ainda não aplica bloqueios.
+2. Reserve o IPv4 desse PC. Em **Configurar → 1. Ligar filtro**, escolha a conexão do laboratório; use **Ajustar IP / DNS** para conferir o **IP deste PC**, a **Rede autorizada (CIDR)** e o resolvedor de saída adequado à escola. Autorize e use **Iniciar filtro DNS**. **Proteger laboratório** permite revisar e aplicar a lista inicial de domínios de jogos e adultos.
+3. Permita **UDP e TCP 53** entre a rede do laboratório e o filtro. No DHCP/LAN do Vivo, quando o modelo permitir, distribua o IP do PC da TI como DNS. Outra opção é a configuração de DNS do adaptador Windows. O [guia sem cliente](https://perabru.github.io/LabGuard/tecnico/#dns) detalha os dois caminhos. Preserve o IP, o gateway e os serviços internos da escola.
+4. No PC do técnico, abra **Configurar → 3. Testar → Diagnóstico manual**. Copie os testes direto e padrão e execute-os no CMD de uma estação piloto. Os dois precisam retornar o mesmo código `LabGuard-...` da sessão ativa. Esse caminho não exige WinRM, pareamento nem aplicativo instalado no aluno.
+5. Em **Sites**, adicione um domínio com **Bloquear domínio**. Para retirar um bloqueio manual, selecione a regra e clique **Remover**. Em **Banco de sites**, salvar ou excluir altera o cadastro; use **Aplicar ao gateway** para refletir a lista no filtro e confira o resultado.
 
-## Central do técnico: gerenciar sites em todos os computadores
+**Mantenha o PC da TI e o LabGuard ligados enquanto as estações usarem esse DNS.** A opção **Ligar este filtro ao abrir o LabGuard** retoma o filtro ao abrir o aplicativo; não instala uma inicialização automática com o Windows. Antes de parar o filtro, restaure o DNS anterior nas estações ou no DHCP.
 
-A **LabGuard Central 1.0.0**, instalada no PC do técnico, oferece um painel com senha para **adicionar, excluir, liberar e bloquear sites**. O **Cliente 1.2.0** recebe a política por HTTPS e confirma a revisão aplicada; mantém a última lista válida se a Central ficar offline. Gere um arquivo de vínculo exclusivo por estação e importe na aba **Técnico** do cliente. Os controles de jogos continuam locais, e esta edição dispensa WinRM e mudanças no DNS do roteador.
+A filtragem cobre as consultas DNS que chegam ao LabGuard. Um bloqueio em domínio pai, no perfil de IA ou no resolvedor de saída pode continuar valendo após remover uma regra manual. O DNS não desinstala jogos; VPN, DNS seguro do navegador e resolvedores alternativos podem exigir políticas adicionais da escola. Não configure um DNS público alternativo que contorne o filtro.
 
-[Baixar LabGuardTecnico.exe](https://github.com/perabru/LabGuard/releases/download/central-v1.0.0/LabGuardTecnico.exe) · [Guia da Central](https://perabru.github.io/LabGuard/tecnico/) · [Manual e fonte](central/README.md).
+### Se a edição Cliente já estiver instalada
+
+Para voltar à administração somente pela rede, abra a **cópia baixada de LabGuardCliente.exe como administrador** na estação e use **Estação → Desinstalar cliente**. Exporte antes os cadastros locais que pretende conservar. A desinstalação remove a proteção gerenciada e restaura as alterações correspondentes; **Desvincular** apenas retoma a política local e não remove essa proteção. Não apague pastas manualmente. Jogos já desinstalados não são reinstalados por essa operação. Veja o [passo de migração](https://perabru.github.io/LabGuard/tecnico/#migrar).
 
 ## Vivo + switch Mercusys não gerenciável
 
-Abra **Configurar → 1. Ligar filtro**. O computador passa a responder DNS UDP/TCP e a filtrar os domínios aplicados. É necessário apontar as estações para esse DNS, pelo DHCP/LAN do Vivo se o modelo permitir, ou na configuração das estações. O switch continua no lugar e não precisa de configuração.
+O filtro usa o IP do PC da TI, não o IP do roteador. Não é necessário reposicionar o computador entre o Vivo e o switch nem configurar o switch simples. O ajuste necessário é fazer as estações consultarem o DNS do LabGuard. O software não configura automaticamente todos os modelos de modem Vivo.
 
-Selecione uma estação gerenciada e use **Testar DNS** para comparar a resposta direta do filtro com a resposta do DNS padrão da estação. O painel mostra se a consulta direta funcionou e a padrão recebeu domínio inexistente, inclusive quando o Windows seleciona outro DNS em IPv6. O autoteste do próprio PC possui contador separado. Mantenha o filtro ligado e restaure os clientes antes de parar o DNS. [Guia Vivo e Mercusys](docs/VIVO_MERCUSYS.md).
+O teste manual pelo CMD permite validar o caminho sem acesso remoto. **Administrar estações** e **Painel web → Estações** continuam como ferramentas opcionais para ambientes que já têm WinRM HTTPS, SSH, WMI, domínio ou MDM preparados. Um erro de WinRM não impede o filtro DNS de atender uma estação que usa seu endereço corretamente.
 
-Se o teste local funcionar e a estação continuar com **Sem confirmação**, clique em **Verificar porta** no desktop da TI. Em seguida, teste com uma conta autorizada na estação. O diagnóstico completo está no [guia de início](docs/COMECE_AQUI.md).
+O painel reúne **Início, Dispositivos, Sites e Atividade**. A observação mostra a rota e os vizinhos disponíveis; o filtro ativo registra as consultas recebidas. Consulte o [guia do técnico](https://perabru.github.io/LabGuard/tecnico/), o [manual de rede 2.4](https://perabru.github.io/LabGuard/manual2/index.html) e a [documentação avançada de Vivo e Mercusys](docs/VIVO_MERCUSYS.md).
 
 ## Início e atualizações
 
@@ -89,6 +98,13 @@ python3 main.py
 No Debian/Ubuntu, instale `python3-tk` se necessário. No Windows, use também `iniciar.bat`. Recursos opcionais dependem das bibliotecas de `requirements.txt`; instale-as no ambiente usado para executar o projeto.
 
 A [versão 2.4.3](https://github.com/perabru/LabGuard/releases/tag/v2.4.3) inclui diagnóstico de porta, certificado e autenticação da estação. Os 510 testes locais passaram, assim como a instalação no Windows, a atualização de 2.4.2 para 2.4.3 e os testes de serviço no Linux. [Resultados e limites de validação](docs/VALIDACAO.md).
+
+## Edições alternativas preservadas
+
+A edição **Cliente 1.2.0** e a **Central 1.0.0** continuam disponíveis para quem já usa proteção instalada em cada estação. Elas não fazem parte do fluxo sem cliente descrito acima.
+
+- [Cliente: documentação e desinstalação](client/README.md) · [publicação 1.2.0](https://github.com/perabru/LabGuard/releases/tag/cliente-v1.2.0).
+- [Central com clientes: manual e fonte](central/README.md) · [publicação 1.0.0](https://github.com/perabru/LabGuard/releases/tag/central-v1.0.0).
 
 ## Documentação e legado
 
