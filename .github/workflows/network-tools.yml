@@ -1,0 +1,76 @@
+name: Validar ferramenta DNS sem cliente
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "network-tools/**"
+      - ".github/workflows/network-tools.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: labguard-network-tools-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-validation:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Conferir comandos nativos somente para leitura
+        shell: pwsh
+        run: |
+          $probeReport = Join-Path $env:RUNNER_TEMP "LabGuard-DNS-native-probe.json"
+          & powershell.exe -NoLogo -NoProfile -NonInteractive -File ./network-tools/tests/Read-NativeDNSCapabilities.ps1 -ReportPath $probeReport
+          if ($LASTEXITCODE -ne 0) { throw "A leitura nativa DNS/binding IPv6 falhou." }
+
+      - name: Validar no Windows PowerShell 5.1 sem alterar a rede
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP "LabGuard-DNS-validation.json"
+          & powershell.exe -NoLogo -NoProfile -NonInteractive -File ./network-tools/tests/Test-LabGuardDNS.ps1 -ReportPath $report
+          if ($LASTEXITCODE -ne 0) { throw "A ferramenta DNS nao passou na validacao isolada." }
+
+      - name: Preservar o relatorio e seus limites
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-DNS-Validacao-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/LabGuard-DNS-native-probe.json
+            ${{ runner.temp }}/LabGuard-DNS-validation.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Empacotar o utilitario verificado
+        shell: pwsh
+        run: |
+          $packageDirectory = Join-Path $env:RUNNER_TEMP "LabGuard-DNS-Pacote"
+          $outputDirectory = Join-Path $env:RUNNER_TEMP "LabGuard-DNS-Entrega"
+          New-Item -ItemType Directory -Path $packageDirectory, $outputDirectory | Out-Null
+          Copy-Item ./network-tools/LabGuard-DNS-Sem-Cliente.ps1 $packageDirectory
+          Copy-Item ./network-tools/README.md $packageDirectory
+          $lines = Get-ChildItem $packageDirectory -File | Sort-Object Name | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          }
+          $lines | Set-Content (Join-Path $packageDirectory "SHA256SUMS.txt") -Encoding ascii
+          $archive = Join-Path $outputDirectory "LabGuard-DNS-Sem-Cliente.zip"
+          Compress-Archive -Path (Join-Path $packageDirectory "*") -DestinationPath $archive -CompressionLevel Optimal
+          "{0}  {1}" -f (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant(), (Split-Path $archive -Leaf) |
+            Set-Content (Join-Path $outputDirectory "SHA256SUMS.txt") -Encoding ascii
+          Copy-Item (Join-Path $env:RUNNER_TEMP "LabGuard-DNS-validation.json") $outputDirectory
+
+      - name: Preservar o pacote para revisao e publicacao independente
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-DNS-Sem-Cliente-${{ github.sha }}
+          path: ${{ runner.temp }}/LabGuard-DNS-Entrega/*
+          if-no-files-found: error
+          retention-days: 30
