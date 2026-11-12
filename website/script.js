@@ -1,131 +1,36 @@
 "use strict";
-
 (() => {
-  const body = document.body;
-  const themeButton = document.querySelector("#theme-switch");
-  const themeIcon = themeButton?.querySelector("use");
-  function setTheme(dark) {
-    body.classList.toggle("theme-dark", dark);
-    themeButton?.setAttribute("aria-pressed", String(dark));
-    themeButton?.setAttribute("aria-label", dark ? "Ativar tema claro" : "Ativar tema escuro");
-    themeIcon?.setAttribute("href", dark ? "#i-moon" : "#i-sun");
+  const body=document.body, themeButton=document.querySelector("#theme-switch"), themeIcon=themeButton?.querySelector("use");
+  function setTheme(dark){body.classList.toggle("theme-dark",dark);themeButton?.setAttribute("aria-pressed",String(dark));themeButton?.setAttribute("aria-label",dark?"Ativar tema claro":"Ativar tema escuro");themeIcon?.setAttribute("href",dark?"#i-moon":"#i-sun");}
+  let savedTheme=null;try{savedTheme=localStorage.getItem("labguard-promo-theme");}catch{}
+  setTheme(savedTheme==="dark");themeButton?.addEventListener("click",()=>{const dark=!body.classList.contains("theme-dark");setTheme(dark);try{localStorage.setItem("labguard-promo-theme",dark?"dark":"light");}catch{}});
+  const menuButton=document.querySelector(".menu-toggle"),menu=document.querySelector("#main-nav");
+  function closeMenu(){menu?.classList.remove("is-open");menuButton?.setAttribute("aria-expanded","false");menuButton?.setAttribute("aria-label","Abrir menu");}
+  menuButton?.addEventListener("click",()=>{const expanded=menuButton.getAttribute("aria-expanded")!=="true";menu?.classList.toggle("is-open",expanded);menuButton.setAttribute("aria-expanded",String(expanded));menuButton.setAttribute("aria-label",expanded?"Fechar menu":"Abrir menu");});
+  menu?.querySelectorAll("a").forEach(link=>link.addEventListener("click",closeMenu));document.addEventListener("keydown",event=>{if(event.key==="Escape")closeMenu();});
+  const machines=[...document.querySelectorAll(".machine-card[data-machine]")],onlineCount=document.querySelector("#demo-online-count"),feedback=document.querySelector("#demo-feedback"),aiButton=document.querySelector("#ai-toggle"),aiStatus=document.querySelector("#demo-ai-status"),aiServices=document.querySelector("#ai-service-list");
+  function setMachine(card,blocked,announce=true){card.classList.toggle("is-blocked",blocked);const button=card.querySelector(".machine-toggle");button.setAttribute("aria-pressed",String(blocked));button.textContent=blocked?"Restaurar internet":"Suspender internet";card.querySelector(".machine-state").textContent=blocked?"Suspensa":"Permitida";onlineCount.textContent=String(machines.filter(machine=>!machine.classList.contains("is-blocked")).length+1).padStart(2,"0");if(announce)feedback.textContent=`Simulação: internet ${blocked?"suspensa":"restaurada"} em ${card.querySelector("h5").textContent}. Sua rede não foi alterada.`;}
+  machines.forEach(card=>card.querySelector(".machine-toggle").addEventListener("click",()=>setMachine(card,!card.classList.contains("is-blocked"))));
+  function setAI(enabled,announce=true){aiButton.setAttribute("aria-checked",String(enabled));aiStatus.textContent=enabled?"Ativado":"Desativado";aiServices.classList.toggle("is-blocked",enabled);if(announce)feedback.textContent=`Simulação: perfil de domínios de IA ${enabled?"ativado":"desativado"}. Nenhum bloqueio real foi aplicado.`;}
+  aiButton?.addEventListener("click",()=>setAI(aiButton.getAttribute("aria-checked")!=="true"));document.querySelector("#demo-reset")?.addEventListener("click",()=>{machines.forEach(card=>setMachine(card,card.dataset.machine==="3",false));setAI(false,false);feedback.textContent="Demonstração reiniciada. Todos os dados e controles são fictícios.";});
+  // Local client release is independent from the network edition's /latest release.
+  const gamesUrl="jogos/", gamesRelease="https://github.com/perabru/LabGuard/releases/download/jogos-v2.1.0/";
+  if(menu&&!menu.querySelector('[data-games-nav]')){const link=document.createElement("a");link.href=gamesUrl;link.textContent="Cliente de jogos";link.dataset.gamesNav="true";link.addEventListener("click",closeMenu);menu.appendChild(link);}
+  const heroButtons=document.querySelector(".hero-buttons");if(heroButtons&&!document.querySelector("#games-hero-link")){const link=document.createElement("a");link.id="games-hero-link";link.className="button button-primary";link.href=gamesUrl;link.textContent="Cliente 2.1: jogos, Xbox e YouTube";heroButtons.appendChild(link);}
+  const section=document.querySelector("#download .container")||document.querySelector("#download");
+  if(section&&!document.querySelector("#games-download-card")){
+    const card=document.createElement("article");card.id="games-download-card";card.className="feature-card feature-blue";
+    const title=document.createElement("h3");title.textContent="LabGuard Jogos 2.1.0 — cliente Windows";
+    const text=document.createElement("p");text.textContent="Fecha jogos reconhecidos em checagens de aproximadamente 2 segundos e mantém a limpeza a cada 5 minutos. Inclui Xbox, jogos Windows do catálogo e Bloquear/Liberar YouTube no painel. Instalação em cada estação, com autorização administrativa; exclusão permanente dos alvos.";
+    const links=document.createElement("div");links.className="hero-buttons";
+    const exe=document.createElement("a");exe.className="button button-primary";exe.href=gamesRelease+"LabGuard-Jogos.exe";exe.textContent="Baixar cliente 2.1 (.exe)";
+    const guide=document.createElement("a");guide.className="button button-plain";guide.href=gamesUrl;guide.textContent="Instalação, atualização e regras da coordenação";links.append(exe,guide);card.append(title,text,links);section.prepend(card);
   }
-  let savedTheme = null;
-  try { savedTheme = localStorage.getItem("labguard-promo-theme"); } catch { /* Theme is optional. */ }
-  setTheme(savedTheme === "dark");
-  themeButton?.addEventListener("click", () => {
-    const dark = !body.classList.contains("theme-dark");
-    setTheme(dark);
-    try { localStorage.setItem("labguard-promo-theme", dark ? "dark" : "light"); } catch { /* Local storage may be disabled. */ }
-  });
-
-  const menuButton = document.querySelector(".menu-toggle");
-  const menu = document.querySelector("#main-nav");
-  function closeMenu() {
-    menu?.classList.remove("is-open");
-    menuButton?.setAttribute("aria-expanded", "false");
-    menuButton?.setAttribute("aria-label", "Abrir menu");
-  }
-  menuButton?.addEventListener("click", () => {
-    const expanded = menuButton.getAttribute("aria-expanded") !== "true";
-    menu?.classList.toggle("is-open", expanded);
-    menuButton.setAttribute("aria-expanded", String(expanded));
-    menuButton.setAttribute("aria-label", expanded ? "Fechar menu" : "Abrir menu");
-  });
-  menu?.querySelectorAll("a").forEach(link => link.addEventListener("click", closeMenu));
-  document.addEventListener("keydown", event => { if (event.key === "Escape") closeMenu(); });
-
-  const machines = [...document.querySelectorAll(".machine-card[data-machine]")];
-  const onlineCount = document.querySelector("#demo-online-count");
-  const feedback = document.querySelector("#demo-feedback");
-  const aiButton = document.querySelector("#ai-toggle");
-  const aiStatus = document.querySelector("#demo-ai-status");
-  const aiServices = document.querySelector("#ai-service-list");
-  function setMachine(card, blocked, announce = true) {
-    card.classList.toggle("is-blocked", blocked);
-    const button = card.querySelector(".machine-toggle");
-    button.setAttribute("aria-pressed", String(blocked));
-    button.textContent = blocked ? "Restaurar internet" : "Suspender internet";
-    card.querySelector(".machine-state").textContent = blocked ? "Suspensa" : "Permitida";
-    onlineCount.textContent = String(machines.filter(machine => !machine.classList.contains("is-blocked")).length + 1).padStart(2, "0");
-    if (announce) feedback.textContent = `Simulação: internet ${blocked ? "suspensa" : "restaurada"} em ${card.querySelector("h5").textContent}. Sua rede não foi alterada.`;
-  }
-  machines.forEach(card => card.querySelector(".machine-toggle").addEventListener("click", () => setMachine(card, !card.classList.contains("is-blocked"))));
-  function setAI(enabled, announce = true) {
-    aiButton.setAttribute("aria-checked", String(enabled));
-    aiStatus.textContent = enabled ? "Ativado" : "Desativado";
-    aiServices.classList.toggle("is-blocked", enabled);
-    if (announce) feedback.textContent = `Simulação: perfil de domínios de IA ${enabled ? "ativado" : "desativado"}. Nenhum bloqueio real foi aplicado.`;
-  }
-  aiButton?.addEventListener("click", () => setAI(aiButton.getAttribute("aria-checked") !== "true"));
-  document.querySelector("#demo-reset")?.addEventListener("click", () => {
-    machines.forEach(card => setMachine(card, card.dataset.machine === "3", false));
-    setAI(false, false);
-    feedback.textContent = "Demonstração reiniciada. Todos os dados e controles são fictícios.";
-  });
-
-  // The local games agent is distinct from the DNS/network edition.
-  // Downloads point to the published dedicated release, never to /latest.
-  const gamesUrl = "jogos/";
-  if (menu && !menu.querySelector('[data-games-nav]')) {
-    const link = document.createElement("a");
-    link.href = gamesUrl; link.textContent = "Remover jogos";
-    link.dataset.gamesNav = "true"; link.addEventListener("click", closeMenu);
-    menu.appendChild(link);
-  }
-  const heroButtons = document.querySelector(".hero-buttons");
-  if (heroButtons && !document.querySelector("#games-hero-link")) {
-    const link = document.createElement("a");
-    link.id = "games-hero-link"; link.className = "button button-primary";
-    link.href = gamesUrl; link.textContent = "Novo: removedor de jogos (.exe)";
-    heroButtons.appendChild(link);
-  }
-  const downloadSection = document.querySelector("#download .container") || document.querySelector("#download");
-  if (downloadSection && !document.querySelector("#games-download-card")) {
-    const card = document.createElement("article");
-    card.id = "games-download-card"; card.className = "feature-card feature-blue";
-    const title = document.createElement("h3"); title.textContent = "LabGuard Jogos 2.0.0 — executável local";
-    const text = document.createElement("p");
-    text.textContent = "Instale em cada computador: painel visível, rotina SYSTEM no início do Windows e checagem a cada 5 minutos. Steam, Roblox Player, Epic, Minecraft e emuladores reconhecidos. Jogos desconhecidos exigem cadastro da pasta; a exclusão é permanente.";
-    const links = document.createElement("div"); links.className = "hero-buttons";
-    const exe = document.createElement("a"); exe.className = "button button-primary";
-    exe.href = "https://github.com/perabru/LabGuard/releases/download/jogos-v2.0.0/LabGuard-Jogos.exe";
-    exe.textContent = "Baixar LabGuard-Jogos.exe";
-    const guide = document.createElement("a"); guide.className = "button button-plain";
-    guide.href = gamesUrl; guide.textContent = "Instalação, alcance e regras da coordenação";
-    links.append(exe, guide); card.append(title, text, links); downloadSection.prepend(card);
-  }
-
-  // Public release metadata only: no user, school or network data are sent.
-  const releaseStatus = document.querySelector("#release-status");
-  const controller = new AbortController();
-  const releaseTimeout = window.setTimeout(() => controller.abort(), 6500);
-  fetch("https://api.github.com/repos/perabru/LabGuard/releases/latest", {
-    signal: controller.signal,
-    headers: { "Accept": "application/vnd.github+json" }
-  }).then(response => {
-    if (!response.ok) throw new Error("Release unavailable");
-    return response.json();
-  }).then(release => {
-    const version = /^v2\.(\d+)\.(\d+)$/.exec(String(release.tag_name || ""));
-    if (!version || Number(version[1]) < 3) throw new Error("Versão 2.3 ainda em publicação");
-    const assets = Array.isArray(release.assets) ? release.assets : [];
-    document.querySelectorAll("[data-release-asset]").forEach(link => {
-      const asset = assets.find(item => item.name === link.dataset.releaseAsset);
-      if (asset && typeof asset.browser_download_url === "string" && asset.browser_download_url.startsWith("https://github.com/perabru/LabGuard/releases/download/")) {
-        link.href = asset.browser_download_url;
-        link.textContent = link.dataset.downloadLabel;
-      }
-    });
-    const setup = assets.find(asset => asset.name === "LabGuard-Setup.exe") || null;
-    if (setup && typeof setup.browser_download_url === "string" && setup.browser_download_url.startsWith("https://github.com/perabru/LabGuard/releases/download/")) {
-      document.querySelectorAll(".download-link").forEach(link => { link.href = setup.browser_download_url; });
-      const size = Number(setup.size);
-      if (releaseStatus) releaseStatus.textContent = `${String(release.tag_name || "Versão disponível").slice(0, 40)} · Instalador Windows${Number.isFinite(size) && size > 0 ? ` · ${(size / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB` : ""} · Consulte o guia antes de configurar a rede.`;
-    } else if (releaseStatus) {
-      releaseStatus.textContent = "Os arquivos disponíveis estão na página de versões do GitHub. Confira o instalador e as instruções antes de baixar.";
-    }
-  }).catch(() => {
-    if (releaseStatus) releaseStatus.textContent = "Consulte a página de versões no GitHub para verificar a disponibilidade do instalador. O código-fonte também está disponível no repositório.";
-  }).finally(() => window.clearTimeout(releaseTimeout));
+  const releaseStatus=document.querySelector("#release-status"),controller=new AbortController();const timeout=window.setTimeout(()=>controller.abort(),6500);
+  fetch("https://api.github.com/repos/perabru/LabGuard/releases/latest",{signal:controller.signal,headers:{"Accept":"application/vnd.github+json"}}).then(response=>{if(!response.ok)throw new Error("Release unavailable");return response.json();}).then(release=>{
+    const version=/^v2\.(\d+)\.(\d+)$/.exec(String(release.tag_name||""));if(!version||Number(version[1])<3)throw new Error("Versão de rede indisponível");const assets=Array.isArray(release.assets)?release.assets:[];
+    document.querySelectorAll("[data-release-asset]").forEach(link=>{const asset=assets.find(item=>item.name===link.dataset.releaseAsset);if(asset&&typeof asset.browser_download_url==="string"&&asset.browser_download_url.startsWith("https://github.com/perabru/LabGuard/releases/download/")){link.href=asset.browser_download_url;link.textContent=link.dataset.downloadLabel;}});
+    const setup=assets.find(asset=>asset.name==="LabGuard-Setup.exe")||null;
+    if(setup&&typeof setup.browser_download_url==="string"&&setup.browser_download_url.startsWith("https://github.com/perabru/LabGuard/releases/download/")){document.querySelectorAll(".download-link").forEach(link=>{link.href=setup.browser_download_url;});const size=Number(setup.size);if(releaseStatus)releaseStatus.textContent=`${String(release.tag_name||"Versão disponível").slice(0,40)} · Instalador de rede Windows${Number.isFinite(size)&&size>0?` · ${(size/1048576).toLocaleString("pt-BR",{maximumFractionDigits:1})} MB`:""} · Consulte o guia antes de configurar a rede.`;}else if(releaseStatus){releaseStatus.textContent="Consulte os arquivos da edição de rede na página de versões do GitHub.";}
+  }).catch(()=>{if(releaseStatus)releaseStatus.textContent="Consulte a página de versões no GitHub para verificar o instalador de rede. O cliente local de jogos tem download separado acima.";}).finally(()=>window.clearTimeout(timeout));
 })();
