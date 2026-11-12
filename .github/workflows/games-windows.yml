@@ -1,0 +1,40 @@
+name: LabGuard Jogos - Windows EXE
+on:
+  push:
+    branches: [main]
+    paths: ['games/**', '.github/workflows/games-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: labguard-games-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Compile and smoke-test on Windows PowerShell 5.1
+        shell: powershell
+        run: ./games/build.ps1
+      - name: Upload verified Windows files
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Jogos-Windows
+          path: games/dist/*
+          if-no-files-found: error
+      - name: Publish dedicated games release without replacing network edition latest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = 'jogos-v2.0.0'
+          gh release view $tag --json id 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard Jogos 2.0.0 - Windows x64' --notes-file games/README.md --latest=false
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          gh release upload $tag games/dist/LabGuard-Jogos.exe games/dist/LabGuard-Jogos-Windows.zip games/dist/SHA256SUMS.txt games/dist/build-info.json --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
