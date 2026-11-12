@@ -15,25 +15,33 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - name: Compile and smoke-test on Windows PowerShell 5.1
+      - name: Compile and verify on Windows PowerShell 5.1
         shell: powershell
         run: ./games/build.ps1
-      - name: Upload verified Windows files
+      - name: Upload verified Windows files and auditable source
         uses: actions/upload-artifact@v4
         with:
-          name: LabGuard-Jogos-Windows
-          path: games/dist/*
+          name: LabGuard-Jogos-Windows-2.1.0
+          path: |
+            games/dist/LabGuard-Jogos.exe
+            games/dist/LabGuard-Jogos-Windows.zip
+            games/dist/SHA256SUMS.txt
+            games/dist/build-info.json
+            games/dist/LEIA-ME.md
+            games/dist/Engine.assembled.ps1
+            games/dist/LabGuard.assembled.cs
+            games/dist/Guardian.assembled.cs
           if-no-files-found: error
-      - name: Publish dedicated games release without replacing network edition latest
+      - name: Publish games release only after verification
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          $tag = 'jogos-v2.0.0'
+          $tag = 'jogos-v2.1.0'
           gh release view $tag --json id 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard Jogos 2.0.0 - Windows x64' --notes-file games/README.md --latest=false
+            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard Jogos 2.1.0 - YouTube, Xbox e fechamento automatico' --notes-file games/README.md --latest=false
             if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
           }
           gh release upload $tag games/dist/LabGuard-Jogos.exe games/dist/LabGuard-Jogos-Windows.zip games/dist/SHA256SUMS.txt games/dist/build-info.json --clobber

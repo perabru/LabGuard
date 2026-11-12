@@ -1,31 +1,53 @@
-# LabGuard Jogos 2.0.0
+# LabGuard Jogos 2.1.0 — cliente Windows
 
-Agente administrativo local, independente do filtro DNS. Windows 10/11 x64 com Windows PowerShell 5.1 e .NET Framework 4.8. O EXE abre um painel visivel e solicita UAC apenas para administrar. Nao exige Python e nao desliga o antivirus, o UAC ou politicas de seguranca.
+Windows 10/11 x64, Windows PowerShell 5.1 e .NET Framework 4.8. Não exige Python. Instale somente nas estações administradas pela escola; é necessária uma conta administrativa no UAC. Depois da instalação não há confirmação do aluno a cada ação.
 
-## Instalar
-1. Abra `LabGuard-Jogos.exe` e clique em **Instalar e ativar**.
-2. Autorize o UAC com uma conta administrativa da escola e confirme o aviso de remocao permanente. Saves e mundos nos caminhos removidos podem ser perdidos: faca backup antes.
-3. Confira **Status** e **Ver registros**. A tarefa `LabGuard-Jogos2-Limpeza` usa SYSTEM no boot, login e a cada 5 minutos. Operacoes demoradas nao se sobrepoem; o ciclo seguinte pode aguardar o anterior.
-4. O painel inicia no login de cada usuario. O status diferencia rotina instalada, em execucao, pausada, falha e resultado antigo. Se a instalacao for feita dentro da conta do tecnico, encerre a sessao e entre na conta do aluno para iniciar o painel nessa sessao.
+## Novidades
 
-## Alvos e limites
-Steam, Roblox Player, Epic Games Launcher, Minecraft de jogos, launchers alternativos e emuladores do catalogo. Instalacoes MSI e Microsoft Store reconhecidas usam os mecanismos de desinstalacao do Windows; outras instalacoes reconhecidas sao removidas por caminhos delimitados. Podem permanecer entradas antigas de desinstalacao e componentes compartilhados. Nao se executam comandos arbitrarios encontrados no Registro como SYSTEM.
+- Monitor SYSTEM independente do painel: verifica processos em intervalo nominal de 2 segundos e encerra jogos/launchers reconhecidos. Tenta fechar a janela quando está na mesma sessão; se necessário, encerra o processo. Isso pode perder progresso não salvo do jogo.
+- Limpeza de arquivos e desinstalação continuam a cada 5 minutos, no início do Windows e no login. Operações demoradas não são sobrepostas.
+- Xbox (Gaming App e aplicativo antigo), Game Bar e jogos Microsoft Store do catálogo: Paciência, Mahjong, Campo Minado, Sudoku, Jigsaw e Bingo. Pacotes compatíveis são desinstalados para todos os usuários e retirados do provisionamento para novos perfis. Nem todos esses jogos existem em toda versão do Windows.
+- Preserva Microsoft Store, calculadora, bloco de notas, Paint, frameworks, Gaming Services, identidade compartilhada do Xbox e componentes não removíveis. Não apaga a pasta WindowsApps nem executa remoção genérica de aplicativos Microsoft.
+- YouTube bloqueado por padrão na instalação/atualização, com **Bloquear YouTube** e **Liberar YouTube** no painel. Usa entradas delimitadas no hosts e políticas de URL do Chrome, Edge e Firefox. Não encerra o navegador nem suas outras abas. Reabra o navegador depois de alterar a política. Exceções corporativas, outros navegadores, proxies e configurações externas podem interferir; não é interceptação universal de tráfego.
+- O X do painel mantém o monitor na bandeja. A tarefa SYSTEM continua mesmo se o painel for encerrado. O estado do monitor e a quantidade de processos encerrados aparecem no painel; ausência de heartbeat é sinalizada, não mostrada como proteção ativa.
 
-Jogos de ISO sao identificados pelo cadastro instalado ou por nome + executavel em pastas de jogos. Nao ha um indicador universal de que um aplicativo foi instalado de ISO. ISOs desconhecidas sao sinalizadas, nao excluidas. Jogos fora do catalogo, portateis ou renomeados exigem **Aprovar pasta de jogo**; selecione apenas a pasta exclusiva do jogo. Steam/Epic podem conter ferramentas educacionais: conteudo fora do catalogo fica pendente para aprovacao, nao e presumido jogo.
+## Instalar ou atualizar
 
-Preserva por padrao Roblox Studio, Minecraft Education, Unreal Engine, Android Studio, ferramentas de desenvolvimento, documentos e pastas genericas. Nao remove `.iso`/`.exe` por extensao, nem todas as pastas de Downloads. Nao ha garantia de identificar todos os jogos. A conta do aluno deve ser padrao, nao administradora; um administrador local pode desativar a ferramenta.
+1. Abra `LabGuard-Jogos.exe`, confira **Simular sem apagar** e clique em **Instalar e ativar**.
+2. Autorize a conta administrativa e confirme a política. Faça backup: a remoção é permanente e pode atingir saves/mundos nas pastas de jogos.
+3. Confira os estados e os registros. A instalação inicia a limpeza e o monitor. O painel também começa no login de cada usuário.
 
-## Tela e arquivos suspeitos
-As capturas ficam **desligadas por padrao**. O tecnico pode autoriza-las explicitamente no painel, conforme a politica da escola e o aviso aos usuarios. O painel mostra aviso permanente; a captura ocorre na sessao interativa, no maximo a cada 5 minutos, sem envio a servidor. O usuario pode suspender as capturas da sessao. Retencao local de 24 horas, limite de 24 imagens por usuario. A imagem e acompanhada de indicios de processos conhecidos, nao de uma classificacao visual por IA. Nenhum arquivo e apagado por conclusao extraida de uma imagem.
+Na atualização, abra o novo EXE de uma pasta diferente da instalação, por exemplo Downloads. A rotina fecha somente os processos da versão antiga instalados em `%ProgramFiles%\LabGuardJogos2` para substituir o arquivo, sem encerrar o LabGuard de rede. Se a limpeza anterior estiver em execução, a atualização é recusada com instrução para pausar e concluir essa operação primeiro. A atualização não é instalada remotamente nos computadores por publicar o download.
 
-Arquivos suspeitos sao encaminhados a analise do Microsoft Defender: ate dois arquivos novos/alterados por ciclo entre os oito mais recentes de Downloads de cada perfil, com limite de espera. A remediacao/quarentena segue a politica do antivirus. Erros ou antivirus inativo aparecem como pendencias; isso nao equivale a uma garantia de computador limpo.
+## Alvos, exclusões e limites
 
-## Controle e registros
-- Administracao: Instalar, Simular, Verificar agora, Pausar, Retomar, Aprovar pasta, Autorizar/desligar capturas e Desativar instalacao.
-- Binario/configuracao: `%ProgramFiles%\LabGuardJogos2` (alteracoes so por administradores/SYSTEM).
-- Status/logs: `%ProgramData%\LabGuardJogos2`.
-- Evidencias da sessao: `%LocalAppData%\LabGuardJogos2\Capturas`.
-- Desativar remove a tarefa, o inicio automatico e o cadastro do produto. Mantem o binario e os registros para auditoria; nao restaura dados de jogos removidos.
+Inclui Steam, Roblox Player, Epic Games Launcher, Minecraft de jogos, emuladores catalogados e Xbox/Windows descritos acima. Não identifica todos os jogos existentes. Renomeados, portáteis e títulos desconhecidos podem exigir **Aprovar pasta de jogo** uma vez; escolha somente uma pasta exclusiva do jogo. O monitor encerra executáveis dessa pasta, preservando executáveis compartilhados, navegadores e ferramentas de desenvolvimento protegidas.
 
-## Compilacao e testes
-`powershell -NoProfile -ExecutionPolicy Bypass -File games\build.ps1` compila com o compilador C# do .NET Framework presente no Windows. O workflow executa verificacoes do catalogo e caminhos, compila o EXE e faz smoke test da interface sem instalar a rotina ou remover jogos. A validacao do laboratorio real ainda e necessaria. Binario sem certificado comercial de assinatura de codigo: confira SHA-256 e origem. Nao desative protecoes do Windows para executar.
+Jogos instalados por ISO são reconhecidos pela instalação ou por nome e executável do catálogo, não pela extensão da ISO. Pastas XboxGames são tratadas individualmente quando o título é reconhecido e há manifesto MicrosoftGame.config. Desconhecidos são registrados como pendências.
+
+Roblox Studio, Minecraft Education, Unreal Engine e ferramentas educacionais reconhecidas são preservados. Não fecha aplicativos por palavras no título da janela. Java só é classificado como Minecraft quando há sinais específicos da classe principal e do diretório .minecraft; a linha de comando não é gravada nos logs.
+
+A conta do aluno deve ser padrão. Um administrador local consegue modificar/desativar a política. Privilégios administrativos não garantem encerrar todo processo protegido pelo sistema; falhas de remoção aparecem nos registros. Pacotes protegidos não são forçados. A desinstalação pode deixar componentes compartilhados e registros antigos.
+
+## Painel e registros
+
+**Ativar fechamento/Pausar fechamento** controlam o monitor rápido. **Pausar limpeza** também suspende o fechamento rápido; **Retomar limpeza** reativa o agendamento e o monitor. O YouTube tem política independente, alterada pelos seus dois botões. Liberar YouTube remove somente as regras que o LabGuard criou e ainda possui; outras regras do administrador não são apagadas. Não restaura aplicativos já removidos.
+
+- Tarefa de limpeza: `LabGuard-Jogos2-Limpeza` (5 minutos).
+- Monitor: `LabGuard-Jogos2-Monitor` (processo contínuo, verificação nominal de 2 segundos, inicialização no boot/login e tentativa de recuperação a cada minuto).
+- Binário/configuração: `%ProgramFiles%\LabGuardJogos2`.
+- Limpezas: `%ProgramData%\LabGuardJogos2\remocoes.log`.
+- Fechamentos: `%ProgramData%\LabGuardJogos2\guard.log`.
+- Status: `status.json`, `guard-status.json`, `youtube-status.json` no mesmo diretório.
+
+## Capturas e arquivos suspeitos
+
+Capturas continuam desligadas por padrão e exigem autorização institucional separada, com aviso visível. São locais, sem envio a servidor, com limite de 24 imagens e retenção de até 24 horas. O usuário pode pausar as imagens da sessão. Não existe classificação visual por IA e nenhum arquivo é removido por interpretação do print. O monitor rápido não depende de capturas.
+
+O Microsoft Defender analisa uma seleção limitada de arquivos novos/alterados de Downloads, quando disponível. Quarentena/remediação seguem a política do antivírus. Isso não garante um computador livre de ameaças.
+
+## Testes e origem
+
+A compilação executa parsing no PowerShell 5.1, testes de catálogo e exclusões, reversibilidade de hosts, preservação de políticas em um ramo de Registro isolado, agendamento SYSTEM, teste da interface e fechamento de uma janela de jogo fictícia. Não é uma validação de todos os jogos no laboratório real. Não desative proteções do Windows; confira a origem e o SHA-256. O binário não possui certificado comercial de assinatura de código.
+
+Código original e extensões são montados por `assemble.ps1`, com verificação de âncoras para recusar montagens incompletas. O motor e os controles são embutidos no EXE; não são carregados de um script gravável pelo aluno.
