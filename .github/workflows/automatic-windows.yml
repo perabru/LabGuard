@@ -1,0 +1,56 @@
+name: LabGuard - Instalacao automatica verificada
+on:
+  push:
+    branches: [main]
+    paths: ['automatic/**', '.github/workflows/automatic-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: labguard-automatic-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Build, install and verify in disposable Windows
+        shell: powershell
+        run: ./automatic/build.ps1
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Automatico-Diagnostico
+          path: |
+            automatic/build/**
+            automatic/dist/TESTE_INSTALACAO.txt
+          retention-days: 3
+      - name: Upload verified executables and quick guide
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Automatico-2.4
+          path: automatic/dist/*
+          if-no-files-found: error
+      - name: Publish verified automatic package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = 'automatico-v2.4.0'
+          gh release view $tag --json id 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard automatico 2.4 - ativar e usar' --notes-file automatic/README.md --latest=false
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          gh release upload $tag automatic/dist/LabGuard-Jogos.exe automatic/dist/LabGuardTecnico.exe automatic/dist/LabGuard-Automatico-2.4-Windows.zip automatic/dist/LabGuard_Guia_Rapido_2.4.pdf automatic/dist/SHA256SUMS.txt automatic/dist/VERIFICACAO.txt automatic/dist/TESTE_INSTALACAO.txt --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Upload failed' }
