@@ -8,7 +8,11 @@ D=R/'games/dist'; B=R/'managed/build'; O=R/'automatic/build';O.mkdir(parents=Tru
 ps=(D/'Engine.assembled.ps1').read_text(encoding='utf-8-sig').replace('2.3.0','2.4.0')
 ps=one(ps,"'ManagedWeb')][string]$Mode","'ManagedWeb','InstallHealth')][string]$Mode")
 entry="try {\n    if ($Mode -eq 'Test')"
-ps=one(ps,entry,(R/'automatic/Automatic.ps1').read_text(encoding='utf-8')+'\n'+entry)
+helpers=(R/'automatic/Automatic.ps1').read_text(encoding='utf-8')+'\n'+(R/'automatic/PortablePass.ps1').read_text(encoding='utf-8')
+ps=one(ps,entry,helpers+'\n'+entry)
+ps=one(ps,'Inventory; Discover; Discover-WindowsGameFolders; Stop-TargetProcesses; Uninstall-Msi; Remove-Store','Inventory; Discover; Discover-WindowsGameFolders; Stop-TargetProcesses; Remove-NonInstallerTargets; Uninstall-Msi; Remove-Store')
+# Pause is checked again between MSI operations, never by terminating msiexec.
+ps=one(ps,"        if ($script:Dry) { Log 'SIMULACAO' ('Desinstalaria MSI: '+$app.DisplayName); continue }","        if ($script:Dry) { Log 'SIMULACAO' ('Desinstalaria MSI: '+$app.DisplayName); continue }\n        Read-Config; if(-not $script:Config.Enabled){return}")
 ps=one(ps,"    Assert-Admin\n    if($Mode -eq 'ManagedWeb')","    Assert-Admin\n    if($Mode -eq 'InstallHealth'){$r=@(Check-AutomaticHealth);for($i=0;$i -lt $r.Count-1;$i++){Write-Output $r[$i]};exit ([int]$r[-1])}\n    if($Mode -eq 'ManagedWeb')")
 ps=one(ps,'Read-Config; $script:Config.Enabled=$true; $script:Config.Screenshots=$false; Write-Config','Initialize-AutomaticPolicy')
 ps=one(ps,'Install-Extensions; Start-ScheduledTask -TaskName $TaskName','Install-Extensions; if($script:Config.Enabled){Start-ScheduledTask -TaskName $TaskName}else{Disable-ScheduledTask -TaskName $TaskName|Out-Null}')
@@ -22,7 +26,7 @@ cs=one(cs,'            if(args.Length>0&&args[0]=="--central-self-test")', '''  
 cs=one(cs,'Application.Run(new ManagedSetup(true))','Application.Run(new AutomaticSetup(true,false))')
 cs=one(cs,'using(var setup=new ManagedSetup(false))','using(var setup=new AutomaticSetup(false,!args.Contains("--setup")))')
 cs=one(cs,'new ProcessStartInfo(Assembly.GetExecutingAssembly().Location,"--setup")','new ProcessStartInfo(Assembly.GetExecutingAssembly().Location,args.Contains("--setup")?"--setup":"--activate")')
-cs=cs.replace('string wrapper="$OutputEncoding=', 'string wrapper="[Console]::InputEncoding=[Text.UTF8Encoding]::new($false);$OutputEncoding=')
+cs=cs.replace('string wrapper="$OutputEncoding=', 'string wrapper="$ProgressPreference=\'SilentlyContinue\';[Console]::InputEncoding=[Text.UTF8Encoding]::new($false);$OutputEncoding=')
 # Prevent module autoload from a writable user path in the elevated engine.
 cs=one(cs,'            info.EnvironmentVariables["LG_SOURCE_EXE"]=', '''            info.WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.System);
             info.EnvironmentVariables["PSModulePath"]=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"WindowsPowerShell\\\\v1.0\\\\Modules");
