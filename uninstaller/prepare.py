@@ -23,6 +23,9 @@ def swap(before,after):
     global source
     if source.count(before)!=1:raise RuntimeError('Assembly point changed: '+before[:80])
     source=source.replace(before,after)
+# Uninstaller scope is local disks only, even if a user profile is redirected.
+swap("    for item in (path, *path.parents):", "    if os.name == 'nt' and (not re.fullmatch(r'[A-Za-z]:', path.drive) or '..' in path.parts):\n        raise ValueError('Caminho de rede ou ambiguo recusado: ' + str(path))\n    for item in (path, *path.parents):")
+swap("            except OSError:\n                continue", "            except (OSError, ValueError):\n                continue")
 # A binary marker alone must never authorize deleting Documents or a drive root.
 swap("            if not path.is_dir() or len(path.parts) < 3:\n                return", "            if path.name.casefold() not in {x.casefold() for x in APP_DIRS} | {'.labguard'}:\n                self.log('Instalacao em pasta compartilhada/nao padrao preservada: ' + str(path), True)\n                return\n            if not path.is_dir() or len(path.parts) < 3:\n                return")
 # ProgramData permits creation of unrelated children; require the actual journal folder/file
@@ -34,7 +37,6 @@ swap("                old._lc_secure_chain(path)\n                if name=='labg
 swap("        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)\n        path.unlink()", "        if path.stat().st_nlink == 1:\n            os.chmod(path, stat.S_IWRITE | stat.S_IREAD)\n        path.unlink()")
 # Include recognized custom destinations, but retain the same strict folder-name guard.
 swap("        # Registered custom install directories are accepted only with a LabGuard executable marker.", "        for installed in self.snapshot.get('installed', []):\n            if isinstance(installed.get('path'), str):\n                self.add_root(Path(installed['path']), 'programa', ('LabGuard.exe','LabGuard-Jogos.exe','LabGuardCliente.exe','LabGuardServer.exe','LabGuardTecnico.exe'))\n        # Registered custom install directories are accepted only with a LabGuard executable marker.")
-# Preserve registrations when restoration data has to remain.
 swap("operations('Registry',{'roots':self.roots,'profiles':self.profiles},180)","operations('Registry',{'roots':self.roots,'profiles':self.profiles,'held':list(self.held)},180)")
 ast.parse(source)
 (OUT/'main.py').write_text(source,encoding='utf-8')

@@ -41,11 +41,11 @@ try{
     Verify ($k.GetValue('SchoolApp') -eq 'C:\School\App.exe') 'Unrelated Run entry preserved'
     $k.Close()
     Verify (-not(Test-Path -LiteralPath $un)) 'Owned uninstall registration removed'
-    $home=Join-Path $fixture 'Profile';$desktop=Join-Path $home 'Desktop';New-Item -ItemType Directory -Path $desktop -Force|Out-Null
+    $profileHome=Join-Path $fixture 'Profile';$desktop=Join-Path $profileHome 'Desktop';New-Item -ItemType Directory -Path $desktop -Force|Out-Null
     $shell=New-Object -ComObject WScript.Shell
     $link=$shell.CreateShortcut((Join-Path $desktop 'LabGuard Jogos.lnk'));$link.TargetPath=$fake;$link.Save()
     $school=$shell.CreateShortcut((Join-Path $desktop 'SchoolApp.lnk'));$school.TargetPath=Join-Path $env:windir 'System32\notepad.exe';$school.Save()
-    $LGU.profiles=@([pscustomobject]@{path=$home;sid='S-1-5-21-1-2-3-4'});$LGU.mode='Shortcuts';$null=& ([scriptblock]::Create($script))
+    $LGU.profiles=@([pscustomobject]@{path=$profileHome;sid='S-1-5-21-1-2-3-4'});$LGU.mode='Shortcuts';$null=& ([scriptblock]::Create($script))
     Verify (-not(Test-Path -LiteralPath (Join-Path $desktop 'LabGuard Jogos.lnk'))) 'Owned shortcut removed'
     Verify (Test-Path -LiteralPath (Join-Path $desktop 'SchoolApp.lnk')) 'Unrelated shortcut preserved'
     New-NetFirewallRule -Name $firewallName -DisplayName 'LabGuard integration fixture' -Direction Outbound -Action Block -Protocol TCP -RemotePort 65432 -Enabled False|Out-Null
