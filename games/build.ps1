@@ -1,7 +1,8 @@
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot;$out=Join-Path $root 'dist'
 & (Join-Path $root 'assemble.ps1')
-# Keep the complete control panel accessible on common 1366x768 laboratory displays.
+& (Join-Path $root 'compat.ps1')
+# Keep the complete panel accessible on common laboratory displays.
 $csPath=Join-Path $out 'LabGuard.assembled.cs';$cs=[IO.File]::ReadAllText($csPath).Replace('Size=new Size(1020,900); MinimumSize=new Size(820,790);','Size=new Size(1020,760); MinimumSize=new Size(820,690);').Replace('void Capture(){','void CaptureEvidence(){').Replace('Capture();','CaptureEvidence();')
 [IO.File]::WriteAllText($csPath,$cs,(New-Object Text.UTF8Encoding($true)))
 $assembled=Join-Path $out 'Engine.assembled.ps1';$tokens=$null;$errors=$null

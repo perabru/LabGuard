@@ -15,14 +15,13 @@ try{
     $state=Join-Path $Data 'youtube-owned-rules.json';$first=[IO.File]::ReadAllText($state);Set-YouTubeBrowserPolicies $true
     Check ([IO.File]::ReadAllText($state) -eq $first) 'Browser policy application is idempotent'
     foreach($path in $script:BrowserKeys){Check ((Get-Item -LiteralPath $path).GetValue('1') -eq 'intranet.escola.example') 'Existing browser rule preserved'}
-    $owned=@(Get-Content -LiteralPath $state -Raw|ConvertFrom-Json);$changed=$owned[0];Set-ItemProperty -LiteralPath $changed.Key -Name $changed.Name -Value 'external-administrator.example';Set-YouTubeBrowserPolicies $false
+    $owned=ConvertFrom-Json -InputObject (Get-Content -LiteralPath $state -Raw);$changed=$owned[0];Set-ItemProperty -LiteralPath $changed.Key -Name $changed.Name -Value 'external-administrator.example';Set-YouTubeBrowserPolicies $false
     Check ((Get-Item -LiteralPath $changed.Key).GetValue($changed.Name) -eq 'external-administrator.example') 'Externally changed rule is not removed'
     foreach($path in $script:BrowserKeys){Check ((Get-Item -LiteralPath $path).GetValue('1') -eq 'intranet.escola.example') 'Unblocking preserves unrelated policy'}
     $raw=[Text.Encoding]::ASCII.GetBytes('127.0.0.1 localhost');$roundtrip=Convert-YouTubeHosts (Convert-YouTubeHosts $raw $true) $false
     Check ([Convert]::ToBase64String($raw) -eq [Convert]::ToBase64String($roundtrip)) 'Hosts without final newline restores exactly'
     $ConfigPath=Join-Path $fixture 'config.json';[IO.File]::WriteAllText($ConfigPath,'{"Enabled":true,"Screenshots":false,"AdditionalFolders":[]}');Read-Config;Write-Config
     Check ($script:Config.AutoCloseGames -eq $true -and $script:Config.BlockYouTube -eq $true) 'Upgrade enables requested protections'
-    # Test mutex, latest policy selection and status persistence without touching real hosts/DNS.
     function Set-YouTubeHosts([bool]$Blocked){$script:HostTestValue=$Blocked}
     function Clear-DnsClientCache{[CmdletBinding()]param()}
     Apply-YouTube $true
