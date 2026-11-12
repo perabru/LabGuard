@@ -1,0 +1,44 @@
+name: LabGuard - Cliente gerenciado e avisos
+on:
+  push:
+    branches: [main]
+    paths: ['managed/**', '.github/workflows/managed-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: labguard-managed-release
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Build and verify managed client and Central
+        shell: powershell
+        run: ./managed/build.ps1
+      - name: Upload verified Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Gerenciado-2.2
+          path: managed/dist/*
+          if-no-files-found: error
+      - name: Publish managed version without replacing network edition
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = 'gerenciado-v2.2.0'
+          gh release view $tag --json id 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard gerenciado - cliente 2.2 e Central 1.1' --notes-file managed/README.md --latest=false
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          gh release upload $tag managed/dist/LabGuard-Jogos.exe managed/dist/LabGuardTecnico.exe managed/dist/LabGuard-Gerenciado-Windows.zip managed/dist/SHA256SUMS.txt managed/dist/VERIFICACAO.txt --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
