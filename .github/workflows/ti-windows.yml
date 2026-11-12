@@ -1,0 +1,48 @@
+name: LabGuard TI - filtro original e extensoes
+on:
+  push:
+    branches: [main]
+    paths: ['ti/**', '.github/workflows/ti-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: labguard-ti
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Compile and verify original network features and additive UI
+        shell: powershell
+        run: ./ti/build.ps1
+      - name: Upload verified installer and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-TI-2.4.5
+          path: ti/dist/*
+          if-no-files-found: error
+      - name: Publish TI edition without overwriting the client's release
+        shell: pwsh
+        run: |
+          $tag='ti-v2.4.5'
+          gh release view $tag --json id 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard TI 2.4.5 - filtro de rede original + Central' --notes-file ti/README.md --latest=false
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          gh release upload $tag ti/dist/LabGuard-TI-Setup.exe ti/dist/LabGuard-TI-Portable.zip ti/dist/SHA256SUMS.txt ti/dist/PRESERVACAO_E_TESTES.json ti/dist/CODIGO_PRESERVADO.json --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
