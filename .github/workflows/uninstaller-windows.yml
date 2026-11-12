@@ -8,13 +8,17 @@ permissions:
   contents: write
 concurrency:
   group: labguard-uninstaller
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
       - name: Archive auditable installation and removal sources
         uses: actions/upload-artifact@v4
         with:
