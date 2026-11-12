@@ -28,7 +28,9 @@ Check-Exe $client '--setup-smoke'
 Check-Exe $client '--ui-smoke'
 python ./managed/integration_windows.py
 if($LASTEXITCODE -ne 0){throw 'Real C# / TLS integration test failed.'}
-python -m PyInstaller --noconfirm --clean --onefile --windowed --uac-admin --noupx --name LabGuardTecnico --distpath $out --workpath managed/work --specpath managed --paths managed/build --paths client --paths managed --add-data 'managed/build/assets;assets' managed/tecnico.py
+$prepared=Join-Path $PSScriptRoot 'build'
+$assets=(Join-Path $prepared 'assets')+';assets'
+python -m PyInstaller --noconfirm --clean --onefile --windowed --uac-admin --noupx --name LabGuardTecnico --distpath $out --workpath (Join-Path $PSScriptRoot 'work') --specpath $PSScriptRoot --paths $prepared --paths (Join-Path $root 'client') --paths $PSScriptRoot --add-data $assets (Join-Path $PSScriptRoot 'tecnico.py')
 if($LASTEXITCODE -ne 0){throw 'Central EXE build failed.'}
 $central=Join-Path $out 'LabGuardTecnico.exe';$testOutput=Join-Path $out 'central-self-test.json'
 Check-Exe $central ('--self-test --output "'+$testOutput+'"') 90000
