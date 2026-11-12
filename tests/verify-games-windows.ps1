@@ -10,19 +10,21 @@ $helpers=$source.Substring(0,$pos)+"`n"+$policy
 # Dot-source DEFINITIONS only. The real install/cycle entrypoint is never invoked.
 . ([scriptblock]::Create($helpers)) -Mode Audit
 Assert-Admin
-$fixture=Join-Path $env:TEMP ('LabGuardVerify-'+[Guid]::NewGuid().ToString('N'))
+# GitHub runner TEMP can be an 8.3 path, which production policy correctly rejects.
+$fixture=Join-Path $repo ('LabGuardVerify-'+[Guid]::NewGuid().ToString('N'))
 $verificationTask='LabGuard-Verification-'+[Guid]::NewGuid().ToString('N')
 $checks=New-Object 'System.Collections.Generic.List[string]'
 function Verify([bool]$Condition,[string]$Label){if(-not $Condition){throw ('VERIFY FAILED: '+$Label)};$checks.Add($Label);Write-Host ('PASS: '+$Label)}
 $junction=$null
 try {
     New-Item -ItemType Directory -Path $fixture|Out-Null
+    Verify ([bool](Normalize $fixture)) ('Fixture has a supported canonical path: '+$fixture)
     $script:FixedRoots=@([IO.Path]::GetPathRoot($fixture))
     $script:Protected=@($fixture,$env:windir,$env:ProgramData,$env:ProgramFiles,${env:ProgramFiles(x86)},$Base,$Data)|Where-Object {$_}
     $script:Preserved=@();$script:Targets=@{};$script:Deadline=[DateTime]::UtcNow.AddMinutes(3)
     Verify (-not (Safe-Target $fixture -Manual)) 'Fixture root cannot be deleted as a game'
     Verify (-not (Safe-Target $env:windir -Manual)) 'Windows protected'
-    foreach($bad in @('C:\Windows\..\Users','\\server\share','C:\Game:stream','C:\Game.\save','C:\Game\..\data')){Verify (-not (Normalize $bad)) ('Reject ambiguous path: '+$bad)}
+    foreach($bad in @('C:\Windows\..\Users','\\server\share','C:\Game:stream','C:\Game.\save','C:\Game\..\data','C:\PROGRA~1\Game')){Verify (-not (Normalize $bad)) ('Reject ambiguous path: '+$bad)}
     foreach($name in @('Steam','Roblox Player for Aluno','Epic Games Launcher','Minecraft Launcher','PCSX2 2.0','RPCS3','Dolphin Emulator','RetroArch','Grand Theft Auto V')){Verify (Matches-Game $name) ('Catalog: '+$name)}
     foreach($name in @('Roblox Studio','Minecraft Education','Unreal Engine','Android Studio','Visual Studio Code','Blender','Projeto de aula')){Verify (-not (Matches-Game $name)) ('Preserve: '+$name)}
     $steam=Join-Path $fixture 'Steam';New-Item -ItemType Directory -Path $steam|Out-Null
@@ -74,7 +76,8 @@ try {
     Verify ([string]$task.Settings.MultipleInstances -eq 'IgnoreNew') 'Overlapping scheduled cycles prevented'
     Verify (-not $script:Config.Screenshots) 'Screenshots disabled by default'
     $report=Join-Path $repo 'games-verification.txt'
-    @('LabGuard Windows integration verification','No actual game installs scanned or removed.',('UTC: '+[DateTime]::UtcNow.ToString('o')),('Passed checks: '+$checks.Count),'',$checks)|Set-Content -LiteralPath $report -Encoding UTF8
+    $reportLines=@('LabGuard Windows integration verification','No actual game installs scanned or removed.',('UTC: '+[DateTime]::UtcNow.ToString('o')),('Passed checks: '+$checks.Count),'')+@($checks.ToArray())
+    $reportLines|Set-Content -LiteralPath $report -Encoding UTF8
     Write-Host ('ALL '+$checks.Count+' CHECKS PASSED')
 } finally {
     Unregister-ScheduledTask -TaskName $verificationTask -Confirm:$false -ErrorAction SilentlyContinue
