@@ -1,6 +1,6 @@
 """Exercise actual admin HTML and API with disposable data. No installation."""
 from pathlib import Path
-import os,sys,tempfile,socket,threading
+import os,sys,tempfile,socket,threading,importlib.util
 R=Path(__file__).resolve().parents[1]
 for d in (R/'central',R/'client',R/'managed'):sys.path.insert(0,str(d))
 import websites
@@ -18,8 +18,9 @@ with tempfile.TemporaryDirectory() as t:
  try:
   with sync_playwright() as pw:
    if os.name=='nt':
-    from smoke_browser import _edge_executable
-    executable=str(_edge_executable())
+    spec=importlib.util.spec_from_file_location('central_browser_check',R/'central/smoke_browser.py')
+    helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(helper)
+    executable=str(helper._edge_executable())
    else:executable='/usr/bin/chromium'
    browser=pw.chromium.launch(executable_path=executable,headless=True,args=['--no-sandbox'])
    page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
