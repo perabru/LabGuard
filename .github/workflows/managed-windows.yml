@@ -28,7 +28,7 @@ jobs:
       - name: Upload verified Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: LabGuard-Gerenciado-2.2
+          name: LabGuard-Gerenciado-2.3
           path: managed/dist/*
           if-no-files-found: error
       - name: Publish managed version without replacing network edition
@@ -37,10 +37,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          $tag = 'gerenciado-v2.2.0'
+          $tag = 'gerenciado-v2.3.0'
           gh release view $tag --json id 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard gerenciado - cliente 2.2 e Central 1.1' --notes-file managed/README.md --latest=false
+            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard gerenciado - cliente 2.3 e Central 1.2' --notes-file managed/README.md --latest=false
             if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
           }
           gh release upload $tag managed/dist/LabGuard-Jogos.exe managed/dist/LabGuardTecnico.exe managed/dist/LabGuard-Gerenciado-Windows.zip managed/dist/SHA256SUMS.txt managed/dist/VERIFICACAO.txt --clobber
