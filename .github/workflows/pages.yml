@@ -23,6 +23,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+      - name: Preparar escolha estática dos downloads
+        run: |
+          python3 website/prepare_downloads.py
+          test -s website/downloads/index.html
+          test -s website/downloads/downloads.css
+          grep -q 'managed-downloads-ready' website/index.html
+          node --check website/script.js
       - name: Preparar Pages
         uses: actions/configure-pages@v5
       - name: Conferir página principal
