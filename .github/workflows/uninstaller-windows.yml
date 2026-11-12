@@ -1,0 +1,66 @@
+name: LabGuard - Desinstalador Windows
+on:
+  push:
+    branches: [main]
+    paths: ['uninstaller/**', '.github/workflows/uninstaller-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: labguard-uninstaller
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Archive auditable installation and removal sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Uninstaller-Sources
+          path: |
+            games/**
+            client/**
+            central/**
+            labguard/**
+            packaging/**
+            scripts/**
+            network-tools/**
+            server/**
+            website/jogos/**
+            website/index.html
+            website/script.js
+            uninstaller/**
+          if-no-files-found: error
+      - name: Compile and verify uninstaller on Windows
+        id: compile
+        shell: powershell
+        run: |
+          if (Test-Path uninstaller/build.ps1) {
+            ./uninstaller/build.ps1
+            if ($LASTEXITCODE -ne 0) { throw 'Uninstaller build or verification failed' }
+            'ready=true' >> $env:GITHUB_OUTPUT
+          }
+      - name: Upload verified uninstaller
+        if: steps.compile.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Desinstalador-Windows
+          path: uninstaller/dist/*
+          if-no-files-found: error
+      - name: Publish independent uninstaller download
+        if: steps.compile.outputs.ready == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = 'desinstalador-v1.0.0'
+          gh release view $tag --json id 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard - Desinstalador Windows 1.0.0' --notes-file uninstaller/README.md --latest=false
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          gh release upload $tag uninstaller/dist/LabGuard-Desinstalador.exe uninstaller/dist/LabGuard-Desinstalador-Windows.zip uninstaller/dist/SHA256SUMS.txt uninstaller/dist/VERIFICACAO.txt --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
