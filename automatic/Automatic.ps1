@@ -2,6 +2,32 @@
 $script:DefaultLocalSites=@('term.ooo','friv.com','friv.com.br','poki.com','chess.com')
 $script:WasEnabled=$true
 $script:HasCentral=$false
+function Secure-Directory([string]$Path) {
+    if(-not(No-Link $Path)){throw ('Link/junction recusado: '+$Path)}
+    if(Test-Path -LiteralPath $Path){Assert-NotUserWritable $Path}
+    else{New-Item -ItemType Directory -Path $Path -ErrorAction Stop|Out-Null}
+    $acl=New-Object Security.AccessControl.DirectorySecurity
+    $acl.SetAccessRuleProtection($true,$false)
+    foreach($spec in @(@('S-1-5-18','FullControl'),@('S-1-5-32-544','FullControl'),@('S-1-5-32-545','ReadAndExecute'))){
+        $sid=New-Object Security.Principal.SecurityIdentifier($spec[0])
+        $rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,$spec[1],'ContainerInherit,ObjectInherit','None','Allow')
+        $acl.AddAccessRule($rule)
+    }
+    $acl.SetOwner((New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')))
+    Set-Acl -LiteralPath $Path -AclObject $acl
+    foreach($entry in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop)){
+        try{
+            $current=Get-Item -LiteralPath $entry.FullName -Force -ErrorAction Stop
+            if($current.Attributes -band [IO.FileAttributes]::ReparsePoint){throw ('Link recusado na instalacao: '+$entry.FullName)}
+            Assert-NotUserWritable $entry.FullName
+        }catch{
+            # File.Replace uses transient ~RF*.TMP files. Only a proven vanished child is
+            # harmless; permission failures, links and insecure ACLs still stop the operation.
+            if($_.CategoryInfo.Category -eq 'ObjectNotFound' -and -not(Test-Path -LiteralPath $entry.FullName -ErrorAction Stop)){continue}
+            throw
+        }
+    }
+}
 function Prepare-Upgrade {
     $script:HasCentral=Test-Path -LiteralPath (Join-Path $Base 'Central\vinculo.dat')
     if(Test-Path -LiteralPath $ConfigPath){Read-Config;$script:WasEnabled=[bool]$script:Config.Enabled}
@@ -55,7 +81,6 @@ function Initialize-AutomaticPolicy {
     Write-Config
 }
 function Install-Extensions {
-    Register-GuardianTask
     try{
         Apply-YouTube ([bool]$script:Config.BlockYouTube)
         $revision=0;if($script:Config.PSObject.Properties.Name -contains 'CentralSitesRevision'){$revision=[int]$script:Config.CentralSitesRevision}
@@ -64,6 +89,8 @@ function Install-Extensions {
         Log 'FALHA' ('Bloqueios de sites: '+$_.Exception.Message)
         Write-JsonAtomic (Join-Path $Data 'web-status.json') @{state='failed';revision=0;detail=$_.Exception.Message;updatedUtc=[DateTime]::UtcNow.ToString('o')}
     }
+    # Start readers only after the initial policy journal has been committed.
+    Register-GuardianTask
 }
 function Check-AutomaticHealth {
     if(-not(Test-Path -LiteralPath $ConfigPath)){throw 'A instalacao ainda nao possui configuracao.'}
@@ -85,6 +112,7 @@ function Check-AutomaticHealth {
         }catch{}
         if(-not $alive){Start-Sleep -Seconds 1}
     }while(-not $alive -and [DateTime]::UtcNow -lt $until)
+    $guard=Get-ScheduledTask -TaskName $script:GuardianTaskName -ErrorAction SilentlyContinue
     if(-not $guard -or $guard.State -ne 'Running' -or -not $alive){$problems.Add('O monitor nao confirmou atividade recente.')}
     $sites=$true;$domains=@(Get-CentralDomains);if($script:Config.BlockYouTube){$domains+=@($script:YouTubeDomains)}
     foreach($keyPath in $script:BrowserKeys){
