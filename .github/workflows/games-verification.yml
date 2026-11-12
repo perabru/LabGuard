@@ -1,0 +1,23 @@
+name: LabGuard Jogos - Windows integration checks
+on:
+  push:
+    branches: [main]
+    paths: ['games/**', 'tests/verify-games-windows.ps1', '.github/workflows/games-verification.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify SYSTEM schedule, ACLs and bounded deletion on synthetic fixtures
+        shell: powershell
+        run: ./tests/verify-games-windows.ps1
+      - name: Save integration report
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Jogos-integration-report
+          path: games-verification.txt
+          if-no-files-found: error

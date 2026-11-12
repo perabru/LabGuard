@@ -64,8 +64,39 @@
     feedback.textContent = "Demonstração reiniciada. Todos os dados e controles são fictícios.";
   });
 
+  // The local games agent is distinct from the DNS/network edition.
+  // Downloads point to the published dedicated release, never to /latest.
+  const gamesUrl = "jogos/";
+  if (menu && !menu.querySelector('[data-games-nav]')) {
+    const link = document.createElement("a");
+    link.href = gamesUrl; link.textContent = "Remover jogos";
+    link.dataset.gamesNav = "true"; link.addEventListener("click", closeMenu);
+    menu.appendChild(link);
+  }
+  const heroButtons = document.querySelector(".hero-buttons");
+  if (heroButtons && !document.querySelector("#games-hero-link")) {
+    const link = document.createElement("a");
+    link.id = "games-hero-link"; link.className = "button button-primary";
+    link.href = gamesUrl; link.textContent = "Novo: removedor de jogos (.exe)";
+    heroButtons.appendChild(link);
+  }
+  const downloadSection = document.querySelector("#download .container") || document.querySelector("#download");
+  if (downloadSection && !document.querySelector("#games-download-card")) {
+    const card = document.createElement("article");
+    card.id = "games-download-card"; card.className = "feature-card feature-blue";
+    const title = document.createElement("h3"); title.textContent = "LabGuard Jogos 2.0.0 — executável local";
+    const text = document.createElement("p");
+    text.textContent = "Instale em cada computador: painel visível, rotina SYSTEM no início do Windows e checagem a cada 5 minutos. Steam, Roblox Player, Epic, Minecraft e emuladores reconhecidos. Jogos desconhecidos exigem cadastro da pasta; a exclusão é permanente.";
+    const links = document.createElement("div"); links.className = "hero-buttons";
+    const exe = document.createElement("a"); exe.className = "button button-primary";
+    exe.href = "https://github.com/perabru/LabGuard/releases/download/jogos-v2.0.0/LabGuard-Jogos.exe";
+    exe.textContent = "Baixar LabGuard-Jogos.exe";
+    const guide = document.createElement("a"); guide.className = "button button-plain";
+    guide.href = gamesUrl; guide.textContent = "Instalação, alcance e regras da coordenação";
+    links.append(exe, guide); card.append(title, text, links); downloadSection.prepend(card);
+  }
+
   // Public release metadata only: no user, school or network data are sent.
-  // A missing release leaves an honest link to GitHub's release page.
   const releaseStatus = document.querySelector("#release-status");
   const controller = new AbortController();
   const releaseTimeout = window.setTimeout(() => controller.abort(), 6500);
@@ -88,15 +119,13 @@
     });
     const setup = assets.find(asset => asset.name === "LabGuard-Setup.exe") || null;
     if (setup && typeof setup.browser_download_url === "string" && setup.browser_download_url.startsWith("https://github.com/perabru/LabGuard/releases/download/")) {
-      document.querySelectorAll(".download-link").forEach(link => {
-        link.href = setup.browser_download_url;
-      });
+      document.querySelectorAll(".download-link").forEach(link => { link.href = setup.browser_download_url; });
       const size = Number(setup.size);
-      releaseStatus.textContent = `${String(release.tag_name || "Versão disponível").slice(0, 40)} · Instalador Windows${Number.isFinite(size) && size > 0 ? ` · ${(size / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB` : ""} · Consulte o guia antes de configurar a rede.`;
-    } else {
+      if (releaseStatus) releaseStatus.textContent = `${String(release.tag_name || "Versão disponível").slice(0, 40)} · Instalador Windows${Number.isFinite(size) && size > 0 ? ` · ${(size / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB` : ""} · Consulte o guia antes de configurar a rede.`;
+    } else if (releaseStatus) {
       releaseStatus.textContent = "Os arquivos disponíveis estão na página de versões do GitHub. Confira o instalador e as instruções antes de baixar.";
     }
   }).catch(() => {
-    releaseStatus.textContent = "Consulte a página de versões no GitHub para verificar a disponibilidade do instalador. O código-fonte também está disponível no repositório.";
+    if (releaseStatus) releaseStatus.textContent = "Consulte a página de versões no GitHub para verificar a disponibilidade do instalador. O código-fonte também está disponível no repositório.";
   }).finally(() => window.clearTimeout(releaseTimeout));
 })();
