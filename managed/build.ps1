@@ -1,4 +1,5 @@
 $ErrorActionPreference='Stop'
+$env:PYTHONUTF8='1'
 $root=Split-Path $PSScriptRoot -Parent
 Set-Location $root
 $out=Join-Path $PSScriptRoot 'dist';New-Item -ItemType Directory -Path $out -Force|Out-Null
@@ -16,7 +17,9 @@ $engine=Join-Path $root 'games\dist\Engine.assembled.ps1';$tokens=$null;$errors=
 if($errors.Count){throw ($errors|Out-String)}
 $compiler=Join-Path $env:windir 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $client=Join-Path $out 'LabGuard-Jogos.exe'
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 /reference:System.dll /reference:System.Core.dll /reference:System.Security.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll /reference:System.Management.dll ("/win32manifest:"+(Join-Path $root 'games\app.manifest')) ("/resource:"+$engine+',LabGuard.Engine') ("/out:"+$client) ./games/dist/LabGuard.assembled.cs ./games/dist/Guardian.assembled.cs ./games/extensions/WindowsGames.cs ./managed/ManagedClient.cs
+$sources=@('games\dist\LabGuard.assembled.cs','games\dist\Guardian.assembled.cs','games\extensions\WindowsGames.cs','managed\ManagedClient.cs')|ForEach-Object {Join-Path $root $_}
+foreach($source in $sources){if(-not(Test-Path -LiteralPath $source)){throw ('Missing compiler input: '+$source)}}
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 /reference:System.dll /reference:System.Core.dll /reference:System.Security.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll /reference:System.Management.dll ("/win32manifest:"+(Join-Path $root 'games\app.manifest')) ("/resource:"+$engine+',LabGuard.Engine') ("/out:"+$client) @sources
 if($LASTEXITCODE -ne 0){throw 'Managed client C# build failed.'}
 function Check-Exe([string]$File,[string]$Arguments,[int]$Timeout=40000){$p=Start-Process $File -ArgumentList $Arguments -PassThru;if(-not $p.WaitForExit($Timeout)){Stop-Process -Id $p.Id -Force;throw ('Timeout: '+$Arguments)};if($p.ExitCode -ne 0){throw ('EXE test failed: '+$Arguments+'; '+$p.ExitCode)};Write-Host ('PASS: '+$Arguments)}
 Check-Exe $client '--self-test'
