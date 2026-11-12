@@ -18,7 +18,10 @@ function Set-YouTubeBrowserPolicies([bool]$Blocked){
     $owned=New-Object 'System.Collections.Generic.List[object]'
     if(Test-Path -LiteralPath $state){
         if(-not(No-Link $state) -or (Get-Item -LiteralPath $state).Length -gt 262144){throw 'Registro de propriedade invalido.'}
-        foreach($r in @(Get-Content -LiteralPath $state -Raw -Encoding UTF8|ConvertFrom-Json)){
+        # Windows PowerShell 5.1 emits a JSON root array as one pipeline item.
+        # Assign first so foreach enumerates its records, not a nested Object[].
+        $parsed=Get-Content -LiteralPath $state -Raw -Encoding UTF8|ConvertFrom-Json
+        foreach($r in $parsed){
             if($null -eq $r){continue}
             if($script:BrowserKeys -notcontains [string]$r.Key -or [string]$r.Name -notmatch '^(?:[1-9][0-9]{0,2}|1000)$' -or $r.Value -isnot [string]){throw 'Metadados de navegador fora do escopo.'}
             $owned.Add($r)
