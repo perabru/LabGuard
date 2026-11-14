@@ -30,7 +30,7 @@ function Read-CatalogJournal([string]$Path,[bool]$Firefox){
         if(@($result.ToArray()|Where-Object {$_.Name -eq $name}).Count){throw 'Registro de catalogo com posicoes duplicadas.'}
         $result.Add([pscustomobject]@{Name=$name;Value=$value})
     }
-    return $result
+    return ,$result
 }
 function Save-CatalogJournal([string]$Path,$Items){
     Write-JsonAtomic $Path @($Items.ToArray())
