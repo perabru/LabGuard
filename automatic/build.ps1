@@ -28,7 +28,7 @@ python -m pip install --disable-pip-version-check 'reportlab==4.4.3'
 if($LASTEXITCODE -ne 0){throw 'Guide dependency failed.'}
 python ./automatic/guide.py
 if($LASTEXITCODE -ne 0){throw 'Quick guide generation failed.'}
-python -c "import re,pathlib; p=pathlib.Path('automatic/dist/LabGuard_Guia_Rapido_2.5.pdf'); n=len(re.findall(rb'/Type\\s*/Page\\b',p.read_bytes())); assert n==3, f'Guide must have three pages, got {n}'"
+python -c "import re,pathlib; p=pathlib.Path('automatic/dist/LabGuard_Guia_Rapido_2.5.pdf'); n=len(re.findall(rb'/Type\s*/Page\b',p.read_bytes())); assert n==3, f'Guide must have three pages, got {n}'"
 if($LASTEXITCODE -ne 0){throw 'Quick guide pagination verification failed.'}
 $sum=@();foreach($name in @('LabGuard-Jogos.exe','LabGuardTecnico.exe','LabGuard_Guia_Rapido_2.5.pdf')){$sum+=(Get-FileHash (Join-Path $out $name) -Algorithm SHA256).Hash.ToLowerInvariant()+'  '+$name};$sum|Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 @('LABGUARD AUTOMATICO - CLIENTE 2.5 / CENTRAL 1.2',('UTC: '+[DateTime]::UtcNow.ToString('o')),'','Regressao da base de jogos, HTTPS, autenticacao, CSRF, Sites rapidos e painel: PASS','Motor PowerShell 5.1 e interfaces do EXE: PASS','Instalacao real sem vinculo e catalogo completo de sites no Windows descartavel: PASS','Inicializacao automatica e tarefas SYSTEM: PASS','Primeira limpeza de jogo ficticio e preservacao de trabalho escolar: PASS','Fechamento de janela de jogo ficticio pelo monitor instalado: PASS','Reinstalacao/reparo sem configuracao manual: PASS','','Consulte TESTE_INSTALACAO.txt para cada verificacao. Nao testado nos PCs reais do laboratorio. Windows Server 2022 nao cobre todas as configuracoes de Windows 10/11.')|Set-Content (Join-Path $out 'VERIFICACAO.txt') -Encoding UTF8
