@@ -20,12 +20,15 @@ foreach($argument in @('--self-test','--central-self-test','--setup-smoke','--ui
 }
 & ./automatic/verify-install.ps1
 Copy-Item ./managed/dist/LabGuardTecnico.exe (Join-Path $out 'LabGuardTecnico.exe') -Force
+$meta=(Get-Content (Join-Path $prepared 'CATALOGO_COMPLETO.json') -Raw|ConvertFrom-Json)
+if($meta.full_catalog_browsers -lt 800 -or $meta.full_catalog_browsers -gt 900){throw 'Full catalog metadata invalid.'}
+Copy-Item (Join-Path $prepared 'CATALOGO_COMPLETO.json') (Join-Path $out 'CATALOGO_COMPLETO.json') -Force
 Copy-Item ./automatic/README.md (Join-Path $out 'LEIA-ME.md') -Force
 python -m pip install --disable-pip-version-check 'reportlab==4.4.3'
 if($LASTEXITCODE -ne 0){throw 'Guide dependency failed.'}
 python ./automatic/guide.py
 if($LASTEXITCODE -ne 0){throw 'Quick guide generation failed.'}
-$sum=@();foreach($name in @('LabGuard-Jogos.exe','LabGuardTecnico.exe','LabGuard_Guia_Rapido_2.4.pdf')){$sum+=(Get-FileHash (Join-Path $out $name) -Algorithm SHA256).Hash.ToLowerInvariant()+'  '+$name};$sum|Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
-@('LABGUARD AUTOMATICO - CLIENTE 2.4 / CENTRAL 1.2',('UTC: '+[DateTime]::UtcNow.ToString('o')),'','Regressao da base de jogos, HTTPS, autenticacao, CSRF, Sites rapidos e painel: PASS','Motor PowerShell 5.1 e interfaces do EXE: PASS','Instalacao real sem vinculo em Windows descartavel: PASS','Inicializacao automatica e tarefas SYSTEM: PASS','Primeira limpeza de jogo ficticio e preservacao de trabalho escolar: PASS','Fechamento de janela de jogo ficticio pelo monitor instalado: PASS','Reinstalacao/reparo sem configuracao manual: PASS','','Consulte TESTE_INSTALACAO.txt para cada verificacao. Nao testado nos PCs reais do laboratorio. Windows Server 2022 nao cobre todas as configuracoes de Windows 10/11.')|Set-Content (Join-Path $out 'VERIFICACAO.txt') -Encoding UTF8
-Compress-Archive -Path (Join-Path $out 'LabGuard-Jogos.exe'),(Join-Path $out 'LabGuardTecnico.exe'),(Join-Path $out 'LabGuard_Guia_Rapido_2.4.pdf'),(Join-Path $out 'LEIA-ME.md'),(Join-Path $out 'VERIFICACAO.txt'),(Join-Path $out 'TESTE_INSTALACAO.txt'),(Join-Path $out 'SHA256SUMS.txt') -DestinationPath (Join-Path $out 'LabGuard-Automatico-2.4-Windows.zip') -Force
+$sum=@();foreach($name in @('LabGuard-Jogos.exe','LabGuardTecnico.exe','LabGuard_Guia_Rapido_2.5.pdf')){$sum+=(Get-FileHash (Join-Path $out $name) -Algorithm SHA256).Hash.ToLowerInvariant()+'  '+$name};$sum|Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
+@('LABGUARD AUTOMATICO - CLIENTE 2.5 / CENTRAL 1.2',('UTC: '+[DateTime]::UtcNow.ToString('o')),'','Regressao da base de jogos, HTTPS, autenticacao, CSRF, Sites rapidos e painel: PASS','Motor PowerShell 5.1 e interfaces do EXE: PASS','Instalacao real sem vinculo e catalogo completo de sites no Windows descartavel: PASS','Inicializacao automatica e tarefas SYSTEM: PASS','Primeira limpeza de jogo ficticio e preservacao de trabalho escolar: PASS','Fechamento de janela de jogo ficticio pelo monitor instalado: PASS','Reinstalacao/reparo sem configuracao manual: PASS','','Consulte TESTE_INSTALACAO.txt para cada verificacao. Nao testado nos PCs reais do laboratorio. Windows Server 2022 nao cobre todas as configuracoes de Windows 10/11.')|Set-Content (Join-Path $out 'VERIFICACAO.txt') -Encoding UTF8
+Compress-Archive -Path (Join-Path $out 'LabGuard-Jogos.exe'),(Join-Path $out 'LabGuardTecnico.exe'),(Join-Path $out 'LabGuard_Guia_Rapido_2.5.pdf'),(Join-Path $out 'LEIA-ME.md'),(Join-Path $out 'VERIFICACAO.txt'),(Join-Path $out 'TESTE_INSTALACAO.txt'),(Join-Path $out 'CATALOGO_COMPLETO.json'),(Join-Path $out 'SHA256SUMS.txt') -DestinationPath (Join-Path $out 'LabGuard-Automatico-2.5-Windows.zip') -Force
 $global:LASTEXITCODE=0
