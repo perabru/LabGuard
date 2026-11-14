@@ -37,7 +37,7 @@ jobs:
       - name: Upload verified executables and quick guide
         uses: actions/upload-artifact@v4
         with:
-          name: LabGuard-Automatico-2.4
+          name: LabGuard-Automatico-2.5
           path: automatic/dist/*
           if-no-files-found: error
       - name: Publish verified automatic package
@@ -46,11 +46,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          $tag = 'automatico-v2.4.0'
+          $tag = 'automatico-v2.5.0'
           gh release view $tag --json id 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard automatico 2.4 - ativar e usar' --notes-file automatic/README.md --latest=false
+            gh release create $tag --target '${{ github.sha }}' --title 'LabGuard automatico 2.5 - ativar e usar' --notes-file automatic/README.md --latest=false
             if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
           }
-          gh release upload $tag automatic/dist/LabGuard-Jogos.exe automatic/dist/LabGuardTecnico.exe automatic/dist/LabGuard-Automatico-2.4-Windows.zip automatic/dist/LabGuard_Guia_Rapido_2.4.pdf automatic/dist/SHA256SUMS.txt automatic/dist/VERIFICACAO.txt automatic/dist/TESTE_INSTALACAO.txt --clobber
+          gh release upload $tag automatic/dist/LabGuard-Jogos.exe automatic/dist/LabGuardTecnico.exe automatic/dist/LabGuard-Automatico-2.5-Windows.zip automatic/dist/LabGuard_Guia_Rapido_2.5.pdf automatic/dist/SHA256SUMS.txt automatic/dist/VERIFICACAO.txt automatic/dist/TESTE_INSTALACAO.txt automatic/dist/CATALOGO_COMPLETO.json --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Upload failed' }
