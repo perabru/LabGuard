@@ -75,14 +75,15 @@ function Initialize-AutomaticPolicy {
         $script:Config|Add-Member -NotePropertyName CentralSiteDomains -NotePropertyValue @($script:DefaultLocalSites) -Force
         $script:Config|Add-Member -NotePropertyName CentralSitesRevision -NotePropertyValue 0 -Force
         $script:Config|Add-Member -NotePropertyName ManagedAppliedRevision -NotePropertyValue 0 -Force
-        Log 'LOCAL' 'Protecao automatica: jogos, YouTube, Termo, Friv, Poki e Chess.com. Nenhum vinculo e necessario.'
+        Log 'LOCAL' 'Protecao automatica: catalogo completo LabGuard (jogos, apostas, adultos, IA), sites rapidos e YouTube. Sem vinculo obrigatorio.'
     }
-    $script:Config|Add-Member -NotePropertyName Version -NotePropertyValue '2.4.0' -Force
+    $script:Config|Add-Member -NotePropertyName Version -NotePropertyValue '2.5.0' -Force
     Write-Config
 }
 function Install-Extensions {
     try{
         Apply-YouTube ([bool]$script:Config.BlockYouTube)
+        Apply-FullCatalog
         $revision=0;if($script:Config.PSObject.Properties.Name -contains 'CentralSitesRevision'){$revision=[int]$script:Config.CentralSitesRevision}
         Write-JsonAtomic (Join-Path $Data 'web-status.json') @{state='applied';revision=$revision;source=$(if($script:HasCentral){'central'}else{'local'});count=@(Get-CentralDomains).Count;updatedUtc=[DateTime]::UtcNow.ToString('o')}
     }catch{
@@ -108,7 +109,7 @@ function Check-AutomaticHealth {
     do{
         try{
             $file=Join-Path $Data 'guard-status.json'
-            if(Test-Path -LiteralPath $file){$g=Get-Content -LiteralPath $file -Raw -Encoding UTF8|ConvertFrom-Json;$age=([DateTime]::UtcNow-[DateTime]::Parse($g.updatedUtc).ToUniversalTime()).TotalSeconds;$monitor=[string]$g.state;$alive=$age -ge -5 -and $age -le 15 -and $g.version -eq '2.4.0' -and $g.state -in @('Ativo','Pausado')}
+            if(Test-Path -LiteralPath $file){$g=Get-Content -LiteralPath $file -Raw -Encoding UTF8|ConvertFrom-Json;$age=([DateTime]::UtcNow-[DateTime]::Parse($g.updatedUtc).ToUniversalTime()).TotalSeconds;$monitor=[string]$g.state;$alive=$age -ge -5 -and $age -le 15 -and $g.version -eq '2.5.0' -and $g.state -in @('Ativo','Pausado')}
         }catch{}
         if(-not $alive){Start-Sleep -Seconds 1}
     }while(-not $alive -and [DateTime]::UtcNow -lt $until)
@@ -123,12 +124,13 @@ function Check-AutomaticHealth {
         foreach($domain in $domains){$expected=if($keyPath -like '*Mozilla*'){'*://*.'+$domain+'/*'}else{$domain};if($values -cnotcontains $expected){$sites=$false}}
     }
     try{$ws=Get-Content -LiteralPath (Join-Path $Data 'web-status.json') -Raw -Encoding UTF8|ConvertFrom-Json;if($ws.state -eq 'failed'){$sites=$false}}catch{$sites=$false}
+    if(-not (Test-FullCatalog)){$sites=$false;$problems.Add('Catalogo completo de jogos, apostas, adultos e IA nao confirmado em todos os navegadores.')}
     if(-not $sites){$problems.Add('Uma ou mais regras de navegador nao foram confirmadas.')}
     $linked=Test-Path -LiteralPath (Join-Path $Base 'Central\vinculo.dat')
-    $report=@{version='2.4.0';state=$(if($problems.Count){'partial'}else{'ready'});scheduler=$scheduled;monitor=$monitor;monitorFresh=$alive;sites=$sites;centralLinked=[bool]$linked;protectionEnabled=[bool]$script:Config.Enabled;updatedUtc=[DateTime]::UtcNow.ToString('o');issues=@($problems.ToArray())}
+    $report=@{version='2.5.0';state=$(if($problems.Count){'partial'}else{'ready'});scheduler=$scheduled;monitor=$monitor;monitorFresh=$alive;sites=$sites;centralLinked=[bool]$linked;protectionEnabled=[bool]$script:Config.Enabled;updatedUtc=[DateTime]::UtcNow.ToString('o');issues=@($problems.ToArray())}
     Write-JsonAtomic (Join-Path $Data 'install-status.json') $report
     foreach($problem in $problems){Log 'FALHA' $problem}
     Log 'CONFIRMACAO' ('Monitor='+$monitor+'; agendamento='+$scheduled+'; regras de sites='+$sites+'; vinculo='+$linked)
-    Log 'IMPORTANTE' 'Regras gravadas nao substituem teste de navegacao. Reabra o navegador na conta do aluno.'
+    Log 'IMPORTANTE' 'Catalogo completo inclui dominios de IA e apostas. Regras gravadas nao substituem teste de navegacao; reabra o navegador na conta do aluno.'
     if($problems.Count){return 2};return 0
 }
