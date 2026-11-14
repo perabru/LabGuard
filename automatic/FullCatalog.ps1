@@ -13,7 +13,7 @@ function Full-CatalogValue([string]$Domain,[bool]$Firefox){
 }
 function Read-CatalogJournal([string]$Path,[bool]$Firefox){
     $result=New-Object 'System.Collections.Generic.List[object]'
-    if(-not(Test-Path -LiteralPath $Path)){return $result}
+    if(-not(Test-Path -LiteralPath $Path)){return ,$result}
     if(-not(No-Link $Path) -or (Get-Item -LiteralPath $Path -Force).Length -gt 262144){throw ('Registro de catalogo invalido: '+$Path)}
     $parsed=Get-Content -LiteralPath $Path -Raw -Encoding UTF8|ConvertFrom-Json
     foreach($r in $parsed){
@@ -106,7 +106,7 @@ function Apply-FullCatalog {
         foreach($browser in $script:CatalogBrowsers){Catalog-Browser $browser[0] $browser[1]}
         Write-JsonAtomic $status @{state='applied';count=@($script:FullCatalogDomains).Count;revision=$script:FullCatalogRevision;updatedUtc=[DateTime]::UtcNow.ToString('o')}
     }catch{
-        try{Write-JsonAtomic $status @{state='failed';detail=$_.Exception.Message;count=@($script:FullCatalogDomains).Count;revision=$script:FullCatalogRevision;updatedUtc=[DateTime]::UtcNow.ToString('o')}}catch{}
+        try{Write-JsonAtomic $status @{state='failed';detail=($_.Exception.Message+' :: '+$_.ScriptStackTrace);count=@($script:FullCatalogDomains).Count;revision=$script:FullCatalogRevision;updatedUtc=[DateTime]::UtcNow.ToString('o')}}catch{}
         throw
     }
 }
