@@ -14,7 +14,7 @@ $hosts=Join-Path $env:windir 'System32\drivers\etc\hosts';$hostsBefore=[IO.File]
 $passed=New-Object 'System.Collections.Generic.List[string]'
 function Diagnostics {
     $lines=@('Runtime diagnostics from disposable test VM only. No student or real lab data.')
-    foreach($f in @('install-status.json','status.json','guard-status.json','web-status.json','remocoes.log','guard.log')){
+    foreach($f in @('install-status.json','status.json','guard-status.json','web-status.json','fullcatalog-status.json','remocoes.log','guard.log')){
         $file=Join-Path $data $f
         if(Test-Path -LiteralPath $file){$lines+='--- '+$f;try{$lines+=Get-Content -LiteralPath $file -Tail 80 -ErrorAction Stop}catch{$lines+=$_.Exception.Message}}
     }
