@@ -44,6 +44,17 @@ try{
     $health=Get-Content (Join-Path $data 'install-status.json') -Raw|ConvertFrom-Json
     Verify ($health.state -eq 'ready' -and $health.monitorFresh -and $health.sites -and $health.scheduler) 'Real installation health confirms monitor, sites and task'
     Verify (-not $health.centralLinked) 'Central enrollment is not required for local protection'
+    $catalog=Get-Content (Join-Path $data 'fullcatalog-status.json') -Raw|ConvertFrom-Json
+    Verify ($catalog.state -eq 'applied' -and $catalog.count -ge 800 -and $catalog.count -le 900) 'LabGuard complete catalog installed in all browsers'
+    foreach($domain in @('roblox.com','rbxcdn.com','crazygames.com','pornhub.com','xvideos.com','chatgpt.com','copilot.microsoft.com','bet365.com')){
+        foreach($policyKey in $browser){
+            $key=Get-Item -LiteralPath $policyKey
+            try{$values=@($key.GetValueNames()|ForEach-Object {[string]$key.GetValue($_)})}finally{$key.Close()}
+            $expected=if($policyKey -like '*Mozilla*'){'*://*.'+$domain+'/*'}else{$domain}
+            Verify ($values -contains $expected) ('Catalog domain on '+$policyKey+': '+$domain)
+        }
+    }
+
     foreach($name in $tasks){$t=Get-ScheduledTask -TaskName $name;Verify ($t.Principal.UserId -in @('SYSTEM','S-1-5-18','NT AUTHORITY\SYSTEM')) ('SYSTEM task: '+$name);Verify (@($t.Triggers|Where-Object {$_.CimClass.CimClassName -eq 'MSFT_TaskBootTrigger'}).Count -eq 1) ('Boot trigger: '+$name)}
     Verify (@((Get-ScheduledTask -TaskName $tasks[0]).Triggers|Where-Object {$_.Repetition.Interval -eq 'PT5M'}).Count -eq 1) 'Five-minute cleanup repetition'
     $until=[DateTime]::UtcNow.AddSeconds(240)
@@ -62,7 +73,7 @@ try{
     Install-Actual
     Verify ((Get-Content (Join-Path $data 'install-status.json') -Raw|ConvertFrom-Json).state -eq 'ready') 'Second install updates/repairs without manual pausing or enrollment'
     Verify ((Get-Content (Join-Path $work 'school-work.txt') -Raw) -eq 'PRESERVE SCHOOL DOCUMENT') 'School document remains after repair'
-    @('AUTOMATIC CLIENT 2.4 - REAL WINDOWS INSTALLATION TEST',('UTC: '+[DateTime]::UtcNow.ToString('o')),'Disposable Windows Server 2022 runner; removal and closure assertions used synthetic game/document fixtures.','')+@($passed.ToArray())|Set-Content (Join-Path $PSScriptRoot 'dist\TESTE_INSTALACAO.txt') -Encoding UTF8
+    @('AUTOMATIC CLIENT 2.5 - REAL WINDOWS INSTALLATION TEST',('UTC: '+[DateTime]::UtcNow.ToString('o')),'Disposable Windows Server 2022 runner; removal and closure assertions used synthetic game/document fixtures.','')+@($passed.ToArray())|Set-Content (Join-Path $PSScriptRoot 'dist\TESTE_INSTALACAO.txt') -Encoding UTF8
 }finally{
     try{Diagnostics}catch{Write-Host ('Diagnostics unavailable: '+$_.Exception.Message)}
     foreach($name in $tasks){Disable-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue|Out-Null;Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue;Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue}
