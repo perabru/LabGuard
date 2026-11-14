@@ -1,4 +1,4 @@
-"""Assemble automatic 2.4 on top of the tested managed 2.3 engine, without replacing the network edition."""
+"""Assemble automatic 2.5 on top of the tested managed 2.3 engine, without replacing the network edition."""
 from pathlib import Path
 import sys
 import ast
@@ -40,7 +40,7 @@ entry="try {\n    if ($Mode -eq 'Test')"
 helpers=(R/'automatic/Automatic.ps1').read_text(encoding='utf-8')+'\n'+catalog+'\n'+(R/'automatic/PortablePass.ps1').read_text(encoding='utf-8')
 ps=one(ps,entry,helpers+'\n'+entry)
 # Known game stores and emulators use exact registry display-name identities; no arbitrary wildcard file deletion.
-launcher_pattern=r'|EA app(?:\\s|$)|EA Desktop(?:\\s|$)|Battle\\.net(?:\\s|$)|Blizzard Battle\\.net(?:\\s|$)|Ubisoft Connect(?:\\s|$)|Uplay(?:\\s|$)|GOG GALAXY(?:\\s|$)|Rockstar Games Launcher(?:\\s|$)|Riot Client(?:\\s|$)|Amazon Games(?:\\s|$)|Heroic Games Launcher(?:\\s|$)|Playnite(?:\\s|$)|HoYoPlay(?:\\s|$)|Game Jolt Client(?:\\s|$)|itch(?:\\.io)?(?:\\s|$)'
+launcher_pattern=r'|EA app(?:\s|$)|EA Desktop(?:\s|$)|Battle\.net(?:\s|$)|Blizzard Battle\.net(?:\s|$)|Ubisoft Connect(?:\s|$)|Uplay(?:\s|$)|GOG GALAXY(?:\s|$)|Rockstar Games Launcher(?:\s|$)|Riot Client(?:\s|$)|Amazon Games(?:\s|$)|Heroic Games Launcher(?:\s|$)|Playnite(?:\s|$)|HoYoPlay(?:\s|$)|Game Jolt Client(?:\s|$)|itch(?:\.io)?(?:\s|$)'
 pattern_line=next((line for line in ps.splitlines() if line.startswith("$script:GamePattern='")),None)
 if not pattern_line or not pattern_line.endswith(")'"):raise RuntimeError('Game catalog anchor changed')
 ps=ps.replace(pattern_line,pattern_line[:-2]+launcher_pattern+")'")
