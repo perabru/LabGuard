@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+import json
 
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE/'build-source'))
@@ -62,5 +64,51 @@ class RemovalTests(unittest.TestCase):
             except (OSError,NotImplementedError):self.skipTest('symlink privilege unavailable')
             with self.assertRaises(ValueError):app.safe_delete(root,root)
             self.assertEqual((safe/'homework.txt').read_text(),'keep')
+    def test_full_catalog_all_browsers_restore_and_preserve_external_rules(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)/'LabGuardJogos2';folder.mkdir()
+            rows={}
+            for label,browser in (('chrome','Chrome'),('edge','Edge'),('firefox','Firefox')):
+                first='*://*.game.example/*' if browser=='Firefox' else 'game.example'
+                second='*://*.changed.example/*' if browser=='Firefox' else 'changed.example'
+                (folder/('fullcatalog-owned-'+label+'.json')).write_text(json.dumps([
+                    {'Name':'1','Value':first},{'Name':'80','Value':second}]))
+                base,block,_=old._BROWSER_POLICIES[browser]
+                rows[base+'\\'+block]={'1':(first,1),'80':('modified-by-admin',1),'81':('school.example',1)}
+            registry=Registry(rows);cleaner=app.Cleaner();cleaner.roots=[{'path':str(folder)}]
+            with patch.object(old,'_lc_acl'),patch.object(old,'_lc_guard_file'),patch.object(old,'_BrowserRegistry',return_value=registry):
+                cleaner.restore_full_catalog()
+                cleaner.restore_full_catalog()
+            self.assertFalse(cleaner.warnings)
+            for label,browser in (('chrome','Chrome'),('edge','Edge'),('firefox','Firefox')):
+                base,block,_=old._BROWSER_POLICIES[browser]
+                self.assertIn(('modified-by-admin',1),rows[base+'\\'+block].values())
+                self.assertIn(('school.example',1),rows[base+'\\'+block].values())
+                self.assertEqual(json.loads((folder/('fullcatalog-owned-'+label+'.json')).read_text()),[])
+                self.assertFalse((folder/('fullcatalog-restore-'+label+'.json')).exists())
+                if browser=='Firefox':self.assertIn('1',rows[base+'\\'+block])
+    def test_full_catalog_failure_keeps_recovery_and_retry_completes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)/'LabGuardJogos2';folder.mkdir()
+            journal=folder/'fullcatalog-owned-chrome.json'
+            records=[{'Name':'80','Value':'one.example'},{'Name':'81','Value':'two.example'}]
+            journal.write_text(json.dumps(records))
+            base,block,_=old._BROWSER_POLICIES['Chrome'];key=base+'\\'+block
+            registry=Registry({key:{'80':('one.example',1),'81':('two.example',1),'90':('school.example',1)}})
+            cleaner=app.Cleaner();cleaner.roots=[{'path':str(folder)}]
+            with patch.object(old,'_lc_acl'),patch.object(old,'_lc_guard_file'),patch.object(old,'_BrowserRegistry',return_value=registry):
+                with patch.object(registry,'remove_if_same',side_effect=OSError('synthetic permission failure')):
+                    cleaner.restore_full_catalog()
+                self.assertIn(str(folder).casefold(),cleaner.held)
+                self.assertEqual(json.loads(journal.read_text()),records)
+                self.assertTrue((folder/'fullcatalog-restore-chrome.json').exists())
+                retry=app.Cleaner();retry.roots=cleaner.roots;retry.restore_full_catalog()
+            self.assertFalse(retry.warnings)
+            self.assertEqual(registry.rows[key],{'90':('school.example',1)})
+            self.assertEqual(json.loads(journal.read_text()),[])
+    def test_full_catalog_invalid_journal_is_refused(self):
+        for records in ([{'Name':'0','Value':'game.example'}],[{'Name':'1','Value':'*'}],
+                        [{'Name':'1','Value':'game.example'},{'Name':'1','Value':'other.example'}]):
+            with self.assertRaises(ValueError):app.full_catalog_state(records,'Chrome')
 
 if __name__=='__main__':unittest.main(verbosity=2)

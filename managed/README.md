@@ -1,11 +1,11 @@
-# LabGuard gerenciado — Cliente Jogos 2.3 / Central 1.2
+# LabGuard gerenciado — Cliente Jogos 2.3.1 / Central 1.2.1
 
 ## Qual arquivo baixar
 
 | Arquivo | Onde usar | Função |
 |---|---|---|
-| LabGuardTecnico.exe — Central 1.2 | Somente no PC administrador | Recebe os clientes, mostra avisos e envia as políticas. Não é o cliente do aluno. |
-| LabGuard-Jogos.exe — Cliente 2.3 | Em cada PC dos alunos | Aplica bloqueios, fecha jogos reconhecidos e executa a limpeza autorizada. Precisa da Central para receber alterações e enviar avisos. |
+| LabGuardTecnico.exe — Central 1.2.1 | Somente no PC administrador | Recebe os clientes, mostra avisos e envia as políticas. Não é o cliente do aluno. |
+| LabGuard-Jogos.exe — Cliente 2.3.1 | Em cada PC dos alunos | Aplica bloqueios, fecha jogos reconhecidos e executa a limpeza autorizada. Precisa da Central para receber alterações e enviar avisos. |
 | LabGuard-Gerenciado-Windows.zip | PC da TI ou pendrive de instalação | Contém os dois EXEs prontos, instruções e verificações. Extraia antes de executar. Não é um terceiro programa. |
 | LabGuard-Setup.exe — rede 2.4.x | PC responsável pelo DNS | Filtro de domínios e painel de rede independente. Não recebe estes avisos sozinho e não substitui a Central/Cliente. |
 | LabGuard-Desinstalador.exe | Cada PC do qual retirar o LabGuard | Remove instalações identificadas e restaura regras próprias quando possível. Não instala proteção. |
@@ -63,3 +63,7 @@ Sem rede, permanece a última política local. O cliente mantém até 500 evento
 ## Testes
 
 A compilação exige testes de autenticação/CSRF, migração, preservação de vínculos, listas, bloqueio em lote, liberação individual, integração HTTPS C# e operações em Registro sintético. Inclui teste de interface em Edge. Nenhum computador real do laboratório é alterado pela compilação. Consulte VERIFICACAO.txt e SHA256SUMS.txt.
+
+## Correções 2.3.1 / Central 1.2.1
+
+A Central só mostra a proteção como confirmada quando o monitor, o YouTube e a limpeza ativa correspondem à política. Falta de confirmação aparece como pendência. Um relatório de sites com revisão inexistente é recusado antes de registrar contato ou avisos parciais. Os vínculos e o protocolo das versões 2.3 e 2.5 continuam compatíveis.

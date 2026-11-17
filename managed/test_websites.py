@@ -52,6 +52,16 @@ class WebsiteTests(unittest.TestCase):
   self.change('termo',['term.ooo'],False);self.assertFalse(self.store.state()['devices'][0]['web_confirmed'])
   rev=self.store.state()['web_policy']['revision'];self.store.web_telemetry(self.client['device_token'],self.report(rev,'failed'));self.assertEqual(self.store.state()['devices'][0]['status'],'error')
   self.store.web_telemetry(self.client['device_token'],self.report(rev));self.assertTrue(self.store.state()['devices'][0]['web_confirmed'])
+ def test_future_web_revision_does_not_record_partial_telemetry(self):
+  before=self.store.state()
+  report=self.report(rev=99)
+  report['events']=[dict(id=secrets.token_hex(16),kind='game_closed',time='2026-11-12T18:00:00Z',process='RobloxPlayerBeta')]
+  with self.assertRaisesRegex(core.CentralError,'Revisão de sites inexistente'):
+   self.store.web_telemetry(self.client['device_token'],report)
+  after=self.store.state()
+  self.assertEqual(after['devices'],before['devices'])
+  self.assertEqual(after['alerts'],before['alerts'])
+  self.assertEqual(after['unread_alerts'],0)
  def test_fake_and_revoked_tokens(self):
   with self.assertRaises(core.AuthenticationError):self.store.web_telemetry(secrets.token_urlsafe(32),self.report())
   self.store.revoke_device(self.client['device_id'])

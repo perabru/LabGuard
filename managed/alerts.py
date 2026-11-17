@@ -134,7 +134,21 @@ class ManagedStore(_BASE_STORE):
             if m:
                 device['managed']=m
                 if not device['revoked']:
-                    device['status']='offline' if not m['online'] else 'error' if m['guard']=='failed' or m['cleanup']=='failed' or m['youtube']=='failed' else 'pending' if m['applied_revision']!=policy['revision'] else 'online'
+                    if not m['online']:
+                        device['status'] = 'offline'
+                    elif any(m[field] == 'failed' for field in ('guard', 'cleanup', 'youtube')):
+                        device['status'] = 'error'
+                    else:
+                        expected_guard = 'active' if policy['cleanup_enabled'] and policy['close_games'] else 'paused'
+                        expected_youtube = 'blocked' if policy['block_youtube'] else 'allowed'
+                        # A received revision alone does not prove the running monitor
+                        # or browser rules still match it. Unknown/stale checks remain
+                        # pending instead of being advertised as a healthy station.
+                        confirmed = (m['applied_revision'] == policy['revision']
+                                     and m['guard'] == expected_guard
+                                     and m['youtube'] == expected_youtube
+                                     and (not policy['cleanup_enabled'] or m['cleanup'] == 'ok'))
+                        device['status'] = 'online' if confirmed else 'pending'
         result.update(version='1.1.0',managed_protocol=1,managed_policy=policy,alerts=alerts,unread_alerts=unread)
         result['counts']['online']=sum(d['status']=='online' for d in result['devices'])
         return result

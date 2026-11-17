@@ -20,3 +20,5 @@ id_ed25519*
 .labguard/
 packaging/generated/
 .openai/
+
+ti/_central_integrity.py

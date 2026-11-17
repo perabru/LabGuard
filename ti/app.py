@@ -13,6 +13,13 @@ QUICK_SITES = (('term.ooo','Jogos'),('friv.com','Jogos'),('friv.com.br','Jogos')
                ('poki.com','Jogos'),('chess.com','Jogos'),('youtube.com','Outros'),
                ('youtu.be','Outros'),('youtube-nocookie.com','Outros'),('youtubekids.com','Outros'))
 
+TI_RELEASES = 'https://github.com/perabru/LabGuard/releases?q=ti-v&expanded=true'
+
+class TIUpdateChannel:
+    """Keep TI on its own packages instead of replacing it with the network edition."""
+    def close(self):
+        pass
+
 def append_quick_sites(transport,database):
     """Use the original mutation and persistence path; never replace the rule bank."""
     from labguard.site_controls import apply_site_change
@@ -28,6 +35,25 @@ def append_quick_sites(transport,database):
     return {'snapshot':transport.request('snapshot'),'added':added,'errors':errors,'warnings':warnings}
 
 class App(NetworkApp):
+    def _new_update_manager(self):
+        self._update_manager = TIUpdateChannel()
+        self._update_installation = {'supported': True, 'auto_apply': False}
+        self._update_message = 'Atualização TI: use Verificar e instale LabGuard-TI-Setup.exe sobre esta edição. Seus bancos e preferências são mantidos.'
+
+    def _render_background_options(self):
+        super()._render_background_options()
+        if 'update_checkbox' in self.__dict__:
+            self.update_checkbox.configure(state='disabled')
+
+    def _check_for_updates(self, *, manual=True):
+        if (not manual or self._closed or not self._updates_enabled or self._demo_requested
+                or self.snapshot.get('mode') == 'demo'):
+            return False
+        self._new_update_manager()
+        self._render_background_options()
+        webbrowser.open(TI_RELEASES, new=2)
+        return True
+
     def _build(self):
         super()._build()
         self.title('LabGuard TI | Filtro de rede + clientes e avisos')

@@ -1,16 +1,35 @@
 from pathlib import Path
 import sys,tempfile,unittest
 from unittest.mock import patch
+from io import BytesIO
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from ti.app import App,NetworkApp,append_quick_sites,QUICK_SITES
+from ti.app import App,NetworkApp,append_quick_sites,QUICK_SITES,TI_RELEASES
 from ti.bridge import panel_url,health
 
 class AdditiveTests(unittest.TestCase):
     def test_original_methods_all_inherited(self):
         for name,method in vars(NetworkApp).items():
-            if callable(method) and name!='_build':
+            if callable(method) and name not in ('_build','_new_update_manager','_render_background_options','_check_for_updates'):
                 self.assertIs(getattr(App,name),getattr(NetworkApp,name),name)
+    def test_ti_update_never_installs_the_other_edition(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        app=SimpleNamespace(_closed=False,_updates_enabled=True,_demo_requested=False,
+                            snapshot={'mode':'observation'},_preferences={'auto_updates':True})
+        app._new_update_manager=lambda:App._new_update_manager(app)
+        app._render_background_options=Mock()
+        with patch('labguard.updater.UpdateManager',side_effect=AssertionError('Wrong edition updater')),patch('ti.app.webbrowser.open') as open_page:
+            app._new_update_manager()
+            self.assertFalse(NetworkApp._updates_allowed(app))
+            self.assertTrue(NetworkApp._updates_allowed(app,manual=True))
+            self.assertFalse(App._check_for_updates(app,manual=False))
+            open_page.assert_not_called()
+            self.assertTrue(App._check_for_updates(app))
+            open_page.assert_called_once_with(TI_RELEASES,new=2)
+            self.assertEqual(app._preferences,{'auto_updates':True})
+            app.snapshot={'mode':'demo'}
+            self.assertFalse(App._check_for_updates(app))
     def test_original_views_are_constructed_first(self):
         import inspect
         self.assertIn('super()._build()',inspect.getsource(App._build))
@@ -21,6 +40,14 @@ class AdditiveTests(unittest.TestCase):
     def test_failed_central_is_not_dns_failure(self):
         with patch('ti.bridge.build_opener',side_effect=OSError('offline')):
             self.assertFalse(health()['ready'])
+    def test_unexpected_local_health_response_is_not_a_central(self):
+        import json
+        from contextlib import nullcontext
+        from unittest.mock import Mock
+        for value in (None, [], 'other service', 7, {'ok':True,'app':'OtherApp'}):
+            opener=Mock();opener.open.return_value=nullcontext(BytesIO(json.dumps(value).encode()))
+            with patch('ti.bridge.build_opener',return_value=opener):
+                self.assertFalse(health()['ready'])
     def test_append_not_replace(self):
         from labguard.demo import DemoTransport
         from labguard.banlist import BanlistDatabase

@@ -1,44 +1,85 @@
-"""Build static download navigation without altering the separate network edition guides."""
-from pathlib import Path
-W=Path(__file__).resolve().parent
-p=W/'index.html'
-s=p.read_text(encoding='utf-8')
-if 'id="managed-downloads-ready"' not in s:
-    s=s.replace('LabGuard 2.4.4: controle os sites pelo PC do técnico, sem cliente instalado nos alunos. Guia de DNS para Vivo e switch Mercusys, downloads e testes.', 'LabGuard: escolha o arquivo certo. Central no PC administrador, Cliente nos alunos, filtro DNS separado, desinstalador e guias.')
-    s=s.replace('<a href="#recursos">Recursos</a>', '<a href="downloads/">Qual arquivo baixar?</a><a href="#recursos">Recursos de rede</a>',1)
-    s=s.replace('Encontre os sites na lista do técnico e use Bloquear ou Liberar sem perder o cadastro. O LabGuard filtra o DNS dos computadores do laboratório, sem instalar cliente nas estações. Configure o DNS e confira o resultado no PC do aluno.', 'Para fechar jogos e receber avisos, use a Central no administrador e o Cliente em cada PC dos alunos. Para filtrar domínios por DNS, existe uma edição de rede separada. Escolha os arquivos pelo que cada um faz, não pelo número da versão.')
-    s=s.replace('href="#download"><svg class="icon"><use href="#i-download"/></svg> Ver downloads', 'href="downloads/"><svg class="icon"><use href="#i-download"/></svg> Qual arquivo baixar?')
-    s=s.replace('> Edição de rede 2.4.4 <span>•</span> Instalação no PC da TI', '> Central 1.2 + Cliente 2.3 <span>•</span> Rede 2.4.4 é outra edição')
-    s=s.replace('Interface real do aplicativo · dados de demonstração', 'Interface da edição de rede 2.4 · dados de demonstração')
-    start=s.index('    <section class="section download-section" id="download">')
-    end=s.index('    <section class="section" id="manual">',start)
-    s=s[:start]+'''    <section class="section download-section" id="download"><div class="container" id="managed-downloads-ready">
-      <div class="section-heading"><div><span class="section-kicker">COMECE AQUI · CADA ARQUIVO TEM UMA FUNÇÃO</span><h2>Administrador e aluno.<br>Dois programas diferentes.</h2></div><p>Para jogos, avisos e Sites rápidos, use a Central 1.2 junto do Cliente 2.3. A edição de rede 2.4.4 não substitui esse par.</p></div>
-      <div class="platform-grid">
-        <article class="platform-card"><span class="platform-kicker">01 · NO PC ADMINISTRADOR</span><h3>Central 1.2</h3><p><strong>LabGuardTecnico.exe</strong><br>Mostra computadores e avisos, cria vínculos e envia regras. É o painel da TI, não o programa do aluno.</p><a class="platform-download" href="https://github.com/perabru/LabGuard/releases/download/gerenciado-v2.3.0/LabGuardTecnico.exe">Baixar painel do administrador</a><p>Atualize com <strong>Instalar / reparar</strong>.</p></article>
-        <article class="platform-card"><span class="platform-kicker">02 · EM CADA PC DOS ALUNOS</span><h3>Cliente 2.3</h3><p><strong>LabGuard-Jogos.exe</strong><br>Aplica as regras no Windows, fecha jogos reconhecidos e envia avisos à Central. A instalação exige a conta administrativa.</p><a class="platform-download" href="https://github.com/perabru/LabGuard/releases/download/gerenciado-v2.3.0/LabGuard-Jogos.exe">Baixar cliente dos alunos</a><p>Já vinculado? <strong>Atualizar e manter vínculo</strong>.</p></article>
-        <article class="platform-card"><span class="platform-kicker">ALTERNATIVA · OS DOIS ARQUIVOS</span><h3>Pacote completo ZIP</h3><p><strong>LabGuard-Gerenciado-Windows.zip</strong><br>Reúne os dois EXEs, instruções e verificações. Extraia antes de executar. Não é outro programa nem instala tudo sozinho.</p><a class="platform-download" href="https://github.com/perabru/LabGuard/releases/download/gerenciado-v2.3.0/LabGuard-Gerenciado-Windows.zip">Baixar pacote completo</a><a class="platform-guide" href="downloads/#guia">Ver o guia rápido →</a></article>
-      </div>
-      <p class="platform-note"><strong>Não confunda:</strong> LabGuard-Setup.exe é o filtro DNS de rede. LabGuard-Desinstalador.exe serve para retirar o produto. Source code é código-fonte, não um instalador pronto. A limpeza de jogos pode excluir saves permanentemente; teste uma estação com backup.</p>
-      <div class="hero-buttons"><a class="button button-primary" href="downloads/">Comparar todos os arquivos e suas funções →</a><a class="button button-plain" href="downloads/#outros">Filtro de rede, Linux, servidores e desinstalador</a></div>
-    </div></section>
+"""Validate publishable static pages without changing their content or product versions.
 
-'''+s[end:]
-    s=s.replace('<div class="manual-grid">','<div class="manual-grid"><article class="platform-card"><span class="platform-kicker">CENTRAL + CLIENTE · USO GERENCIADO</span><h3>Guia dos dois executáveis</h3><p>Instale a Central no administrador, vincule cada cliente e confira Sites rápidos, Bloquear tudo e os avisos.</p><a class="platform-download" href="downloads/#guia">Instalar ou atualizar o par atual</a><a class="platform-secondary" href="https://github.com/perabru/LabGuard/blob/main/managed/README.md">Ler instruções completas</a></article>',1)
-    s=s.replace('COMECE AQUI · SEM CLIENTE','EDIÇÃO DE REDE · DNS SEM CLIENTE')
-    s=s.replace('<h3>Guia do técnico</h3>','<h3>Guia do filtro DNS</h3>')
-    s=s.replace('<p>A edição de rede 2.4.4 funciona com o LabGuard no PC da TI.', '<p><strong>Para jogos e avisos gerenciados, sim:</strong> instale Central 1.2 no administrador e Cliente 2.3 em cada estação. <a href="downloads/">Escolher os arquivos</a>.</p><p>Já a edição de rede 2.4.4 funciona com o LabGuard no PC da TI.')
-    s=s.replace('>VIVO + SWITCH SIMPLES</span>','>EDIÇÃO DE REDE · VIVO + SWITCH SIMPLES</span>')
-    p.write_text(s,encoding='utf-8')
-p=W/'script.js';s=p.read_text(encoding='utf-8')
-a=s.find('  const gamesUrl=');b=s.find('  const releaseStatus=',a)
-if a>=0 and b>a:
-    s=s[:a]+'  // Product-specific downloads are static and explained in downloads/.\n'+s[b:]
-    p.write_text(s,encoding='utf-8')
-p=W/'jogos/index.html';s=p.read_text(encoding='utf-8')
-if 'id="managed-edition-notice"' not in s:
-    marker='<main id="conteudo">'
-    if marker not in s:raise RuntimeError('Games page main not found')
-    s=s.replace(marker,marker+'<section id="managed-edition-notice" class="notice wide"><strong>Esta página documenta o cliente local 2.1.</strong><p>Para o cliente atual com avisos na Central, Sites rápidos e Bloquear tudo, use <strong>Cliente 2.3 + Central 1.2</strong>. Os arquivos abaixo são da edição local anterior.</p><a class="button primary" href="../downloads/">Escolher os downloads atuais</a></section>',1)
-    p.write_text(s,encoding='utf-8')
-print('Static download choices and product roles prepared.')
+Older deploys rewrote the homepage to stale client releases. Product choices now live
+in the tracked HTML and work with JavaScript disabled. This check blocks a missing
+local page/anchor or a downgrade in the current download entry points.
+"""
+from __future__ import annotations
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+import sys
+
+ROOT = Path(__file__).resolve().parent
+CURRENT = {
+    'ti': ('2.4.6', 'ti-v2.4.6', 'LabGuard-TI-Setup.exe'),
+    'automatic': ('2.5.1', 'automatico-v2.5.1', 'LabGuard-Jogos.exe'),
+    'central': ('1.2.1', 'automatico-v2.5.1', 'LabGuardTecnico.exe'),
+}
+
+class Page(HTMLParser):
+    def __init__(self, path: Path):
+        super().__init__(convert_charrefs=True)
+        self.path = path
+        self.links: list[str] = []
+        self.ids: set[str] = set()
+        self.feed(path.read_text(encoding='utf-8'))
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if attrs.get('id'):
+            self.ids.add(attrs['id'])
+        if attrs.get('name') and tag == 'a':
+            self.ids.add(attrs['name'])
+        for name in ('href', 'src'):
+            if attrs.get(name):
+                self.links.append(attrs[name])
+
+
+def validate() -> list[str]:
+    pages = {p.resolve(): Page(p) for p in ROOT.rglob('*.html')}
+    errors = []
+    for path, page in pages.items():
+        for raw in page.links:
+            link = urlsplit(raw)
+            if link.scheme or link.netloc:
+                continue
+            if not link.path:
+                target = path
+            elif link.path.startswith('/'):
+                target = ROOT / unquote(link.path.lstrip('/'))
+            else:
+                target = path.parent / unquote(link.path)
+            target = target.resolve()
+            if target.is_dir():
+                target /= 'index.html'
+            if not target.is_relative_to(ROOT):
+                errors.append(f'{path.relative_to(ROOT)}: link fora do site: {raw}')
+            elif not target.is_file():
+                errors.append(f'{path.relative_to(ROOT)}: destino ausente: {raw}')
+            elif link.fragment and target in pages and unquote(link.fragment) not in pages[target].ids:
+                errors.append(f'{path.relative_to(ROOT)}: âncora ausente: {raw}')
+    for rel in ('index.html', 'downloads/index.html'):
+        source = (ROOT/rel).read_text(encoding='utf-8')
+        for version, tag, asset in CURRENT.values():
+            expected = f'https://github.com/perabru/LabGuard/releases/download/{tag}/{asset}'
+            if expected not in source:
+                errors.append(f'{rel}: download atual ausente: {asset} {version}')
+        for stale in ('automatico-v2.4.0/', 'gerenciado-v2.3.0/', 'CLIENTE 2.4', 'Cliente 2.3'):
+            if stale in source:
+                errors.append(f'{rel}: versão obsoleta na escolha atual: {stale}')
+        if 'manual-atual/' not in source:
+            errors.append(f'{rel}: manual atual ausente')
+    script = (ROOT/'script.js').read_text(encoding='utf-8')
+    if 'releases/latest' in script:
+        errors.append('script.js: não resolva produtos diferentes pela release global latest')
+    if 'managed-downloads-ready' not in (ROOT/'index.html').read_text(encoding='utf-8'):
+        errors.append('index.html: downloads estáticos ausentes')
+    return errors
+
+if __name__ == '__main__':
+    issues = validate()
+    if issues:
+        print('\n'.join(issues), file=sys.stderr)
+        raise SystemExit(1)
+    print('Site validado: links locais, âncoras e downloads atuais consistentes; nenhum arquivo foi reescrito.')

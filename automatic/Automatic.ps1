@@ -2,6 +2,7 @@
 $script:DefaultLocalSites=@('term.ooo','friv.com','friv.com.br','poki.com','chess.com')
 $script:WasEnabled=$true
 $script:HasCentral=$false
+$script:UpgradeSnapshot=$null
 function Secure-Directory([string]$Path) {
     if(-not(No-Link $Path)){throw ('Link/junction recusado: '+$Path)}
     if(Test-Path -LiteralPath $Path){Assert-NotUserWritable $Path}
@@ -33,24 +34,25 @@ function Prepare-Upgrade {
     if(Test-Path -LiteralPath $ConfigPath){Read-Config;$script:WasEnabled=[bool]$script:Config.Enabled}
     $oldGuard=Get-ScheduledTask -TaskName $script:GuardianTaskName -ErrorAction SilentlyContinue
     if($oldGuard){
-        if(@($oldGuard.Actions|Where-Object {$_.Execute -ieq $Exe -and $_.Arguments -eq '--guard'}).Count -ne 1){throw 'Tarefa de monitor preexistente nao pertence a esta instalacao.'}
-        Disable-ScheduledTask -TaskName $script:GuardianTaskName|Out-Null
-        Stop-ScheduledTask -TaskName $script:GuardianTaskName
+        if(@($oldGuard.Actions).Count -ne 1 -or @($oldGuard.Actions|Where-Object {$_.Execute -ieq $Exe -and $_.Arguments -eq '--guard'}).Count -ne 1){throw 'Tarefa de monitor preexistente nao pertence a esta instalacao.'}
     }
     $oldCycle=Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if($oldCycle){
-        if(@($oldCycle.Actions|Where-Object {$_.Execute -ieq $Exe -and $_.Arguments -eq '--cycle'}).Count -ne 1){throw 'Tarefa de limpeza preexistente nao pertence a esta instalacao.'}
-        Disable-ScheduledTask -TaskName $TaskName|Out-Null
+        if(@($oldCycle.Actions).Count -ne 1 -or @($oldCycle.Actions|Where-Object {$_.Execute -ieq $Exe -and $_.Arguments -eq '--cycle'}).Count -ne 1){throw 'Tarefa de limpeza preexistente nao pertence a esta instalacao.'}
     }
+    # Validate both task identities before stopping either component. Every later
+    # install failure must restore the previous policy and scheduling state.
+    if(Test-Path -LiteralPath $ConfigPath){
+        $script:UpgradeSnapshot=@{config=(ConvertTo-Json -InputObject $script:Config -Depth 8);cycle=$null -ne $oldCycle;cycleEnabled=$oldCycle -and $oldCycle.State -ne 'Disabled';guard=$null -ne $oldGuard;guardEnabled=$oldGuard -and $oldGuard.State -ne 'Disabled';guardRunning=$oldGuard -and $oldGuard.State -eq 'Running'}
+    }
+    if($oldGuard){Disable-ScheduledTask -TaskName $script:GuardianTaskName|Out-Null;Stop-ScheduledTask -TaskName $script:GuardianTaskName}
+    if($oldCycle){Disable-ScheduledTask -TaskName $TaskName|Out-Null}
     if(Test-Path -LiteralPath $ConfigPath){$script:Config.Enabled=$false;Write-Config}
     Log 'ATUALIZACAO' 'Pausando novas remocoes e aguardando a operacao atual, sem encerrar o Windows Installer.'
     $until=[DateTime]::UtcNow.AddSeconds(260)
     while($oldCycle -and (Get-ScheduledTask -TaskName $TaskName).State -eq 'Running'){
         if([DateTime]::UtcNow -ge $until){
-            Read-Config;$script:Config.Enabled=$script:WasEnabled;Write-Config
-            if($script:WasEnabled){Enable-ScheduledTask -TaskName $TaskName|Out-Null}
-            if($oldGuard){Enable-ScheduledTask -TaskName $script:GuardianTaskName|Out-Null;Start-ScheduledTask -TaskName $script:GuardianTaskName}
-            throw 'A limpeza anterior nao terminou. A configuracao anterior foi restaurada. Confira os registros antes de repetir.'
+            throw 'A limpeza anterior nao terminou. A atualizacao foi interrompida; confira a recuperacao da configuracao nos registros.'
         }
         Start-Sleep -Seconds 2
     }
@@ -63,6 +65,20 @@ function Prepare-Upgrade {
         }
     }
     Start-Sleep -Milliseconds 500
+}
+function Restore-AutomaticUpgrade {
+    if($null -eq $script:UpgradeSnapshot){return}
+    $prior=$script:UpgradeSnapshot;$script:UpgradeSnapshot=$null
+    $script:Config=ConvertFrom-Json -InputObject $prior.config
+    Write-Config
+    if($prior.cycle){
+        if($prior.cycleEnabled){Enable-ScheduledTask -TaskName $TaskName|Out-Null}else{Disable-ScheduledTask -TaskName $TaskName|Out-Null}
+    }
+    if($prior.guard){
+        if($prior.guardEnabled){Enable-ScheduledTask -TaskName $script:GuardianTaskName|Out-Null}else{Disable-ScheduledTask -TaskName $script:GuardianTaskName|Out-Null}
+        if($prior.guardRunning){Start-ScheduledTask -TaskName $script:GuardianTaskName}
+    }
+    Log 'RECUPERADO' 'Atualizacao nao concluida: configuracao e agendamentos anteriores restaurados. Confira o monitor antes de repetir.'
 }
 function Initialize-AutomaticPolicy {
     Read-Config
@@ -77,7 +93,7 @@ function Initialize-AutomaticPolicy {
         $script:Config|Add-Member -NotePropertyName ManagedAppliedRevision -NotePropertyValue 0 -Force
         Log 'LOCAL' 'Protecao automatica: catalogo completo LabGuard (jogos, apostas, adultos, IA), sites rapidos e YouTube. Sem vinculo obrigatorio.'
     }
-    $script:Config|Add-Member -NotePropertyName Version -NotePropertyValue '2.5.0' -Force
+    $script:Config|Add-Member -NotePropertyName Version -NotePropertyValue '2.5.1' -Force
     Write-Config
 }
 function Install-Extensions {
@@ -109,7 +125,7 @@ function Check-AutomaticHealth {
     do{
         try{
             $file=Join-Path $Data 'guard-status.json'
-            if(Test-Path -LiteralPath $file){$g=Get-Content -LiteralPath $file -Raw -Encoding UTF8|ConvertFrom-Json;$age=([DateTime]::UtcNow-[DateTime]::Parse($g.updatedUtc).ToUniversalTime()).TotalSeconds;$monitor=[string]$g.state;$alive=$age -ge -5 -and $age -le 15 -and $g.version -eq '2.5.0' -and $g.state -in @('Ativo','Pausado')}
+            if(Test-Path -LiteralPath $file){$g=Get-Content -LiteralPath $file -Raw -Encoding UTF8|ConvertFrom-Json;$age=([DateTime]::UtcNow-[DateTime]::Parse($g.updatedUtc).ToUniversalTime()).TotalSeconds;$monitor=[string]$g.state;$alive=$age -ge -5 -and $age -le 15 -and $g.version -eq '2.5.1' -and $g.state -in @('Ativo','Pausado')}
         }catch{}
         if(-not $alive){Start-Sleep -Seconds 1}
     }while(-not $alive -and [DateTime]::UtcNow -lt $until)
@@ -127,7 +143,7 @@ function Check-AutomaticHealth {
     if(-not (Test-FullCatalog)){$sites=$false;$problems.Add('Catalogo completo de jogos, apostas, adultos e IA nao confirmado em todos os navegadores.')}
     if(-not $sites){$problems.Add('Uma ou mais regras de navegador nao foram confirmadas.')}
     $linked=Test-Path -LiteralPath (Join-Path $Base 'Central\vinculo.dat')
-    $report=@{version='2.5.0';state=$(if($problems.Count){'partial'}else{'ready'});scheduler=$scheduled;monitor=$monitor;monitorFresh=$alive;sites=$sites;centralLinked=[bool]$linked;protectionEnabled=[bool]$script:Config.Enabled;updatedUtc=[DateTime]::UtcNow.ToString('o');issues=@($problems.ToArray())}
+    $report=@{version='2.5.1';state=$(if($problems.Count){'partial'}else{'ready'});scheduler=$scheduled;monitor=$monitor;monitorFresh=$alive;sites=$sites;centralLinked=[bool]$linked;protectionEnabled=[bool]$script:Config.Enabled;updatedUtc=[DateTime]::UtcNow.ToString('o');issues=@($problems.ToArray())}
     Write-JsonAtomic (Join-Path $Data 'install-status.json') $report
     foreach($problem in $problems){Log 'FALHA' $problem}
     Log 'CONFIRMACAO' ('Monitor='+$monitor+'; agendamento='+$scheduled+'; regras de sites='+$sites+'; vinculo='+$linked)

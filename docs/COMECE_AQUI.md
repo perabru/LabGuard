@@ -1,4 +1,6 @@
-# Comece aqui - LabGuard 2.4.3
+# Comece aqui - filtro DNS LabGuard TI 2.4.6
+
+Para escolher entre **TI 2.4.6**, **Cliente Automático 2.5.1** e **Central 1.2.1**, comece pelo [manual atualizado](MANUAL_ATUAL.md) ou pelos [downloads explicados](https://perabru.github.io/LabGuard/downloads/). Este guia detalha somente o filtro DNS.
 
 O uso diário tem três ações: **Configurar**, **Gerenciar sites** e **Testar conexão**. A leitura local começa ao abrir. Regras novas só são aplicadas após sua escolha.
 

@@ -1,16 +1,16 @@
-# LabGuard TI 2.4.5 — filtro original com recursos adicionais
+# LabGuard TI 2.4.6 — filtro original com recursos adicionais
 
-Esta edição abre o **filtro de rede original**. A nova aba **Clientes e avisos** acrescenta acesso à Central 1.2 sem substituir o DNS, seus bancos ou os controles existentes. O Cliente Automático 2.4 nas estações não precisa ser reinstalado por causa desta atualização da TI.
+Esta edição abre o **filtro de rede original**. A nova aba **Clientes e avisos** acrescenta acesso à Central 1.2.1 sem substituir o DNS, seus bancos ou os controles existentes. O Cliente Automático 2.5.1 nas estações não precisa ser reinstalado por causa desta atualização da TI.
 
 ## Baixar o arquivo correto
 
-**LabGuard-TI-Setup.exe**: instalar/atualizar no PC da TI que já executava o filtro de rede. Instala a interface completa e inclui o instalador da Central 1.2 como componente adicional. Não é o cliente do aluno.
+**LabGuard-TI-Setup.exe**: instalar/atualizar no PC da TI que já executava o filtro de rede. Instala a interface completa e inclui o instalador da Central 1.2.1 como componente adicional. Não é o cliente do aluno.
 
 **LabGuard-TI-Portable.zip**: a mesma interface completa em pasta. Extraia tudo e abra LabGuard.exe; não mova apenas esse EXE para fora da pasta. Não cria a instalação tradicional. Para atualizar a instalação existente, prefira o Setup.
 
 **LabGuardTecnico.exe**, incluído como componente: abre o instalador/painel da Central de clientes. Ele, sozinho, não é o filtro DNS. Pode ser aberto pela nova aba. O filtro permanece na janela principal LabGuard.
 
-**LabGuard-Jogos.exe (Automático 2.4)**: continua sendo o cliente de cada estação. Seus bloqueios locais, fechamento de jogos, limpeza, inicialização e comunicação existente não foram substituídos por esta edição da TI.
+**LabGuard-Jogos.exe (Automático 2.5.1)**: continua sendo o cliente de cada estação. Seus bloqueios locais, fechamento de jogos, limpeza, inicialização e comunicação existente não foram substituídos por esta edição da TI.
 
 ## Atualizar sem apagar a configuração
 
@@ -32,7 +32,7 @@ Na aba **Clientes e avisos**:
 
 - **Abrir filtro original** e **Sites e bloqueios DNS**: retornam às funções já existentes.
 - **Bloquear lista rápida no DNS**: acrescenta Termo, Friv, Poki, Chess.com e domínios do YouTube ao filtro atual. Mantém regras anteriores e usa a confirmação/persistência originais. Não corta toda a internet. Joguester exige o endereço correto.
-- **Abrir Central existente**: abre o painel local; padrão `http://127.0.0.1:8787/`. Se já usa Central 1.2, não precisa recriar senha ou vínculos.
+- **Abrir Central existente**: abre o painel local; padrão `http://127.0.0.1:8787/`. Se já usa Central 1.2.1, não precisa recriar senha ou vínculos.
 - **Instalar / reparar Central**: abre o componente administrativo incluído, com a autorização normal do Windows. Só configure uma primeira Central quando ainda não houver uma.
 - **Conferir conexão**: consulta apenas a disponibilidade da Central local. Falha na Central não redefine nem desliga o filtro DNS.
 
@@ -50,6 +50,10 @@ Mantenha o PC responsável pelo DNS ligado, o filtro iniciado e a configuração
 
 ## Verificação e limites
 
-O processo de publicação compara o código original do filtro com a revisão anterior, executa os testes de regressão e exige testes reais em Windows descartável: atualização sobre a 2.4.4, preservação dos arquivos de preferências/banco, DNS UDP/TCP e execução simultânea com a Central. Também verifica que parar a Central não interrompe o DNS. Os dados usados são fictícios; nenhuma máquina real da escola é alterada.
+O processo de publicação registra os arquivos do filtro alterados desde a revisão de referência, executa os testes de regressão e exige testes reais em Windows descartável: atualização sobre a 2.4.4, preservação dos arquivos de preferências/banco, DNS UDP/TCP e execução simultânea com a Central. Também verifica que parar a Central não interrompe o DNS e que o componente incluído é a Central 1.2.1, compilada da mesma revisão do pacote TI. Os dados usados são fictícios; nenhuma máquina real da escola é alterada.
 
 Consulte `PRESERVACAO_E_TESTES.json`. Esses testes não são uma garantia absoluta em qualquer rede ou versão do Windows. Faça a conferência em uma estação real antes de distribuir ao laboratório inteiro.
+
+### Atualizações da edição TI
+
+Use **Verificar atualizações** para abrir os pacotes da edição TI e execute o novo `LabGuard-TI-Setup.exe` sobre a instalação existente. O atualizador automático da edição de rede não é usado nesta edição, pois seu instalador substituiria a extensão TI. A preferência original permanece salva; o canal de atualização da edição de rede continua funcionando no aplicativo de rede. Mantenha o backup de `%USERPROFILE%\.labguard` e use a mesma conta Windows.

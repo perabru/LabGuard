@@ -1,4 +1,5 @@
 import copy
+import configparser
 from datetime import datetime, timedelta, timezone
 import hashlib
 import http.client
@@ -20,6 +21,23 @@ from labguard.server_service import run_service
 
 
 class ConfigTests(unittest.TestCase):
+    def test_linux_service_can_serve_opted_in_dns_without_root(self):
+        unit = configparser.ConfigParser(interpolation=None)
+        unit.read(Path(__file__).resolve().parents[1] / "server" / "labguard-server.service")
+        service = unit["Service"]
+        self.assertEqual(service["User"], "labguard-server")
+        self.assertEqual(service["NoNewPrivileges"], "yes")
+        self.assertEqual(service["AmbientCapabilities"].split(), ["CAP_NET_BIND_SERVICE"])
+        self.assertEqual(service["CapabilityBoundingSet"].split(), ["CAP_NET_BIND_SERVICE"])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            initialize(path)
+            settings = json.loads((path / "config.json").read_text())
+            settings["controller"] = {"kind": "local_dns", "host": "192.168.50.10",
+                                      "lab_cidr": "192.168.50.0/24", "manage_rules": True}
+            (path / "config.json").write_text(json.dumps(settings))
+            self.assertEqual(ServerConfig(path).controller["port"], 53)
+
     def test_init_generates_two_private_tokens_and_never_overwrites(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)

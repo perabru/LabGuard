@@ -1,4 +1,4 @@
-param([string]$Version = "2.4.4", [switch]$SkipInstaller)
+param([string]$Version = "2.4.5", [switch]$SkipInstaller)
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $projectRoot = Split-Path -Parent $PSScriptRoot

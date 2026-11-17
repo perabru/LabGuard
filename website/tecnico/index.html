@@ -6,10 +6,10 @@
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="theme-color" content="#462389">
-  <title>LabGuard 2.4.4 | Guia do técnico sem cliente</title>
-  <meta name="description" content="Use o LabGuard 2.4.4 no PC do técnico e filtre os sites por DNS. Guia para Vivo e switch Mercusys, sem instalar cliente nos computadores dos alunos.">
+  <title>LabGuard TI 2.4.6 | Guia do técnico sem cliente</title>
+  <meta name="description" content="Use o LabGuard TI 2.4.6 no PC do técnico e filtre os sites por DNS. Guia para Vivo e switch Mercusys, sem instalar cliente nos computadores dos alunos.">
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="guia.css?v=2.4.4">
+  <link rel="stylesheet" href="guia.css?v=2.4.6">
 </head>
 <body>
   <a class="skip" href="#conteudo">Ir ao conteúdo</a>
@@ -17,17 +17,17 @@
     <a class="brand" href="../"><img src="../assets/favicon.svg" alt="" width="31" height="35"><span>LabGuard</span></a>
     <a class="back" href="../">Voltar ao site <span class="link-arrow" aria-hidden="true"></span></a>
   </div></header>
-  <main id="conteudo">
+  <main id="conteudo"><aside class="archive-banner"><div class="wrap"><strong>Este guia detalha o filtro DNS.</strong> A edição TI atual também oferece acesso à Central. Para fechar jogos nos alunos e receber avisos, use o <a href="../manual-atual/">manual do Cliente Automático 2.5.1 + Central 1.2.1</a>. Filtro e cliente podem funcionar juntos; confira as duas camadas ao liberar um site.</div></aside>
     <section class="hero"><div class="wrap hero-inner">
       <div>
-        <p class="platform">LabGuard 2.4.4 <span>/</span> Edição de rede · Windows x64</p>
+        <p class="platform">LabGuard TI 2.4.6 <span>/</span> Edição de rede · Windows x64</p>
         <h1>Controle pela rede.<br>Sem cliente nos alunos.</h1>
         <p class="lead">Instale o painel no PC do técnico. Os computadores do laboratório usam seu DNS, e você administra os bloqueios em um só lugar.</p>
         <div class="actions">
-          <a class="cta" href="https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Setup.exe">↓ Baixar LabGuard-Setup.exe</a>
-          <a class="pdf" href="https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Portable.zip">Versão portátil <span class="link-arrow" aria-hidden="true"></span></a>
+          <a class="cta" href="https://github.com/perabru/LabGuard/releases/download/ti-v2.4.6/LabGuard-TI-Setup.exe">↓ Baixar LabGuard-TI-Setup.exe</a>
+          <a class="pdf" href="https://github.com/perabru/LabGuard/releases/download/ti-v2.4.6/LabGuard-TI-Portable.zip">Versão portátil <span class="link-arrow" aria-hidden="true"></span></a>
         </div>
-        <p class="hero-footnote">Versão 2.4.4, com Python incluído e lista de sites para bloquear e liberar sem perder o cadastro. As estações precisam usar o DNS do filtro.</p>
+        <p class="hero-footnote">TI 2.4.6, com Python incluído e lista de sites para bloquear e liberar sem perder o cadastro. As estações precisam usar o DNS do filtro.</p>
       </div>
       <div class="overview">
         <span class="eyebrow">VIVO + SWITCH MERCUSYS SIMPLES</span>
@@ -56,7 +56,7 @@
         <section class="section" id="tecnico">
           <span class="section-number">01 / COMPUTADOR DA TI</span>
           <h2>Prepare o PC do técnico</h2>
-          <p>Use o <strong>LabGuard-Setup.exe 2.4.4</strong>. Ele instala o painel no computador da TI. Comece com uma estação piloto para conferir a rede antes de ampliar para a turma.</p>
+          <p>Use o <strong>LabGuard-TI-Setup.exe 2.4.6</strong>. Ele instala o painel no computador da TI. Comece com uma estação piloto para conferir a rede antes de ampliar para a turma.</p>
           <ol class="steps">
             <li>Reserve o IPv4 desse computador no DHCP do roteador, ou defina uma configuração fixa com a TI. O IP precisa permanecer estável.</li>
             <li>Abra o LabGuard e entre em <strong>Configurar → 1. Ligar filtro</strong>. A observação que aparece ao abrir o aplicativo ainda não aplica bloqueios.</li>
@@ -66,7 +66,7 @@
           </ol>
           <p class="note"><strong>Mantenha o PC e o LabGuard ligados durante o uso.</strong> A opção <strong>Ligar este filtro ao abrir o LabGuard</strong> retoma o filtro ao abrir o aplicativo. Ela não configura o início automático com o Windows.</p>
           <p>Se a escola usa Active Directory ou nomes internos, mantenha um resolvedor de saída que consiga atendê-los. A opção de Cloudflare Families pode filtrar conteúdo adulto e malware também na saída; isso influencia quais domínios poderão ser liberados.</p>
-          <p>Se a edição Cliente ou a Central anterior já foi instalada, conclua a <a href="#migrar">migração para o filtro de rede</a> antes de validar o resultado.</p>
+          <p>Se deseja manter proteção local de jogos e avisos, preserve Cliente e Central e teste as duas camadas. A <a href="#migrar">migração abaixo</a> é uma opção somente para quem escolhe usar exclusivamente DNS, sem proteção local.</p>
         </section>
 
         <section class="section" id="dns">
@@ -95,7 +95,7 @@
           <span class="section-number">03 / REGRAS DO LABORATÓRIO</span>
           <h2>Encontre o site. Bloqueie ou libere.</h2>
           <p>Abra <strong>Sites</strong> ou <strong>Gerenciar sites</strong>. A tela <strong>Sites cadastrados e integrados</strong> reúne os <strong>8 domínios da lista escolar</strong>, os <strong>23 do catálogo de IA</strong>, seus cadastros e as regras disponíveis no filtro. Visualizar o catálogo não ativa todos os bloqueios.</p>
-          <figure class="site-preview"><a href="../assets/sites-v2.4.4.png"><img src="../assets/sites-v2.4.4.png" width="1240" height="820" loading="lazy" alt="Tela Sites do LabGuard 2.4.4, em demonstração, com busca, filtros, Poki selecionado e botões Bloquear e Liberar."></a><figcaption>Tela real em modo demonstração, com dados fictícios. Selecione a linha e use Bloquear ou Liberar. Clique na imagem para ampliar.</figcaption></figure>
+          <figure class="site-preview"><a href="../assets/sites-v2.4.4.png"><img src="../assets/sites-v2.4.4.png" width="1240" height="820" loading="lazy" alt="Tela Sites da edição de rede 2.4.4, com os controles DNS mantidos na edição TI, em demonstração, com busca, filtros, Poki selecionado e botões Bloquear e Liberar."></a><figcaption>Tela real em modo demonstração, com dados fictícios. Selecione a linha e use Bloquear ou Liberar. Clique na imagem para ampliar.</figcaption></figure>
           <div class="operation-grid">
             <article><h3>Localizar um domínio</h3><p>Use <strong>Buscar</strong>, <strong>Categoria</strong> e <strong>Estado</strong>. A tabela mostra <strong>Domínio, Categoria, Estado e Origem</strong>. Selecione a linha do site desejado.</p></article>
             <article><h3>Bloquear</h3><p>Com o filtro ativo e autorizado, clique em <strong>Bloquear</strong>. Confira a confirmação e o estado <strong>Bloqueado neste filtro</strong>. A regra também abrange subdomínios.</p></article>
@@ -143,7 +143,7 @@
         </section>
 
         <section class="section" id="migrar">
-          <h2>Se já instalou a edição Cliente</h2>
+          <h2>Migração opcional para usar somente DNS</h2>
           <p>Para passar a usar somente a filtragem pela rede, remova a proteção local instalada anteriormente antes de conferir os bloqueios do DNS.</p>
           <ol class="steps">
             <li>Registre as regras que deseja conservar. Se necessário, exporte os cadastros locais pela função <strong>Banco de sites → Exportar CSV</strong> do Cliente.</li>
@@ -165,18 +165,18 @@
         </section>
 
         <section class="section" id="arquivos">
-          <h2>Downloads da edição de rede 2.4.4</h2>
+          <h2>Downloads da edição TI 2.4.6</h2>
           <div class="files">
-            <a href="https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Setup.exe"><span><strong>Instalador Windows — PC do técnico</strong><small>LabGuard-Setup.exe · Python incluído</small></span><span aria-hidden="true">↓</span></a>
-            <a href="https://github.com/perabru/LabGuard/releases/download/v2.4.4/LabGuard-Portable.zip"><span><strong>Pacote portátil Windows</strong><small>Extraia a pasta inteira antes de abrir o programa</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/ti-v2.4.6/LabGuard-TI-Setup.exe"><span><strong>Instalador Windows — PC do técnico</strong><small>LabGuard-TI-Setup.exe · Python incluído</small></span><span aria-hidden="true">↓</span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/download/ti-v2.4.6/LabGuard-TI-Portable.zip"><span><strong>Pacote portátil Windows</strong><small>Extraia a pasta inteira antes de abrir o programa</small></span><span aria-hidden="true">↓</span></a>
             <a href="../manual2/index.html"><span><strong>Manual de rede 2.4</strong><small>Banco de sites, relatórios e integrações avançadas</small></span><span class="link-arrow" aria-hidden="true"></span></a>
-            <a href="https://github.com/perabru/LabGuard/releases/tag/v2.4.4"><span><strong>Publicação 2.4.4</strong><small>Pacotes Windows/Linux, fonte e somas SHA-256</small></span><span class="link-arrow" aria-hidden="true"></span></a>
+            <a href="https://github.com/perabru/LabGuard/releases/tag/ti-v2.4.6"><span><strong>Publicação TI 2.4.6</strong><small>Pacotes TI Windows e somas SHA-256</small></span><span class="link-arrow" aria-hidden="true"></span></a>
           </div>
           <p class="sources">Referências de apoio: <a href="https://support.microsoft.com/pt-br/windows/experience/connectivity-networking/essential-network-settings-and-tasks-in-windows">configurações de rede do Windows</a> e <a href="https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/nslookup">comando nslookup</a>.</p>
         </section>
       </div>
     </div>
   </main>
-  <footer><div class="wrap"><span>LabGuard 2.4.4 · Guia do técnico sem cliente</span><a href="../">Site do LabGuard</a></div></footer>
+  <footer><div class="wrap"><span>LabGuard TI 2.4.6 · Guia do técnico sem cliente</span><a href="../">Site do LabGuard</a></div></footer>
 </body>
 </html>

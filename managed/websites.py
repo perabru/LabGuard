@@ -109,6 +109,12 @@ class WebsiteStore(ManagedStore):
         revision = report['web_revision']
         if type(revision) is not int or revision < 0 or report['web_status'] not in ('applied','pending','failed','unknown'):
             raise core.CentralError('Confirmação de sites inválida.')
+        # Reject an impossible acknowledgement before the base telemetry writes
+        # last_seen, protection state or alerts. A failed request must not make an
+        # unconfirmed station appear connected or create events that were not acked.
+        with self._open() as db:
+            if revision > self.web_policy(db)['revision']:
+                raise core.CentralError('Revisão de sites inexistente.')
         base = {k:v for k,v in report.items() if k not in ('web_revision','web_status')}
         result = super().telemetry(token,base)
         with self._open(write=True) as db:
@@ -132,7 +138,7 @@ class WebsiteStore(ManagedStore):
             device['web_confirmed'] = bool(s and not device['revoked'] and device['status'] == 'online' and s['revision']==result['web_policy']['revision'] and s['status']=='applied')
             if s and not device['revoked'] and device['status'] not in ('offline','error') and not device['web_confirmed']:
                 device['status'] = 'error' if s['status']=='failed' else 'pending'
-        result['version']='1.2.0'
+        result['version']='1.2.1'
         result['web_protocol']=1
         result['counts']['online']=sum(d['status']=='online' for d in result['devices'])
         return result
@@ -161,4 +167,4 @@ class WebsiteHandler(ManagedHandler):
 def install():
     core.CentralStore=WebsiteStore
     core._Handler=WebsiteHandler
-    core.CENTRAL_VERSION='1.2.0'
+    core.CENTRAL_VERSION='1.2.1'
