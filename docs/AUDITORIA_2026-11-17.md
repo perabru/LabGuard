@@ -24,7 +24,14 @@ Escopo: conversa compartilhada LabGuard; site, manuais, Cliente Automático, Cen
 - Autotestes do painel, servidor e configuração do gateway aprovados.
 - Manual unificado HTML/Markdown e PDF de 7 páginas revisado; guia do Automático com 3 páginas.
 
-Os fluxos de revisão do pull request geram artefatos e evidências de Windows/Linux sem publicar o site ou os releases. Consulte o resultado de cada job antes de liberar os downloads.
+## Testes nativos e revisão visual
+
+- [Rede Windows/Linux](https://github.com/perabru/LabGuard/actions/runs/44109529904): testes, diagnóstico de estação, instalação/abertura nativa, serviços e atualização Windows aprovados; publicação ignorada no PR.
+- [Cliente, TI, desinstalador e site](https://github.com/perabru/LabGuard/actions/runs/44109531481): os quatro jobs aprovados, com pacotes e relatórios preservados como artefatos. O Cliente inclui falha provocada na atualização e recuperação do monitor/política; TI inclui atualização mantendo os dados e DNS funcionando após parar a Central.
+- Prévia local conferida no navegador: início, downloads, manual, tema claro/escuro, suspensão/restauração da demonstração, ausência de imagens quebradas e largura de tela reduzida sem rolagem horizontal. Corrigida sobreposição dos rótulos de destino dos downloads.
+- Gate de publicação: quatro testes offline aprovados; o Pages aguarda a disponibilidade dos assets referenciados antes de alterar o site.
+
+As compilações verificadas usam a revisão 3b9f61d3266994f73bdaad553fc414c32fb20358. O ajuste visual e o gate posteriores não alteram código dos executáveis. Nenhum release ou site de produção foi publicado por estes testes.
 
 ## Requisitos e limites mantidos
 
