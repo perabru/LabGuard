@@ -35,7 +35,7 @@ def main():
     exe=install/'LabGuard.exe'
     run([exe,'--self-test','--output',out/'core-self-test.json'])
     report=json.loads((out/'core-self-test.json').read_text(encoding='utf-8'))
-    assert report['ok'] and report['version']=='2.4.5'
+    assert report['ok'] and report['version']=='2.4.6'
     run([exe,'--dns-self-test','--output',out/'dns-self-test.json'])
     dnsreport=json.loads((out/'dns-self-test.json').read_text())
     assert dnsreport['ok'] and dnsreport['udp_blocked'] and dnsreport['tcp_blocked']
@@ -63,6 +63,7 @@ def main():
             if service.poll() is not None:raise RuntimeError('Central process exited: '+str(service.returncode))
             time.sleep(.3)
         assert health(panelport)['ready'],'Actual Central did not respond'
+        assert health(panelport)['version']=='1.2.1','Bundled Central is not the maintained revision'
         dns.start();assert blocked() and blocked(True),'DNS did not filter while Central was running'
         service.terminate();service.wait(timeout=15)
         assert blocked() and blocked(True),'Stopping Central interrupted original DNS'
@@ -70,7 +71,7 @@ def main():
     finally:
         dns.close()
         if service.poll() is None:service.terminate();service.wait(timeout=15)
-    checks={'ok':True,'upgrade_from':'2.4.4','upgrade_to':'2.4.5','same_app_id':True,
+    checks={'ok':True,'upgrade_from':'2.4.4','upgrade_to':'2.4.6','same_app_id':True,
             'preferences_and_rule_files_byte_identical':len(original),'original_modes':report['controller_modes'],
             'original_dns_udp_tcp':True,'original_reports':report['reports'],
             'central_running_together_with_dns':True,'dns_survived_central_stop':True,

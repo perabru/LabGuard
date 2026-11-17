@@ -13,6 +13,10 @@ Restart=on-failure
 RestartSec=5
 UMask=0077
 NoNewPrivileges=yes
+# O controlador local_dns também é oferecido neste serviço sem executar como
+# root. Conceda somente a capacidade necessária para UDP/TCP 53.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes

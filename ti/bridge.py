@@ -7,7 +7,10 @@ from pathlib import Path
 import sys
 from urllib.request import build_opener, ProxyHandler, HTTPRedirectHandler
 
-CENTRAL_SHA256 = '4693103f63e9265342f77689a160e35dcb52fffdfdc45e8ecd36e0d786f16e88'
+try:
+    from ti._central_integrity import SHA256 as CENTRAL_SHA256
+except ImportError:
+    CENTRAL_SHA256 = ''  # Source-only runs have no compiled administrative payload.
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
@@ -25,7 +28,7 @@ def health(port=8787):
             raw=response.read(4097)
             if len(raw)>4096: raise ValueError()
             value=json.loads(raw)
-        if value.get('ok') is True and value.get('app')=='LabGuardCentral':
+        if isinstance(value,dict) and value.get('ok') is True and value.get('app')=='LabGuardCentral':
             return {'ready':True,'version':str(value.get('version',''))[:24]}
     except (OSError,ValueError,TypeError):
         pass

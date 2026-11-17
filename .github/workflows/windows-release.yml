@@ -17,6 +17,8 @@ on:
       - "requirements-build.txt"
       - "requirements.txt"
       - ".github/workflows/windows-release.yml"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -25,7 +27,7 @@ concurrency:
   group: labguard-release-${{ github.ref }}
   cancel-in-progress: true
 env:
-  LABGUARD_VERSION: "2.4.4"
+  LABGUARD_VERSION: "2.4.5"
 
 jobs:
   test:
@@ -103,7 +105,7 @@ jobs:
       - name: Gerar painel e servidor Windows
         shell: pwsh
         run: ./scripts/build_windows.ps1 -Version $env:LABGUARD_VERSION
-      - name: Validar atualização real isolada da 2.4.3 para a 2.4.4
+      - name: Validar atualização real isolada da 2.4.4 para a 2.4.5
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,7 +113,7 @@ jobs:
         run: |
           $oldDirectory = Join-Path $env:RUNNER_TEMP "LabGuardPreviousRelease"
           New-Item -ItemType Directory -Path $oldDirectory | Out-Null
-          gh release download v2.4.3 --pattern LabGuard-Setup.exe --dir $oldDirectory
+          gh release download v2.4.4 --pattern LabGuard-Setup.exe --dir $oldDirectory
           if ($LASTEXITCODE -ne 0) { throw "Não foi possível obter o instalador anterior para validação." }
           $oldSetup = Join-Path $oldDirectory "LabGuard-Setup.exe"
           $installDir = Join-Path $env:LOCALAPPDATA "LabGuardUpdateSmoke\Installed App"
@@ -265,6 +267,7 @@ jobs:
           retention-days: 30
 
   publish:
+    if: github.event_name != 'pull_request'
     needs: [windows, linux]
     runs-on: ubuntu-22.04
     permissions:
@@ -291,13 +294,11 @@ jobs:
             exit 1
           fi
           cat > /tmp/release-notes.txt <<'EOF'
-          O LabGuard 2.4.4 mantém a edição de rede sem cliente nos alunos e facilita a demonstração dos bloqueios.
+          O LabGuard 2.4.5 mantém o painel de rede e corrige o serviço Linux para permitir o filtro DNS UDP/TCP 53 com usuário dedicado e apenas CAP_NET_BIND_SERVICE.
 
-          A aba Sites reúne os domínios integrados, o banco de cadastros e as regras da conexão. Use a busca e os filtros para selecionar um site e clicar em Bloquear ou Liberar. Ao liberar no filtro local, o cadastro continua visível para bloquear novamente. A tela diferencia bloqueio local, domínio pai, perfil de IA e estado sem confirmação.
+          Os instaladores passam pelas regressões do painel, testes DNS, serviços nativos, abertura gráfica e atualização Windows isolada 2.4.4 para 2.4.5. Preferências e bancos de regras são preservados.
 
-          Em Configurar → 2. Usar nos computadores, o botão Guia e ferramenta IPv6 abre o procedimento para configurar o DNS IPv4 e desabilitar o vínculo IPv6 somente no adaptador escolhido. A ferramenta auxiliar não instala cliente residente e preserva o estado anterior para restauração.
-
-          Os computadores precisam usar o DNS do LabGuard. DNS seguro, VPN, cache e políticas do resolvedor de saída exigem conferência na estação. A validação inclui testes em Windows e Linux e atualização isolada do instalador Windows de 2.4.3 para 2.4.4. Esses ensaios não substituem o teste na rede da escola.
+          Use a edição TI complementar para Central e clientes locais. O filtro DNS de rede continua independente da Central e exige que as estações usem seu endereço DNS. Os ensaios em ambiente isolado não substituem a conferência na rede da escola.
 
           EOF
           gh release create "$tag" ./* --repo "$GH_REPO" --target "$GITHUB_SHA" --title "LabGuard $LABGUARD_VERSION" --notes-file /tmp/release-notes.txt --latest

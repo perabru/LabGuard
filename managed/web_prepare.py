@@ -31,21 +31,21 @@ def panel():
     js=js.replace('Jogos 2.2','Jogos 2.3')
     (A/'app.js').write_text(js,encoding='utf-8')
     with (A/'app.css').open('a',encoding='utf-8') as f:f.write('\n#web-edit-dialog{max-width:560px;width:calc(100vw - 40px);border:1px solid #d5caeb;border-radius:16px;padding:24px}#web-edit-form{display:grid;gap:16px}#web-edit-domains{width:100%;padding:12px;font:inherit}#web-edit-error{color:#a72a3d}.web-domain{overflow-wrap:anywhere}#web-sites-body td{vertical-align:top}#web-sites-body td:last-child{min-width:230px}#web-block-all{white-space:nowrap}\n')
-    p=B/'labguard_tecnico.py';p.write_text(p.read_text(encoding='utf-8').replace('1.1.0','1.2.0'),encoding='utf-8')
+    p=B/'labguard_tecnico.py';p.write_text(p.read_text(encoding='utf-8').replace('1.1.0','1.2.1'),encoding='utf-8')
 
 def games():
-    ps=(D/'Engine.assembled.ps1').read_text(encoding='utf-8-sig').replace('2.2.0','2.3.0')
+    ps=(D/'Engine.assembled.ps1').read_text(encoding='utf-8-sig').replace('2.2.0','2.3.1')
     ps=one(ps,"'ManagedApply')][string]$Mode","'ManagedApply','ManagedWeb')][string]$Mode")
     ps=one(ps,'    Assert-Admin\n    if($Mode',"    Assert-Admin\n    if($Mode -eq 'ManagedWeb'){Apply-CentralSites (ConvertFrom-Json -InputObject $env:LG_APPROVED_FOLDER);exit 0}\n    if($Mode")
     entry="try {\n    if ($Mode -eq 'Test')"
     ps=one(ps,entry,(R/'managed/WebSites.ps1').read_text(encoding='utf-8')+'\n'+entry)
     ps=one(ps,'function Remove-Extensions {\n','function Remove-Extensions {\n    $script:Config|Add-Member -NotePropertyName CentralSiteDomains -NotePropertyValue @() -Force\n')
     (D/'Engine.assembled.ps1').write_text(ps,encoding='utf-8-sig')
-    cs=(D/'LabGuard.assembled.cs').read_text(encoding='utf-8-sig').replace('2.2.0','2.3.0')
+    cs=(D/'LabGuard.assembled.cs').read_text(encoding='utf-8-sig').replace('2.2.0','2.3.1')
     cs=one(cs,'"ManagedApply"};','"ManagedApply","ManagedWeb"};')
     (D/'LabGuard.assembled.cs').write_text(cs,encoding='utf-8-sig')
-    p=D/'Guardian.assembled.cs';p.write_text(p.read_text(encoding='utf-8-sig').replace('2.2.0','2.3.0'),encoding='utf-8-sig')
-    cs=(R/'managed/ManagedClient.cs').read_text(encoding='utf-8').replace('2.2.0','2.3.0').replace('Cliente 2.2','Cliente 2.3')
+    p=D/'Guardian.assembled.cs';p.write_text(p.read_text(encoding='utf-8-sig').replace('2.2.0','2.3.1'),encoding='utf-8-sig')
+    cs=(R/'managed/ManagedClient.cs').read_text(encoding='utf-8').replace('2.2.0','2.3.1').replace('Cliente 2.2','Cliente 2.3')
     cs=cs.replace('"/api/agent/telemetry"','"/api/agent/telemetry-web"')
     cs=one(cs,'if(Program.Get(info,"managed_protocol")!="1")','if(Program.Get(info,"managed_protocol")!="1"||Program.Get(info,"web_protocol")!="1")')
     cs=one(cs,'        string priorGuard="",priorClean="";','        string priorGuard="",priorClean="";DateTime nextWebCheck=DateTime.MinValue;')
@@ -73,4 +73,4 @@ def games():
 if __name__=='__main__':
     panel()
     if '--panel-only' not in sys.argv:games()
-    print('Prepared Client 2.3 / Central 1.2 quick website catalog.')
+    print('Prepared Client 2.3.1 / Central 1.2.1 quick website catalog.')

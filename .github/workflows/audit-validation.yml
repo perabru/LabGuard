@@ -1,0 +1,105 @@
+name: Validar correcoes LabGuard sem publicar
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: labguard-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  automatic:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Compilar e verificar cliente, Central e recuperacao de atualizacao
+        shell: powershell
+        run: ./automatic/build.ps1
+      - name: Preservar pacotes e diagnosticos para revisao
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Automatico-2.5.1-revisao
+          path: |
+            automatic/dist/*
+            managed/dist/VERIFICACAO.txt
+            automatic/build/install-*.txt
+          if-no-files-found: warn
+
+  ti:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Compilar TI e testar atualizacao preservando bancos e DNS
+        shell: powershell
+        run: ./ti/build.ps1
+      - name: Preservar instalador e comprovacoes para revisao
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-TI-2.4.6-revisao
+          path: ti/dist/*
+          if-no-files-found: warn
+
+  uninstaller:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Verificar restauracao de regras e compilar desinstalador
+        shell: powershell
+        run: ./uninstaller/build.ps1
+      - name: Preservar desinstalador e verificacoes para revisao
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Desinstalador-1.0.1-revisao
+          path: uninstaller/dist/*
+          if-no-files-found: warn
+
+  website:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Conferir links, versoes e scripts do site
+        run: |
+          python website/prepare_downloads.py
+          node --check website/script.js
+      - name: Preservar site completo para revisao
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabGuard-Site-Manual-revisao
+          path: website
+          if-no-files-found: error

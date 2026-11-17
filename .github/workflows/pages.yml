@@ -23,13 +23,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
-      - name: Preparar escolha estática dos downloads
+      - name: Validar páginas, links e downloads estáticos
         run: |
           python3 website/prepare_downloads.py
           test -s website/downloads/index.html
           test -s website/downloads/downloads.css
           grep -q 'managed-downloads-ready' website/index.html
           node --check website/script.js
+      - name: Verificar gate de downloads sem acesso à rede
+        run: python3 -m unittest discover -s website -p "test_verify_release_assets.py" -v
+      - name: Aguardar todos os executáveis e arquivos publicados
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 website/verify_release_assets.py --wait-seconds 1200
       - name: Preparar Pages
         uses: actions/configure-pages@v5
       - name: Conferir página principal

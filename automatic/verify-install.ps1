@@ -70,10 +70,31 @@ try{
     if($LASTEXITCODE -ne 0){throw 'Synthetic game could not compile.'}
     $process=Start-Process -FilePath $fixture -PassThru
     Verify ($process.WaitForExit(15000)) 'Installed SYSTEM monitor closes a real synthetic game window'
+    # Hold the installed executable open without write sharing to force an actual
+    # replacement failure after the old monitor and cleanup have been paused.
+    # The old binary/policy must still work after this interrupted upgrade.
+    $installedExe=Join-Path $base 'LabGuard-Jogos.exe'
+    $beforeFailedUpgrade=(Get-FileHash -LiteralPath $installedExe -Algorithm SHA256).Hash
+    $locked=[IO.File]::Open($installedExe,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+    try{
+        $failed=Start-Process -FilePath $exe -ArgumentList '--install-auto --accept-policy' -PassThru
+        if(-not $failed.WaitForExit(360000)){Stop-Process -Id $failed.Id -Force;throw 'Interrupted upgrade test timed out.'}
+        Verify ($failed.ExitCode -ne 0) 'Locked executable reports upgrade failure instead of success'
+    }finally{$locked.Dispose()}
+    Verify ((Get-FileHash -LiteralPath $installedExe -Algorithm SHA256).Hash -eq $beforeFailedUpgrade) 'Failed replacement preserves the installed binary'
+    $recovered=Get-Content (Join-Path $base 'config.json') -Raw|ConvertFrom-Json
+    Verify ($recovered.Enabled -and $recovered.AutoCloseGames -and $recovered.BlockYouTube) 'Failed upgrade restores the previous local policy'
+    Verify ((Get-ScheduledTask -TaskName $tasks[0]).State -ne 'Disabled') 'Failed upgrade restores the cleanup schedule'
+    $until=[DateTime]::UtcNow.AddSeconds(25)
+    do{
+        Start-Sleep -Seconds 1
+        $restoredGuard=Get-ScheduledTask -TaskName $tasks[1]
+    }while($restoredGuard.State -ne 'Running' -and [DateTime]::UtcNow -lt $until)
+    Verify ($restoredGuard.State -eq 'Running') 'Failed upgrade restarts the existing monitor'
     Install-Actual
     Verify ((Get-Content (Join-Path $data 'install-status.json') -Raw|ConvertFrom-Json).state -eq 'ready') 'Second install updates/repairs without manual pausing or enrollment'
     Verify ((Get-Content (Join-Path $work 'school-work.txt') -Raw) -eq 'PRESERVE SCHOOL DOCUMENT') 'School document remains after repair'
-    @('AUTOMATIC CLIENT 2.5 - REAL WINDOWS INSTALLATION TEST',('UTC: '+[DateTime]::UtcNow.ToString('o')),'Disposable Windows Server 2022 runner; removal and closure assertions used synthetic game/document fixtures.','')+@($passed.ToArray())|Set-Content (Join-Path $PSScriptRoot 'dist\TESTE_INSTALACAO.txt') -Encoding UTF8
+    @('AUTOMATIC CLIENT 2.5.1 - REAL WINDOWS INSTALLATION TEST',('UTC: '+[DateTime]::UtcNow.ToString('o')),'Disposable Windows Server 2022 runner; removal and closure assertions used synthetic game/document fixtures.','')+@($passed.ToArray())|Set-Content (Join-Path $PSScriptRoot 'dist\TESTE_INSTALACAO.txt') -Encoding UTF8
 }finally{
     try{Diagnostics}catch{Write-Host ('Diagnostics unavailable: '+$_.Exception.Message)}
     foreach($name in $tasks){Disable-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue|Out-Null;Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue;Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue}

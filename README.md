@@ -1,4 +1,18 @@
-# LabGuard 2.4.4
+# LabGuard
+
+| Componente desta revisão | Versão | Destino |
+|---|---|---|
+| Filtro completo com extensão TI | 2.4.6 | PC da TI |
+| Cliente Automático | 2.5.1 | Cada estação Windows |
+| Central de clientes e avisos | 1.2.1 | PC administrador |
+| Desinstalador | 1.0.1 | PC a retirar do sistema |
+| Edição de rede e servidores | 2.4.5 | TI / servidor Windows ou Linux |
+
+[Downloads oficiais](https://perabru.github.io/LabGuard/downloads/) · [Manual unificado](docs/MANUAL_ATUAL.md) · [Manual PDF](docs/Manual_LabGuard_Atual.pdf)
+
+Esta revisão corrige a recuperação de uma atualização interrompida, a restauração dos bloqueios de navegador na desinstalação, a confirmação de proteção pela Central, o canal de atualização da edição TI e a permissão de porta 53 no serviço Linux. Os fluxos de revisão compilam e testam os pacotes sem publicar versões nem alterar o site em produção.
+
+## Edição de rede publicada anteriormente
 
 **Edição de rede, administrada pelo técnico, sem instalar o LabGuard nos computadores dos alunos.** O painel 2.4.4 e seu filtro DNS rodam no PC da TI. As estações usam o IP desse computador como DNS, distribuído pelo DHCP/LAN do roteador quando disponível ou configurado no Windows. O Vivo e o switch Mercusys simples continuam no lugar.
 

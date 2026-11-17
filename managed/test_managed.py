@@ -57,6 +57,39 @@ class ManagedTests(unittest.TestCase):
         managed=ManagedStore(second,clock=lambda:self.now);managed.ensure()
         self.assertEqual(managed.snapshot()['site_policy']['domains'],['school.example'])
         self.assertTrue(managed.state()['managed_policy']['close_games'])
+    def test_current_revision_does_not_hide_unconfirmed_protection(self):
+        for patch in ({'guard': 'unknown'}, {'guard': 'paused'},
+                      {'cleanup': 'unknown'}, {'cleanup': 'pending'},
+                      {'youtube': 'unknown'}, {'youtube': 'allowed'}):
+            with self.subTest(patch=patch):
+                body = self.report()
+                body.update(patch)
+                self.store.telemetry(self.d['device_token'], body)
+                state = self.store.state()
+                self.assertEqual(state['devices'][0]['status'], 'pending')
+                self.assertEqual(state['counts']['online'], 0)
+        self.store.telemetry(self.d['device_token'], self.report())
+        self.assertEqual(self.store.state()['devices'][0]['status'], 'online')
+
+    def test_paused_policy_confirms_without_running_cleanup(self):
+        self.store.set_managed_policy(dict(expected_revision=1, cleanup_enabled=False,
+                                          close_games=True, block_youtube=False))
+        body = self.report()
+        body.update(applied_revision=2, guard='paused', cleanup='unknown', youtube='allowed')
+        self.store.telemetry(self.d['device_token'], body)
+        self.assertEqual(self.store.state()['devices'][0]['status'], 'online')
+        body['guard'] = 'active'
+        self.store.telemetry(self.d['device_token'], body)
+        self.assertEqual(self.store.state()['devices'][0]['status'], 'pending')
+
+    def test_game_closing_can_pause_while_cleanup_remains_confirmed(self):
+        self.store.set_managed_policy(dict(expected_revision=1, cleanup_enabled=True,
+                                          close_games=False, block_youtube=True))
+        body = self.report()
+        body.update(applied_revision=2, guard='paused')
+        self.store.telemetry(self.d['device_token'], body)
+        self.assertEqual(self.store.state()['devices'][0]['status'], 'online')
+
     def test_retention(self):
         self.store.telemetry(self.d['device_token'],self.report());self.now+=8*86400
         self.assertFalse(any(a['kind']=='game_closed' for a in self.store.state()['alerts']))

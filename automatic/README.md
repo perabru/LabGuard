@@ -1,4 +1,4 @@
-# LabGuard Automático 2.5 — cliente Windows + Central 1.2 opcional
+# LabGuard Automático 2.5.1 — cliente Windows + Central 1.2.1 opcional
 
 ## Começar no PC do aluno
 
@@ -22,7 +22,7 @@ A rotina também identifica launchers conhecidos (como Steam, Epic, Battle.net, 
 
 ## Painel opcional no administrador
 
-Para receber avisos e alterar regras remotamente, use **LabGuardTecnico.exe (Central 1.2)** no PC administrador. Quem já tem a Central 1.2 não precisa reinstalá-la só para usar o Cliente 2.5.
+Para receber avisos e alterar regras remotamente, use **LabGuardTecnico.exe (Central 1.2.1)** no PC administrador. Quem já tem a Central 1.2.1 não precisa reinstalá-la só para usar o Cliente 2.5.
 
 1. Primeira Central: abra o EXE, informe IP real/reservado, rede autorizada e senha. Central anterior: use **Instalar / reparar**. O painel é local em `http://127.0.0.1:8787/`.
 2. Gere um JSON individual em **Computadores → Vincular computador**. Cada vínculo serve para uma estação e expira em uma hora.

@@ -1,4 +1,4 @@
-"""Assemble automatic 2.5 on top of the tested managed 2.3 engine, without replacing the network edition."""
+"""Assemble automatic 2.5.1 on top of the tested managed 2.3 engine, without replacing the network edition."""
 from pathlib import Path
 import sys
 import ast
@@ -27,14 +27,14 @@ domains=sorted(d for d in combined if not any(d==q or d.endswith('.'+q) for q in
 assert len(client)==831 and 800 <= len(domains) <= 900, 'Catalog counts require review before deployment'
 assert all(re.fullmatch(r'[a-z0-9](?:[a-z0-9.-]{0,251})\.[a-z]{2,}',d) for d in domains), 'Unexpected domain'
 payload='@('+','.join("'"+d+"'" for d in domains)+')'
-(O/'CATALOGO_COMPLETO.json').write_text(json.dumps({'version':'2.5.0','source_rows':len(client),
+(O/'CATALOGO_COMPLETO.json').write_text(json.dumps({'version':'2.5.1','source_rows':len(client),
     'categories':{c:sum(x[1]==c for x in client) for c in sorted({x[1] for x in client})},
     'full_catalog_browsers':len(domains),'dynamic_quick_sites':sorted(quick),
     'all_sites':domains},ensure_ascii=False,indent=2),encoding='utf-8')
 catalog=(R/'automatic/FullCatalog.ps1').read_text(encoding='utf-8')
 assert catalog.count('__FULL_CATALOG__')==1
 catalog=catalog.replace('__FULL_CATALOG__',payload)
-ps=(D/'Engine.assembled.ps1').read_text(encoding='utf-8-sig').replace('2.3.0','2.5.0')
+ps=(D/'Engine.assembled.ps1').read_text(encoding='utf-8-sig').replace('2.3.1','2.5.1')
 ps=one(ps,"'ManagedWeb')][string]$Mode","'ManagedWeb','InstallHealth')][string]$Mode")
 entry="try {\n    if ($Mode -eq 'Test')"
 helpers=(R/'automatic/Automatic.ps1').read_text(encoding='utf-8')+'\n'+catalog+'\n'+(R/'automatic/PortablePass.ps1').read_text(encoding='utf-8')
@@ -56,9 +56,10 @@ ps=one(ps,"    Assert-Admin\n    if($Mode -eq 'ManagedWeb')","    Assert-Admin\n
 ps=one(ps,'Read-Config; $script:Config.Enabled=$true; $script:Config.Screenshots=$false; Write-Config','Initialize-AutomaticPolicy')
 ps=one(ps,'Install-Extensions; Start-ScheduledTask -TaskName $TaskName','Install-Extensions; if($script:Config.Enabled){Start-ScheduledTask -TaskName $TaskName}else{Disable-ScheduledTask -TaskName $TaskName|Out-Null}')
 ps=one(ps,"        Log 'INSTALADO' 'Tarefa SYSTEM no inicio, login e a cada 5 minutos; painel visivel no login. Capturas desligadas por padrao.'; exit 0","        Log 'INSTALADO' 'Rotinas locais registradas. Conferindo atividade e bloqueios; capturas desligadas.'; if($script:Failures -gt 0){exit 2};exit 0")
+ps=one(ps,"} catch { Log 'FALHA' $_.Exception.Message;", "} catch { $installError=$_.Exception.Message;if($Mode -eq 'Install'){try{Restore-AutomaticUpgrade}catch{Log 'FALHA' ('Recuperacao da instalacao anterior: '+$_.Exception.Message)}};Log 'FALHA' $installError;")
 ps=ps.replace("UninstallString=('\"'+$Exe+'\" --admin')","UninstallString=('\"'+$Exe+'\" --do Uninstall')")
 (O/'Engine.ps1').write_text(ps,encoding='utf-8-sig')
-cs=(D/'LabGuard.assembled.cs').read_text(encoding='utf-8-sig').replace('2.3.0','2.5.0')
+cs=(D/'LabGuard.assembled.cs').read_text(encoding='utf-8-sig').replace('2.3.1','2.5.1')
 cs=one(cs,'"ManagedWeb"};','"ManagedWeb","InstallHealth"};')
 cs=one(cs,'            if(args.Length>0&&args[0]=="--central-self-test")', '''            if(args.Length==2&&args[0]=="--install-auto"&&args[1]=="--accept-policy")return AutomaticInstaller.Run(delegate(string text){});
             if(args.Length>0&&args[0]=="--central-self-test")''')
@@ -71,9 +72,9 @@ cs=one(cs,'            info.EnvironmentVariables["LG_SOURCE_EXE"]=', '''        
             info.EnvironmentVariables["PSModulePath"]=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"WindowsPowerShell\\\\v1.0\\\\Modules");
             info.EnvironmentVariables["LG_SOURCE_EXE"]=''')
 (O/'Program.cs').write_text(cs,encoding='utf-8-sig')
-guard=(D/'Guardian.assembled.cs').read_text(encoding='utf-8-sig').replace('2.3.0','2.5.0')
+guard=(D/'Guardian.assembled.cs').read_text(encoding='utf-8-sig').replace('2.3.1','2.5.1')
 guard=one(guard,'|EpicGamesLauncher|','|EpicGamesLauncher|EADesktop|EALauncher|Battle.net|UbisoftConnect|upc|GalaxyClient|GalaxyClientService|RiotClientServices|RiotClientUx|RockstarGamesLauncher|Amazon Games|Heroic|Playnite.DesktopApp|HoYoPlay|')
 (O/'Guardian.cs').write_text(guard,encoding='utf-8-sig')
-client=(B/'ManagedClient.cs').read_text(encoding='utf-8-sig').replace('2.3.0','2.5.0').replace('Cliente 2.3','Cliente 2.5')
+client=(B/'ManagedClient.cs').read_text(encoding='utf-8-sig').replace('2.3.1','2.5.1').replace('Cliente 2.3','Cliente 2.5.1')
 (O/'CentralLink.cs').write_text(client,encoding='utf-8-sig')
-print(f'Automatic client 2.5 assembled: {len(domains)} packaged domains + dynamic quick sites. Central 1.2 retained.')
+print(f'Automatic client 2.5.1 assembled: {len(domains)} packaged domains + dynamic quick sites. Central 1.2.1 retained.')

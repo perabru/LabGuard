@@ -418,10 +418,16 @@ def panel_url(directory):
 
 def is_ready(directory):
     try:
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs):
+                raise OSError("Redirecionamento da Central recusado.")
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
         with opener.open(panel_url(directory) + "healthz", timeout=1) as response:
-            result = json.load(response)
-        return result.get("ok") is True and result.get("app") == TASK
+            raw = response.read(4097)
+            if len(raw) > 4096:
+                return False
+            result = json.loads(raw)
+        return isinstance(result, dict) and result.get("ok") is True and result.get("app") == TASK
     except (OSError, ValueError):
         return False
 

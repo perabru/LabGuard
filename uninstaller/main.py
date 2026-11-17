@@ -18,7 +18,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 APP_DIRS = ('LabGuard', 'LabGuardJogos', 'LabGuardJogos2', 'LabGuardCliente', 'LabGuardCentral', 'LabGuardServer')
 EXES = {'labguard.exe', 'labguard-jogos.exe', 'labguardcliente.exe', 'labguardtecnico.exe', 'labguardserver.exe'}
 TASKS = {'LabGuard-RemoverJogos', 'LabGuard-Jogos2-Limpeza', 'LabGuard-Jogos2-Monitor', 'LabGuardCliente', 'LabGuardCentral'}
@@ -124,6 +124,36 @@ def atomic_bytes(path: Path, expected: bytes, desired: bytes):
             os.replace(temp_name, path)
     finally:
         Path(temp_name).unlink(missing_ok=True)
+
+
+def full_catalog_state(records, browser):
+    """Translate the automatic client's journal into the audited browser restorer."""
+    if isinstance(records, dict):
+        records = [records]
+    if records is None:
+        records = []
+    if not isinstance(records, list) or len(records) > 1000:
+        raise ValueError('Registro do catalogo completo invalido.')
+    owned = {}
+    for row in records:
+        if (not isinstance(row, dict) or set(row) != {'Name', 'Value'}
+                or not isinstance(row['Name'], str)
+                or not re.fullmatch(r'[1-9][0-9]{0,2}|1000', row['Name'])
+                or not isinstance(row['Value'], str) or len(row['Value']) > 300
+                or row['Name'] in owned):
+            raise ValueError('Regra do catalogo completo fora do escopo permitido.')
+        value = row['Value']
+        domain = value
+        if browser == 'Firefox':
+            if not value.startswith('*://*.') or not value.endswith('/*'):
+                raise ValueError('Regra Firefox do catalogo completo invalida.')
+            domain = value[6:-2]
+        if (len(domain) > 253 or not re.fullmatch(r'[a-z0-9.-]+\.[a-z]{2,}', domain)
+                or any(not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', part)
+                       for part in domain.split('.'))):
+            raise ValueError('Dominio do catalogo completo invalido.')
+        owned[row['Name']] = value
+    return {'sites': {browser: {'block': {'owned': owned}}}}
 
 
 def known_folder(number: int) -> Path:
@@ -360,6 +390,41 @@ class Cleaner:
                 raise RuntimeError(result.get('message','DNS nao restaurado.'))
         self.attempt('Restaurar DNS configurado pelo painel da estacao',station)
 
+    def restore_full_catalog(self):
+        """Restore 2.5+ rules before their ownership journals can be deleted."""
+        import _vendor_labguard_cliente as old
+        for entry in self.roots:
+            path = Path(entry['path'])
+            if path.name.casefold() != 'labguardjogos2':
+                continue
+            for label, browser in (('chrome', 'Chrome'), ('edge', 'Edge'), ('firefox', 'Firefox')):
+                journal = path / ('fullcatalog-owned-' + label + '.json')
+                recovery = path / ('fullcatalog-restore-' + label + '.json')
+                if not journal.exists() and not recovery.exists():
+                    continue
+                def restore(journal=journal, recovery=recovery, browser=browser):
+                    no_links(path)
+                    old._lc_acl(path)
+                    for state_file in (journal, recovery):
+                        if state_file.exists():
+                            old._lc_guard_file(state_file)
+                    if recovery.exists():
+                        state = read_json(recovery, 1024 * 1024)
+                        if not isinstance(state, dict) or set(state) != {'sites'} or not isinstance(state['sites'], dict) or set(state['sites']) - {browser}:
+                            raise ValueError('Registro de recuperacao do catalogo invalido.')
+                    else:
+                        state = full_catalog_state(read_json(journal, 262144), browser)
+                    # The richer checkpoint also records a pending Firefox slot-1
+                    # replacement, so interruption never loses restoration ownership.
+                    persist = lambda: old._atomic_json(recovery, state)
+                    persist()
+                    result = old.undo_sites(state, checkpoint=persist)
+                    if not result.get('ok'):
+                        raise RuntimeError('Restauracao do catalogo incompleta; registros preservados para nova tentativa.')
+                    old._atomic_json(journal, [])
+                    recovery.unlink()
+                self.attempt('Retirar catalogo completo do ' + browser, restore, path)
+
     def stop_config(self):
         import _vendor_labguard_cliente as old
         for entry in self.roots:
@@ -393,6 +458,7 @@ class Cleaner:
             self.log(item['message'],not item['ok'])
         self.restore_client()
         self.restore_youtube()
+        self.restore_full_catalog()
         self.restore_dns()
         result=self.attempt('Remover somente regras locais de firewall do LabGuard',lambda:operations('Firewall',{'roots':self.roots}))
         for item in result or []:

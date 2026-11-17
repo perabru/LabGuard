@@ -1,2 +1,2 @@
-"""Additive TI interface; the original network/filter implementation is unchanged."""
-VERSION = '2.4.5'
+"""Additive TI interface; the maintained original network/filter interface."""
+VERSION = '2.4.6'

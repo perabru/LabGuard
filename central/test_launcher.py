@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import unittest
 from unittest.mock import patch
 
@@ -80,6 +82,31 @@ class LifecycleFilesTests(unittest.TestCase):
 
 
 class ListenerProbeTests(unittest.TestCase):
+    def test_health_probe_refuses_other_app_large_json_and_redirect(self):
+        class OtherApplication(BaseHTTPRequestHandler):
+            payload=b'null'
+            redirect=False
+            paths=[]
+            def do_GET(self):
+                self.paths.append(self.path)
+                self.send_response(302 if self.redirect else 200)
+                if self.redirect:self.send_header('Location','/other-service')
+                self.end_headers();self.wfile.write(self.payload)
+            def log_message(self,*args):pass
+        server=HTTPServer(('127.0.0.1',0),OtherApplication)
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        try:
+            with patch.object(launcher,'panel_url',return_value='http://127.0.0.1:%d/'%server.server_port):
+                for raw in (b'null',b'[]',b'1',b'"other service"',b'{"ok":true,"app":"Other"}',b' '*4097):
+                    OtherApplication.payload=raw
+                    self.assertFalse(launcher.is_ready(Path('.')))
+                OtherApplication.payload=b'{"ok":true,"app":"LabGuardCentral"}'
+                self.assertTrue(launcher.is_ready(Path('.')))
+                OtherApplication.redirect=True
+                self.assertFalse(launcher.is_ready(Path('.')))
+                self.assertNotIn('/other-service',OtherApplication.paths)
+        finally:
+            server.shutdown();server.server_close();thread.join(timeout=3)
     def test_real_os_requires_both_listeners_closed(self):
         # Deliberately runs on Windows too: a short connect timeout can expire
         # before Winsock reports a genuinely closed loopback port.

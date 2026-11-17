@@ -1,4 +1,4 @@
-# LabGuard — Desinstalador Windows 1.0.0
+# LabGuard — Desinstalador Windows 1.0.1
 
 Executável independente para remover as instalações Windows conhecidas do LabGuard neste computador. Não precisa de Python instalado. Requer Windows 10/11 x64 e a autorização normal de administrador do Windows (UAC).
 
@@ -22,7 +22,7 @@ Execute em cada computador que deve deixar de usar o LabGuard. No computador que
 
 ## Restauração de sites e rede
 
-As regras do YouTube e do Cliente são retiradas somente quando o registro de propriedade corresponde à regra atual. Entradas criadas ou modificadas por outros administradores são preservadas. No Firefox, a primeira posição necessária à leitura de regras externas é preservada. O hosts mantém as entradas externas; o bloco do Cliente usa sua assinatura de integridade original.
+O catálogo completo do Cliente Automático 2.5, as regras do YouTube e as regras do Cliente são retiradas somente quando o registro de propriedade corresponde à regra atual. Entradas criadas ou modificadas por outros administradores são preservadas. No Firefox, a primeira posição necessária à leitura de regras externas é preservada. A remoção do catálogo completo usa um registro de recuperação próprio por navegador; se houver falha, esses dados são mantidos para que a próxima execução possa concluir a restauração. O hosts mantém as entradas externas; o bloco do Cliente usa sua assinatura de integridade original.
 
 DNS e IPv6 são restaurados pelos registros `NetworkDNS` e `StationDNS` do LabGuard, quando válidos e compatíveis com o estado atual. **Não se escolhe um DNS público nem se força DHCP/IPv6 em todos os adaptadores.** Mudanças manuais, adaptadores ausentes e conflitos com outras políticas aparecem como pendências.
 
